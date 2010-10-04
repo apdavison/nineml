@@ -12,14 +12,13 @@
 
 # EM: Added floats funcs, collect names and funcs instead of eval'ing.
 
+# This is a conditional parser
 
 
 import ply.lex as lex
 import ply.yacc as yacc
 import os
-
-class NineMLMathParseError(ValueError):
-    pass
+from nineml.expr_parse import NineMLMathParseError
 
 
 class Parser(object):
@@ -61,17 +60,22 @@ class Parser(object):
 class Calc(Parser):
 
     tokens = (
-        'NAME','NUMBER',
+        'NAME','NUMBER','CONDITIONAL','NOT','LOGICAL',
         'PLUS','MINUS','EXP', 'TIMES','DIVIDE',
-        'LPAREN','RPAREN','LFUNC', 'COMMA'
+        'LPAREN','RPAREN','LFUNC', 'COMMA', 'TRUE', 'FALSE'
         )
 
     # Tokens
 
     t_PLUS    = r'\+'
+    t_TRUE    = r'true'
+    t_FALSE    = r'false'
     t_MINUS   = r'-'
     t_EXP     = r'\*\*'
     t_TIMES   = r'\*'
+    t_CONDITIONAL   = r'(>)|(<)|(<=)|(>=)|(==)|(!=)'
+    t_LOGICAL = r'(&&)|(\|\|)'
+    t_NOT = r'\!'
     t_DIVIDE  = r'/'
     t_LPAREN  = r'\('
     t_RPAREN  = r'\)'
@@ -99,11 +103,51 @@ class Calc(Parser):
         ('left','TIMES','DIVIDE'),
         ('left', 'EXP'),
         ('right','UMINUS'),
+        ('right','UNOT'),
+        ('left','NOT'),
         ('left','LFUNC'),
+        ('right','TRUE','FALSE'),
         )
 
     def p_statement_expr(self, p):
-        'statement : expression'
+        'statement : boolean'
+        pass
+
+
+    def p_func(self,p):
+        """expression : LFUNC expression RPAREN\n | LFUNC RPAREN
+                        | LFUNC expression COMMA expression RPAREN
+                        | LFUNC expression COMMA expression COMMA expression RPAREN
+        """
+        # EM: Supports up to 3 args.  Don't know how to support N.
+        
+        self.funcs.append(p[1][:-1].strip())
+
+
+    def p_boolean_true(self, p):
+        "boolean : TRUE"
+        pass
+
+    def p_boolean_false(self, p):
+        "boolean : FALSE"
+        pass
+
+
+    def p_boolean_not(self, p):
+        'boolean : NOT boolean %prec UNOT'
+        pass
+
+
+    def p_boolean_conditional(self, p):
+        'boolean : expression CONDITIONAL expression'
+        pass
+
+    def p_boolean_logical(self, p):
+        'boolean : boolean LOGICAL boolean'
+        pass
+
+    def p_boolean_group(self, p):
+        'boolean : LPAREN boolean RPAREN'
         pass
 
     def p_expression_binop(self, p):
@@ -119,15 +163,6 @@ class Calc(Parser):
     def p_expression_uminus(self, p):
         'expression : MINUS expression %prec UMINUS'
         pass
-
-    def p_func(self,p):
-        """expression : LFUNC expression RPAREN\n | LFUNC RPAREN
-                        | LFUNC expression COMMA expression RPAREN
-                        | LFUNC expression COMMA expression COMMA expression RPAREN
-        """
-        # EM: Supports up to 3 args.  Don't know how to support N.
-        
-        self.funcs.append(p[1][:-1].strip())
 
     def p_expression_group(self, p):
         'expression : LPAREN expression RPAREN'
@@ -148,14 +183,14 @@ class Calc(Parser):
             raise NineMLMathParseError, "Syntax error at EOF, probably unmatched parenthesis."
 
 
-def expr_parse(rhs):
-    """ Parses an expression rhs, i.e. no "=, +=, -=, etc." in the expr
+def cond_parse(conditional):
+    """ Parses a conditinal expression 
     and returns var names and func names as sets """
 
     calc = Calc()
-    return calc.parse(rhs)
+    return calc.parse(conditional)
     
 if __name__ == '__main__':
     calc = Calc()
-    p = calc.parse("1 / (( 1 + mg_conc * eta *  exp ( -1 * gamma*V))")
+    p = calc.parse("q > 1 / (( 1 + mg_conc * eta *  exp ( -1 * gamma*V))")
     print p

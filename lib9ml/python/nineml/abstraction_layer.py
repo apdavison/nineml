@@ -15,7 +15,7 @@ import re
 import copy
 
 from nineml.cache_decorator import cache_decorator as cache
-
+from nineml import math_namespace
 
 
 MATHML = "{http://www.w3.org/1998/Math/MathML}"
@@ -79,6 +79,10 @@ class Binding(RegimeElement):
         self.name = name
         self.value = value
 
+    @property
+    def rhs(self):
+        return self.value
+
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
@@ -88,6 +92,9 @@ class Binding(RegimeElement):
         return E(self.element_name,
                  E("math-inline", self.value),
                  name=self.name)
+
+    def as_expr(self):
+        return "%s := %s" % (self.name, self.value)
 
     @classmethod
     def from_xml(cls, element):
@@ -720,11 +727,11 @@ class Transition(object):
             assignment = None
         return cls(from_=from_, to=to, condition=condition, assignment=assignment, name=name)
 
-
 class Component(object):
     element_name = "component"
     
-    def __init__(self, name, parameters = [], regimes = [], transitions = [], ports = [], bindings=[]):
+    def __init__(self, name, parameters = [], regimes = [], transitions = [],
+                 ports = [], bindings=[]):
         """
         Regime graph should not be edited after contructing a component
 
@@ -735,21 +742,23 @@ class Component(object):
         _transition_map} by prefixing with "_".
 
         We should do some privatizing for regimes, transitions, or do a deepcopy here.
-        We could make regimes and transitions tuples, and expose only read-only apis in Regime and Transition
-        class.  Then the _map could be made a sort of ImmutableDict.
+        We could make regimes and transitions tuples, and expose only read-only apis in
+        Regime and Transition class.  Then the _map could be made a sort of ImmutableDict.
         *END TODO*
 
 
         Specifying Regimes & Transitions
         --------------------------------
 
-        The user passed 'regimes' and 'transitions' should contain true objects, i.e. they may not contain References. 
+        The user passed 'regimes' and 'transitions' should contain true objects, i.e.
+        they may not contain References. 
         
         Options to the user:
         
         1) provide both 'regimes' and 'transitions' (references will be resolved)
         2) provide 'regimes' only (in which case there must be no unresolved references),
-        3) provide 'transitions' only (in which case there must be at least one transition in the model, and no unresolved references),
+        3) provide 'transitions' only (in which case there must be at least
+           one transition in the model, and no unresolved references),
 
 
         """
@@ -759,8 +768,8 @@ class Component(object):
 
         # check for empty component, we do not support inplace building of a component.
         if not regimes and not transitions:
-            raise ValueError, "Component constructor needs at least 'regimes' or 'transitions' to build component graph."
-
+            raise ValueError, "Component constructor needs at least 'regimes'"+\
+                  "or 'transitions' to build component graph."
 
         # add to transitions from regimes
         # get only true transition objects (not references) from regimes
@@ -769,8 +778,9 @@ class Component(object):
         # model with no transitions is indeed allowed.
 
         trans_refs = [t for t in transitions if isinstance(t,Reference)]
-        assert not trans_refs, "Component constructor: kwarg 'transitions' may not contain references."
-        
+        assert not trans_refs, "Component constructor: kwarg 'transitions' may not"+\
+               "contain references."
+
         transitions = set(transitions)
         transitions.update(trans_objects)
 
@@ -780,17 +790,14 @@ class Component(object):
         regime_objects = [r for t in transitions for r in (t.to,t.from_) if isinstance(r,Regime)]
 
         if not regimes:
-            assert regime_objects, "Cannot build regime set: User supplied only Transitions to Component constructor,"+\
-                   "but all 'to','from_' attributes are references!"
+            assert regime_objects, "Cannot build regime set: User supplied only Transitions "+\
+                   "to Component constructor, but all 'to','from_' attributes are references!"
         regime_refs = [r for r in regimes if isinstance(r,Reference)]
         assert not regime_refs, "Component constructor: kwarg 'regimes' may not contain references."
 
         regimes = set(regimes)
         regimes.update(regime_objects)
 
-
-
-        
         # build regime map
         self.regime_map = {}
         for r in regimes:
@@ -809,15 +816,17 @@ class Component(object):
         self.regimes = set(regimes)
         self.transitions = set(transitions)
 
-        # We have extracted all implicit knowledge of graph members, proceed to resolve references.
+        # We have extracted all implicit knowledge of graph members, proceed to
+        # resolve references.
         self.resolve_references()
 
 
         # check that there is an island regime only if there is only 1 regime
-        island_regimes = set([r for r in self.regimes if not r.transitions and not self.get_regimes_to(r)])
+        island_regimes = set([r for r in self.regimes if not r.transitions and \
+                              not self.get_regimes_to(r)])
         if island_regimes:
-            assert len(self.regimes)==1, "User Error: Component contains island regimes and more than one regime."
-
+            assert len(self.regimes)==1, "User Error: Component contains island regimes"+\
+                   "and more than one regime."
       
         # Allow strings for bindings, map using expr_to_obj
         # Eliminate duplicates
@@ -825,7 +834,18 @@ class Component(object):
         for b in bindings:
             assert isinstance(b, Binding), "Received invalid binding."
         self.bindings = bindings
-        
+
+        # check bindings only have static parameters and functions on rhs
+        self.check_binding_expressions()
+
+        # check we aren't redefining math symbols (like e,pi)
+        self.check_non_parameter_symbols()
+
+        if self.parameters:
+            if self.user_parameters!=set(self.parameters):
+                raise ValueError, "Declared parameter list does not match actual parameter list."
+        else:
+            self.parameters = self.user_parameters
         self.ports = ports
         # we should check that parameters is correct
         # even better, we could auto-generate parameters
@@ -835,8 +855,6 @@ class Component(object):
         
         return [t.from_ for t in self.transitions if t.to==regime]
             
-
-
     def resolve_references(self):
         """ Uses self.regimes_map and self.transitions_map to resolve references in self.regimes and self.transitions"""
 
@@ -886,14 +904,21 @@ class Component(object):
         #for transition in self.transitions:
         #    for regime in transition.from_, transition.to:
         for r in self.regimes:
-            for t in r.transitions():
+            for t in r.transitions:
                 if t.assignment:
                     yield transition.assignment
-            for equation in regime.equations():
+            for equation in r.equations():
                 yield equation
 
-    # TODO: func to check that all used funcs are legal
-    
+    @property
+    def conditions(self):
+        """ Returns all conditions """
+        # TODO events
+        for t in self.transitions:
+            yield t.condition
+
+
+
     def check_binding_expressions(self):
         """ Bound symbols (which are static when running the model)
         can depend only on 'user parameters' (which are static when running the model)
@@ -904,16 +929,27 @@ class Component(object):
         params = self.user_parameters
         
         for binding in self.bindings:
-            names, funcs = expr_parse(binding.value)
-            assert binding.name not in names, \
-                   "Binding expression may not self reference."
-            assert params.update(names)==
+            names, funcs = expr_parse(binding.rhs)
+            undef_funcs = funcs.difference(math_namespace.functions)
+            if undef_funcs:
+                funcs.difference(math_namespace.functions)
+                raise ValueError, "In binding '%s', undefined functions: %s" % \
+                      (binding.as_expr(),repr(list(undef_funcs)))
+
+
+            if binding.name in names:
+                raise ValueError, "Binding expression may not self reference."
+            if params.intersection(names)!=names:
+                raise ValueError, "Binding symbols in rhs must be parameters, not variables."
+
+    def check_non_parameter_symbols(self):
+        """ Check that non-parameters symbols are not conflicting
+        with math_namespace symbols """
+        if self.non_parameter_symbols.intersection(math_namespace.symbols)!=set():
+            raise ValueError, "Non-parameters symbols (variables and bound symbols) may "+\
+                  "not redefine math symbols (such as 'e','pi')"
             
                 
-
-            
-
-
 
     @property
     @cache
@@ -925,13 +961,33 @@ class Component(object):
         # parse the math blocks
 
         from nineml.expr_parse import expr_parse
+        from nineml.cond_parse import cond_parse
 
         symbols = set([])
         for e in self.equations:
             names, funcs = expr_parse(e.rhs)
+            undef_funcs = funcs.difference(math_namespace.functions)
+            if undef_funcs:
+                funcs.difference(math_namespace.functions)
+                raise ValueError, "In expression '%s', undefined functions: %s" % \
+                      (e.as_expr(),repr(list(undef_funcs)))
+            
             symbols.update(names)
 
-        return symbols.difference(self.non_parameter_symbols)
+        # now same for conditions
+        for c in self.conditions:
+            names, funcs = cond_parse(c)
+            undef_funcs = funcs.difference(math_namespace.functions)
+            if undef_funcs:
+                funcs.difference(math_namespace.functions)
+                raise ValueError, "In conditional '%s', undefined functions: %s" % \
+                      (c,repr(list(undef_funcs)))
+            
+            symbols.update(names)
+
+
+        symbols = symbols.difference(self.non_parameter_symbols)
+        return symbols.difference(math_namespace.symbols)
                  
     @property
     @cache
@@ -939,12 +995,18 @@ class Component(object):
         """ All bindings, assignment and inplace left-hand-sides, plus X for ODE dX/dt = ... """ 
         # TODO: cache once determined
         symbols = set([])
-        symbols.update(self.integrated_variables)
+        symbols.update(self.variables)
         symbols.update(self.bound_symbols)
+        return symbols
+
+    @property
+    @cache
+    def variables(self):
+        symbols = set([])
+        symbols.update(self.integrated_variables)
         symbols.update(self.assigned_variables)
         symbols.update(self.independent_variables)
         return symbols
-        
 
     @property
     @cache
@@ -956,12 +1018,15 @@ class Component(object):
             statics.add(binding.name)
 
         # check user is not writing to bound variables
-        assert statics.intersection(integrated_variables)==set(),\
-               "Error: user bound symbols which appear on lhs of ODEs"
-        assert statics.intersection(self.assigned_variables)==set(),\
-               "Error: user bound symbols which appear on lhs of Assignments and Inplace OPs"
+        if statics.intersection(self.integrated_variables)!=set():
+            raise ValueError, "Error: user bound symbols which appear on lhs of ODEs"
+        if statics.intersection(self.assigned_variables)!=set():
+            raise ValueError, "Error: user bound symbols which appear on lhs of Assignments"+\
+                  "and Inplace OPs"
         
         return statics
+
+
 
     @property
     @cache

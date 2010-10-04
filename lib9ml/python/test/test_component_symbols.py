@@ -15,7 +15,8 @@ class ComponentSymbolsTestCase(unittest.TestCase):
 
         bound = ['q']
         parameters = ['a','b','c','d','theta']
-        ports = ['Isyn','spike']
+        in_ports = ['Isyn']
+        #out_ports = ['spike']
         state_vars = ["V","U"]
         indep_vars = ["t"]
 
@@ -35,12 +36,16 @@ class ComponentSymbolsTestCase(unittest.TestCase):
             )]
 
 
-        c1 = nineml.Component("Izhikevich", parameters,
+        c1 = nineml.Component("Izhikevich",
                                      regimes = regimes )
 
-        assert c1.
+        print c1.parameters
+        assert c1.parameters == parameters+in_ports
+        assert c1.bound_symbols == bound
+        assert c1.independent_variables == indep_vars
+        assert c1.variables == state_vars+indep_vars
 
-
+        
 
 
 def suite():
