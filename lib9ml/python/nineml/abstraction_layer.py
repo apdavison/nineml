@@ -14,6 +14,9 @@ from nineml import __version__
 import re
 import copy
 
+from nineml.cache_decorator import cache_decorator as cache
+
+
 
 MATHML = "{http://www.w3.org/1998/Math/MathML}"
 nineml_namespace = 'http://nineml.org/9ML/0.1'
@@ -35,6 +38,8 @@ except ImportError:
             result = [x+[y] for x in result for y in pool]
         for prod in result:
             yield tuple(prod)
+
+
 
 
 def dot_escape(s):
@@ -96,13 +101,16 @@ class Equation(RegimeElement):
     pass
 
 class Port(object):
-    pass
+    """ Base class for EventPort and AnalogPort, etc."""
+    def __init__(self,id, mode='r', ):
+        self.id = id
 
-class Event(Port):
+
+class EventPort(Port):
     element_name = "event"
     
-    def __init__(self,id):
-        self.id = id
+    def __init__(self,id, mode='r'):
+        Port.__init__(self, id, mode=mode)
 
 
     def __eq__(self, other):
@@ -128,14 +136,8 @@ class Event(Port):
         return cls(id)
         
 
-SpikeOutputEvent = Event('spike_output')
-SpikeInputEvent = Event('spike_input')
-ClockTic = Event('clock_tic')
-
-
-
-
-
+SpikeOutputEvent = EventPort('spike_output')
+SpikeInputEvent = EventPort('spike_input','w')
 
 
 class ODE(Equation):
@@ -145,16 +147,16 @@ class ODE(Equation):
     element_name = "ode"
     n = 0
     
-    def __init__(self, dependent_variable, bound_variable, rhs, name=None):
+    def __init__(self, dependent_variable, indep_variable, rhs, name=None):
         self.dependent_variable = dependent_variable
-        self.bound_variable = bound_variable
+        self.indep_variable = indep_variable
         self.rhs = rhs
         self.name = name or ("ODE%d" % ODE.n)
         ODE.n += 1
         
     def __repr__(self):
         return "ODE(d%s/d%s = %s)" % (self.dependent_variable,
-                                      self.bound_variable,
+                                      self.indep_variable,
                                       self.rhs)
 
     def __eq__(self, other):
@@ -163,12 +165,12 @@ class ODE(Equation):
 
         return reduce(and_, (self.name == other.name,
                              self.dependent_variable == other.dependent_variable,
-                             self.bound_variable == other.bound_variable,
+                             self.indep_variable == other.indep_variable,
                              self.rhs == other.rhs))
 
     def as_expr(self):
         return "d%s/d%s = %s" % (self.dependent_variable,
-                                 self.bound_variable,
+                                 self.indep_variable,
                                  self.rhs)
 
     def to_xml(self):
@@ -176,14 +178,14 @@ class ODE(Equation):
                  E("math-inline", self.rhs),
                  name=self.name,
                  dependent_variable=self.dependent_variable,
-                 bound_variable = self.bound_variable)
+                 independent_variable = self.indep_variable)
 
     @classmethod
     def from_xml(cls, element):
         assert element.tag == NINEML+cls.element_name
         rhs = element.find(NINEML+"math-inline").text
         return cls(element.get("dependent_variable"),
-                   element.get("bound_variable"),
+                   element.get("independent_variable"),
                    rhs,
                    name=element.get("name"))
     
@@ -192,6 +194,10 @@ class Assignment(Equation):
     element_name = "assignment"
     n = 0
     
+    @property
+    def rhs(self):
+        return self.expr
+
     def __init__(self, to, expr, name=None):
         self.to = to
         self.expr = expr
@@ -235,6 +241,10 @@ class Inplace(Equation):
 
     op = "+="
     
+    @property
+    def rhs(self):
+        return self.expr
+
     def __init__(self, to, op, expr, name=None):
         
         self.to = to
@@ -468,12 +478,31 @@ class Regime(RegimeElement):
         Yields all the equations contained within this Regime or any of its
         children.
         """
+        return self.nodes_filter(lambda x: isinstance(x,Equation))
+
+    def bindings(self):
+        """
+        Yields all the equations contained within this Regime or any of its
+        children.
+        """
+        return self.nodes_filter(lambda x: isinstance(x,Binding))
+
+
+    def nodes_filter(self, filter_func):
+        """
+        Yields all the nodes contained within this Regime or any of its
+        children for which filter_func yields true.
+
+        Example of valid filter_func:
+        filter_func = lambda x: isinstance(x, Equation)
+        
+        """
         for node in self.nodes:
-            if isinstance(node, Equation):
+            if filter_func(node):
                 yield node
             elif isinstance(node, Regime):
-                for eqn in node.equations():
-                    yield eqn
+                for cnode in node.nodes_filter(filter_func):
+                    yield cnode
             else:
                 pass
 
@@ -863,56 +892,107 @@ class Component(object):
             for equation in regime.equations():
                 yield equation
 
-                       
-    #@property
-    #def regimes(self):
-    #    regime_set = set([])
-    #    for transition in self.transitions:
-    #        regime_set.add(transition.from_)
-    #        regime_set.add(transition.to)
-    #    return regime_set
+    # TODO: func to check that all used funcs are legal
+    
+    def check_binding_expressions(self):
+        """ Bound symbols (which are static when running the model)
+        can depend only on 'user parameters' (which are static when running the model)
+
+        This parses the binding rhs expressions to verify this is so.
+        """
+
+        params = self.user_parameters
+        
+        for binding in self.bindings:
+            names, funcs = expr_parse(binding.value)
+            assert binding.name not in names, \
+                   "Binding expression may not self reference."
+            assert params.update(names)==
+            
+                
+
+            
+
+
 
     @property
-    def fixed_parameters(self):
-        # for now we trust the parameters list, but really we
-        # should parse the math blocks, and cross-check
-        return set(self.parameters).difference(self.dependent_variables).difference(self.independent_variables)
-       
-    @property
-    def independent_variables(self):
-        variables = set([])
-        #for equation in self.equations:
-        #    if isinstance(equation, ODE):
-        #        variables.add(equation.bound_variable)
-        for r in self.regimes:
-            for eq in r.odes():
-                variables.add(eq.bound_variable)
-        return variables
+    @cache
+    def user_parameters(self):
+        """ User parameters for the component. """
+        # TODO: cache once determined
+        # compare to the parameters lists declared by the user 
+
+        # parse the math blocks
+
+        from nineml.expr_parse import expr_parse
+
+        symbols = set([])
+        for e in self.equations:
+            names, funcs = expr_parse(e.rhs)
+            symbols.update(names)
+
+        return symbols.difference(self.non_parameter_symbols)
                  
     @property
-    def dependent_variables(self):
-        variables = set([])
-        for equation in self.equations:
-            if isinstance(equation, ODE):
-                variables.add(equation.dependent_variable)
-            elif isinstance(equation, Assignment):
-                variables.add(equation.to)
-        for binding in self.bindings:
-            variables.add(binding.name)
-        return variables
+    @cache
+    def non_parameter_symbols(self):
+        """ All bindings, assignment and inplace left-hand-sides, plus X for ODE dX/dt = ... """ 
+        # TODO: cache once determined
+        symbols = set([])
+        symbols.update(self.integrated_variables)
+        symbols.update(self.bound_symbols)
+        symbols.update(self.assigned_variables)
+        symbols.update(self.independent_variables)
+        return symbols
         
+
     @property
+    @cache
+    def bound_symbols(self):
+        # TODO: cache once determined
+        """ Return symbols which are subject to bindings (static assignments)"""
+        statics = set([])
+        for binding in self.bindings:
+            statics.add(binding.name)
+
+        # check user is not writing to bound variables
+        assert statics.intersection(integrated_variables)==set(),\
+               "Error: user bound symbols which appear on lhs of ODEs"
+        assert statics.intersection(self.assigned_variables)==set(),\
+               "Error: user bound symbols which appear on lhs of Assignments and Inplace OPs"
+        
+        return statics
+
+    @property
+    @cache
     def assigned_variables(self):
+        """ All assignment and inplace lhs' (which may also be ODE integrated variables),
+        but not bindings (which are not variables, but static) """
+
+        # TODO: cache once determined
         variables = set([])
         for equation in self.equations:
-            if isinstance(equation, Assignment):
+            if isinstance(equation, (Assignment,Inplace)):
                 variables.add(equation.to)
-        for binding in self.bindings:
-            variables.add(binding.name)
-        return variables.difference(self.integrated_variables)
+        return variables
+
+    @property
+    @cache
+    def independent_variables(self):
+        """ All X for ODE dY/dX """
+        # TODO: cache once determined
+        variables = set([])
+        for r in self.regimes:
+            for eq in r.odes():
+                variables.add(eq.indep_variable)
+        return variables
+
     
     @property
-    def integrated_variables(self): # "state" variables?
+    @cache
+    def integrated_variables(self):
+        """ All X for ODE dX/dt """
+        # TODO: cache once determined
         variables = set([])
         for equation in self.equations:
             if isinstance(equation, ODE):
