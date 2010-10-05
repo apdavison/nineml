@@ -39,11 +39,11 @@ class ComponentSymbolsTestCase(unittest.TestCase):
         c1 = nineml.Component("Izhikevich",
                                      regimes = regimes )
 
-        print c1.parameters
-        assert c1.parameters == parameters+in_ports
-        assert c1.bound_symbols == bound
-        assert c1.independent_variables == indep_vars
-        assert c1.variables == state_vars+indep_vars
+        assert c1.parameters == set(parameters+in_ports)
+            
+        assert c1.bound_symbols == set(bound)
+        assert c1.independent_variables == set(indep_vars)
+        assert c1.variables == set(state_vars+indep_vars)
 
         
 

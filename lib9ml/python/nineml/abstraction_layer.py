@@ -731,7 +731,7 @@ class Component(object):
     element_name = "component"
     
     def __init__(self, name, parameters = [], regimes = [], transitions = [],
-                 ports = [], bindings=[]):
+                 ports = [], bindings = []):
         """
         Regime graph should not be edited after contructing a component
 
@@ -830,10 +830,22 @@ class Component(object):
       
         # Allow strings for bindings, map using expr_to_obj
         # Eliminate duplicates
-        bindings = set(map(expr_to_obj,set(bindings)))
+
+        # This should not be a set, but a list!
+        # We resolve later colliding bindings
+        bindings = map(expr_to_obj,set(bindings))
+        for r in self.regimes:
+            bindings+=list(r.bindings())
+        #self.bindings = bindings
+
+        # build bindings map
+        bindings_map = {}
         for b in bindings:
             assert isinstance(b, Binding), "Received invalid binding."
-        self.bindings = bindings
+            if b.name in bindings_map and b.as_expr()!=bindings_map[b.name].as_expr():
+                raise ValueError, "Multiple non-equal bindings on '%s' " % b.name
+            bindings_map[b.name] = b
+        self.bindings_map = bindings_map
 
         # check bindings only have static parameters and functions on rhs
         self.check_binding_expressions()
@@ -917,6 +929,9 @@ class Component(object):
         for t in self.transitions:
             yield t.condition
 
+    @property
+    def bindings(self):
+        return self.bindings_map.itervalues()
 
 
     def check_binding_expressions(self):
@@ -925,6 +940,8 @@ class Component(object):
 
         This parses the binding rhs expressions to verify this is so.
         """
+
+        from nineml.expr_parse import expr_parse
 
         params = self.user_parameters
         
@@ -1013,9 +1030,8 @@ class Component(object):
     def bound_symbols(self):
         # TODO: cache once determined
         """ Return symbols which are subject to bindings (static assignments)"""
-        statics = set([])
-        for binding in self.bindings:
-            statics.add(binding.name)
+        # construct set of keys (bound symbols)
+        statics = set(self.bindings_map)
 
         # check user is not writing to bound variables
         if statics.intersection(self.integrated_variables)!=set():
