@@ -62,14 +62,12 @@ class Calc(Parser):
     tokens = (
         'NAME','NUMBER','CONDITIONAL','NOT','LOGICAL',
         'PLUS','MINUS','EXP', 'TIMES','DIVIDE',
-        'LPAREN','RPAREN','LFUNC', 'COMMA', 'TRUE', 'FALSE'
+        'LPAREN','RPAREN','LFUNC', 'COMMA', 'BOOL'
         )
 
     # Tokens
 
     t_PLUS    = r'\+'
-    t_TRUE    = r'true'
-    t_FALSE    = r'false'
     t_MINUS   = r'-'
     t_EXP     = r'\*\*'
     t_TIMES   = r'\*'
@@ -79,9 +77,17 @@ class Calc(Parser):
     t_DIVIDE  = r'/'
     t_LPAREN  = r'\('
     t_RPAREN  = r'\)'
-    t_NAME    = r'[a-zA-Z_][a-zA-Z0-9_]*'
-    t_LFUNC    = r'[a-zA-Z_][a-zA-Z0-9_]*[ ]*\('
     t_COMMA   = r','
+
+    def t_LFUNC(self,t):
+        r'[a-zA-Z_][a-zA-Z0-9_]*[ ]*\('
+        return t
+        
+    def t_NAME(self,t):
+        r'[a-zA-Z_][a-zA-Z0-9_]*'
+        if t.value in ('True','true','False','false'):
+            t.type = 'BOOL'
+        return t
 
 
     def t_NUMBER(self, t):
@@ -99,37 +105,24 @@ class Calc(Parser):
         raise NineMLMathParseError, "Illegal character '%s' in '%s'" % (t.value[0],t)
 
     precedence = (
+        ('left','NAME'),
         ('left','PLUS','MINUS'),
         ('left','TIMES','DIVIDE'),
         ('left', 'EXP'),
         ('right','UMINUS'),
         ('right','UNOT'),
         ('left','NOT'),
-        ('left','LFUNC'),
-        ('right','TRUE','FALSE'),
+        ('left','LFUNC')
         )
 
-    def p_statement_expr(self, p):
-        'statement : boolean'
+    start = 'conditional'
+
+    def p_conditional(self, p):
+        'conditional : boolean'
         pass
 
-
-    def p_func(self,p):
-        """expression : LFUNC expression RPAREN\n | LFUNC RPAREN
-                        | LFUNC expression COMMA expression RPAREN
-                        | LFUNC expression COMMA expression COMMA expression RPAREN
-        """
-        # EM: Supports up to 3 args.  Don't know how to support N.
-        
-        self.funcs.append(p[1][:-1].strip())
-
-
-    def p_boolean_true(self, p):
-        "boolean : TRUE"
-        pass
-
-    def p_boolean_false(self, p):
-        "boolean : FALSE"
+    def p_boolean_bool(self, p):
+        "boolean : BOOL"
         pass
 
 
@@ -138,16 +131,16 @@ class Calc(Parser):
         pass
 
 
-    def p_boolean_conditional(self, p):
-        'boolean : expression CONDITIONAL expression'
-        pass
-
     def p_boolean_logical(self, p):
         'boolean : boolean LOGICAL boolean'
         pass
 
     def p_boolean_group(self, p):
         'boolean : LPAREN boolean RPAREN'
+        pass
+
+    def p_boolean_conditional(self, p):
+        'boolean : expression CONDITIONAL expression'
         pass
 
     def p_expression_binop(self, p):
@@ -175,6 +168,17 @@ class Calc(Parser):
     def p_expression_name(self, p):
         'expression : NAME'
         self.names.append(p[1])
+
+
+    def p_func(self,p):
+        """expression : LFUNC expression RPAREN\n | LFUNC RPAREN
+                        | LFUNC expression COMMA expression RPAREN
+                        | LFUNC expression COMMA expression COMMA expression RPAREN
+        """
+        # EM: Supports up to 3 args.  Don't know how to support N.
+        
+        self.funcs.append(p[1][:-1].strip())
+
 
     def p_error(self, p):
         if p:

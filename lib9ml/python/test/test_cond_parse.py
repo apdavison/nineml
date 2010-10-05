@@ -12,10 +12,13 @@ cond_vars = [["A > -A/tau_r", ("A","tau_r"),()],
              ["V > 1.0 && !(V<10.0)", ("V",),()],
              ["!!(V>10)",("V"),()],
              ["!!(V>10)",("V"),()],
-             ["V>Vth",("V","Vth"),()],
+             ["V>f(Vth)",("V","Vth"),('f',)],
              ["!(V>Vth)",("V","Vth"),()],
              ["!V>Vth",("V","Vth"),()],
              ["exp(V)>Vth",("V","Vth"),("exp",)],
+             ["true",(),()],
+             ["(V < (Vth+q)) && (t > t_spike)",("t_spike","t","q","Vth","V"),()],
+             ["V < (Vth+q) && t > t_spike",("t_spike","Vth","q","V","t"),()],
              ["(true)",(),()],
              ["!true",(),()],
              ["!false",(),()],
@@ -23,7 +26,7 @@ cond_vars = [["A > -A/tau_r", ("A","tau_r"),()],
              ]
 
 bad_cond = ["V && || 20","V>&&V","(V<= V)<10",
-            "1+2", "!1", "sin(V>10)"]         
+            "1+2", "!1", "sin(V>10)", "exp(true)","true()"]         
 
 
 
@@ -38,9 +41,9 @@ class CondParseTestCase(unittest.TestCase):
 
     def test_unmatchedparenthesis(self):
 
-        self.assertRaises(NineMLMathParseError, expr_parse, "1 / (( 1 + mg_conc * eta *  exp ( -1 * gamma*V))")
+        self.assertRaises(NineMLMathParseError, expr_parse, "true(")
 
-        self.assertRaises(NineMLMathParseError, expr_parse, "1 / ( 1 + mg_conc * eta *  exp ( -1 * gamma*V)))")
+        self.assertRaises(NineMLMathParseError, expr_parse, "V < (V+10")
 
         self.assertRaises(NineMLMathParseError, expr_parse, "1 / ( 1 + mg_conc * eta *  exp (( -1 * gamma*V))")
 
