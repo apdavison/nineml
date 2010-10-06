@@ -71,7 +71,7 @@ class Calc(Parser):
     t_MINUS   = r'-'
     t_EXP     = r'\*\*'
     t_TIMES   = r'\*'
-    t_CONDITIONAL   = r'(>)|(<)|(<=)|(>=)|(==)|(!=)'
+    t_CONDITIONAL   = r'(<=)|(>=)|(==)|(!=)|(>)|(<)'
     t_LOGICAL = r'(&&)|(\|\|)'
     t_NOT = r'\!'
     t_DIVIDE  = r'/'

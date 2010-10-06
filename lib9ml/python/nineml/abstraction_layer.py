@@ -855,7 +855,7 @@ class Component(object):
 
         if self.parameters:
             if self.user_parameters!=set(self.parameters):
-                raise ValueError, "Declared parameter list does not match actual parameter list."
+                raise ValueError, "Declared parameter list %s does not match actual parameter list %s." % (str(self.parameters),str(self.user_parameters))
         else:
             self.parameters = self.user_parameters
         self.ports = ports
@@ -918,7 +918,7 @@ class Component(object):
         for r in self.regimes:
             for t in r.transitions:
                 if t.assignment:
-                    yield transition.assignment
+                    yield t.assignment
             for equation in r.equations():
                 yield equation
 
@@ -955,9 +955,12 @@ class Component(object):
 
 
             if binding.name in names:
-                raise ValueError, "Binding expression may not self reference."
-            if params.intersection(names)!=names:
-                raise ValueError, "Binding symbols in rhs must be parameters, not variables."
+                raise ValueError, "Binding expression '%s': may not self reference." % binding.name
+            non_param_names = self.non_parameter_symbols.intersection(names)
+            # may reference other bindings
+            non_param_names = non_param_names.difference(self.bindings_map.iterkeys())
+            if non_param_names:
+                raise ValueError, "Binding symbols referencing variables is illegal: %s" % str(non_param_names)
 
     def check_non_parameter_symbols(self):
         """ Check that non-parameters symbols are not conflicting
@@ -1004,7 +1007,9 @@ class Component(object):
 
 
         symbols = symbols.difference(self.non_parameter_symbols)
-        return symbols.difference(math_namespace.symbols)
+        symbols = symbols.difference(math_namespace.symbols)
+        return symbols.difference(math_namespace.reserved_symbols)
+
                  
     @property
     @cache

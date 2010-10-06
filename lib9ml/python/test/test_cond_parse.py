@@ -22,6 +22,7 @@ cond_vars = [["A > -A/tau_r", ("A","tau_r"),()],
              ["(true)",(),()],
              ["!true",(),()],
              ["!false",(),()],
+             ["t >= tspike + trefractory",("t","tspike","trefractory"),()],
              ["true && !false",(),()]
              ]
 
