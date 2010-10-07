@@ -764,7 +764,6 @@ class Component(object):
         """
 
         self.name = name
-        self.parameters = parameters
 
         # check for empty component, we do not support inplace building of a component.
         if not regimes and not transitions:
@@ -853,12 +852,16 @@ class Component(object):
         # check we aren't redefining math symbols (like e,pi)
         self.check_non_parameter_symbols()
 
-        if self.parameters:
-            if self.user_parameters!=set(self.parameters):
-                raise ValueError, "Declared parameter list %s does not match actual parameter list %s." % (str(self.parameters),str(self.user_parameters))
-        else:
-            self.parameters = self.user_parameters
+        # Up till now, we've inferred parameters
+        # Now let's check what the user provided
+        # is consistant and finally set self.parameters
+        if parameters:
+            if self.user_parameters!=set(parameters):
+                raise ValueError, "Declared parameter list %s does not match inferred parameter list %s." % (str(self.parameters),str(self.user_parameters))
+
+        self.parameters = self.user_parameters
         self.ports = ports
+        
         # we should check that parameters is correct
         # even better, we could auto-generate parameters
 
@@ -1141,8 +1144,6 @@ class Component(object):
           dot -Tpng spike_generator.png -o spike_generator.png
 
         """
-
-        import cgi
 
         # if out is a str, make a file
         if isinstance(out,str):
