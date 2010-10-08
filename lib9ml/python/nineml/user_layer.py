@@ -37,6 +37,7 @@ from operator import and_, or_
 
 nineml_namespace = 'http://nineml.org/9ML/0.1'
 NINEML = "{%s}" % nineml_namespace
+PARAMETER_NAME_AS_TAG_NAME = True
 
 def parse(url):
     """
@@ -307,8 +308,7 @@ class BaseComponent(object):
     
     def get_definition(self):
         import nineml.abstraction_layer
-        xmldoc = self.definition.retrieve()
-        return nineml.abstraction_layer.parse(xmldoc)
+        return nineml.abstraction_layer.parse(self.definition.url)
     
     def to_xml(self):
         element = E(self.element_name,
@@ -411,6 +411,7 @@ class Parameter(object):
     Numerical values may either be numbers, or a component that generates
     numbers, e.g. a RandomDistribution instance.
     """
+    element_name = "value" # only used if PARAMETER_NAME_AS_TAG_NAME is False
     
     def __init__(self, name, value, unit=None):
         self.name = name
@@ -434,7 +435,7 @@ class Parameter(object):
     def is_random(self):
         return isinstance(self.value, RandomDistribution)
 
-    def to_xml(self):
+    def _to_xml_name_as_tag(self):
         if isinstance(self.value, RandomDistribution):
             value_element = E.reference(self.value.name)
         else:
@@ -446,9 +447,28 @@ class Parameter(object):
         else:
             return E(self.name,
                      E(Value.element_name, value_element))
+            
+    def _to_xml_generic_tag(self):
+        if isinstance(self.value, RandomDistribution):
+            value_element = E.reference(self.value.name)
+        else:
+            value_element = str(self.value)
+        attrs = {"parameter": self.name}
+        if self.unit:
+            attrs["unit"] = self.unit
+        return E(Parameter.element_name,
+                 value_element,
+                 **attrs)
+    
+    def to_xml(self):
+        if PARAMETER_NAME_AS_TAG_NAME:
+            return self._to_xml_name_as_tag()
+        else:
+            return self._to_xml_generic_tag()
+    
 
     @classmethod
-    def from_xml(cls, element, components):
+    def _from_xml_name_as_tag(cls, element, components):
         value = Value.from_xml(element.find(NINEML+Value.element_name), components)
         unit_element = element.find(NINEML+"unit")
         if unit_element is None:
@@ -458,6 +478,20 @@ class Parameter(object):
         return Parameter(name=element.tag.replace(NINEML,""),
                          value=value,
                          unit=unit)
+    
+    @classmethod
+    def _from_xml_generic_tag(cls, element, components):
+        assert element.tag == NINEML+cls.element_name, "Found <%s>, expected <%s>" % (element.tag, cls.element_name)
+        return Parameter(name=element.attrib["parameter"],
+                         value = Value.from_xml(element, components),
+                         unit = element.get("unit"))
+    
+    @classmethod
+    def from_xml(cls, element, components):
+        if PARAMETER_NAME_AS_TAG_NAME:
+            return cls._from_xml_name_as_tag(element, components)
+        else:
+            return cls._from_xml_generic_tag(element, components)
 
 
 class ParameterSet(dict):
@@ -668,6 +702,9 @@ class Population(object):
     def __ne__(self, other):
         return not self == other
     
+    def __str__(self):
+        return 'Population "%s": %dx"%s" %s' % (self.name, self.number, self.prototype.name, self.positions)
+    
     def get_components(self):
         components = []
         if self.prototype:
@@ -733,6 +770,12 @@ class PositionList(object):
     def __ne__(self, other):
         return not self == other
     
+    def __str__(self):
+        if self.structure:
+            return "positioned according to '%s'" % self.structure.name
+        else:
+            return "with explicit position list"
+    
     def get_positions(self, population):
         """
         Return a list or 1D numpy array of (x,y,z) positions.
@@ -770,7 +813,7 @@ class PositionList(object):
         if structure_element is not None:
             return cls(structure=get_or_create_component(structure_element.text, Structure, components))
         else:
-            positions = [(p.attrib['x'], p.attrib['y'], p.attrib['z'])
+            positions = [(float(p.attrib['x']), float(p.attrib['y']), float(p.attrib['z']))
                          for p in element.findall(NINEML+'position')]
             return cls(positions=positions)
 
