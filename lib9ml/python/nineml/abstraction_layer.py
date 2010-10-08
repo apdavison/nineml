@@ -16,6 +16,7 @@ import copy
 
 from nineml.cache_decorator import cache_decorator as cache
 from nineml import math_namespace
+from nineml import helpers
 
 
 MATHML = "{http://www.w3.org/1998/Math/MathML}"
@@ -109,43 +110,87 @@ class Equation(RegimeElement):
 
 class Port(object):
     """ Base class for EventPort and AnalogPort, etc."""
-    def __init__(self,id, mode='r', ):
-        self.id = id
+    element_name = "port"
+    modes = ('send','recv','reduce')
+    reduce_op_map = {'add':'+', 'sub':'-', 'mul':'*', 'div':'/',
+                     '+':'+', '-':'-', '*':'*', '/':'/'}
 
-
-class EventPort(Port):
-    element_name = "event"
-    
-    def __init__(self,id, mode='r'):
-        Port.__init__(self, id, mode=mode)
-
+    def __init__(self, internal_symbol, mode='send', op=None):
+        self.symbol = internal_symbol
+        self.mode = mode
+        self.reduce_op = op
+        if self.mode not in self.modes:
+            raise ValueError, "Port(symbol='%s')"+\
+                  "specified undefined mode: '%s'" %\
+                  (self.symbol, self.mode)
+        if self.mode=='reduce':
+            if reduce_op not in reduce_op_map.keys():
+                raise ValueError, "Port(symbol='%s')"+\
+                      "specified undefined reduce_op: '%s'" %\
+                      (self.symbol, str(self.reduce_op))
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
-        return self.id == other.id
+        return self.symbol == other.symbol and self.mode == other.mode\
+               and self.reduce_op = other.reduce_op
 
     def __repr__(self):
-        return "Event(id='%s')" % (self.id)
+        if self.reduce_op:
+            return "Port(symbol='%s', mode='%s', op='%s')" % \
+                   (self.symbol, self.mode, self.reduce_op)
+        else:
+            return "Port(symbol='%s', mode='%s')" % (self.symbol, self.mode)
 
+    def __eq__(self, other):
+        return Port.__eq__(self, other) and self.condition==other.condition
 
-    def to_xml(self):
-        return E(self.element_name, id=self.id)
+    def to_xml(self, **kwargs):
+        if self.reduce_op:
+            kwargs['op']=self.reduce_op
+        return E(self.element_name, symbol=self.symbol,
+                 mode=self.mode, **kwargs)
 
-    @property
-    def name(self):
-        return self.element_name+"_"+self.id
+    #@property
+    #def name(self):
+    #    return self.element_name+"_"+self.symbol
 
     @classmethod
     def from_xml(cls,element):
         assert element.tag == NINEML+cls.element_name
-        id = element.get("id")
-        return cls(id)
-        
+        symbol = element.get("symbol")
+        mode = element.get("mode")
+        reduce_op = element.get("op")
+        return cls(symbol,mode,reduce_op)
 
-SpikeOutputEvent = EventPort('spike_output')
-SpikeInputEvent = EventPort('spike_input','w')
 
+class Event(Port):
+    element_name = "event"
+    
+    def __init__(self, internal_symbol, condition, mode='send'):
+        Port.__init__(self, internal_symbol, mode=mode)
+        self.condition = condition
+
+    def __repr__(self):
+        return "Event('%s', '%s', mode='%s')" % (self.symbol,
+                                                 self.condition,
+                                                 self.mode)
+
+    def to_xml(self, **kwargs):
+        return Port.to_xml(self,condition=self.condition)
+
+
+    @classmethod
+    def from_xml(cls,element):
+        c = Port.from_xml(cls,element)
+        c.condition = element.get("condition")
+        return c
+
+# Syntactic sugar
+SpikeOutputEvent = curry(Event, 'spike_output')
+SpikeInputEvent = curry(Event, 'spike_input', mode="recv")
+ReducePort = curry(Port,mode="reduce")
+RecvPort = curry(Port,mode="recv")
 
 class ODE(Equation):
     """
@@ -415,7 +460,9 @@ class Regime(RegimeElement):
             assert isinstance(node, RegimeElement)
             self.add_node(node)
 
-
+        e = kwargs.get('events')
+        if events:
+            self.events = set(e)
     
     def __eq__(self, other):
         if not isinstance(other, self.__class__):

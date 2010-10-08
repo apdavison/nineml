@@ -22,5 +22,8 @@ regimes = [
     name = "refractory-regime"
     )]
 
-c1 = nineml.Component("LeakyIAF", regimes = regimes)
+
+ports = [nineml.Port("V"),
+         nineml.ReducePort("Isyn",op="+")]
+c1 = nineml.Component("LeakyIAF", regimes = regimes, ports = ports)
 
