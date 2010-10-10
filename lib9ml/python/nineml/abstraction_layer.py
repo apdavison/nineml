@@ -705,6 +705,9 @@ def On(condition, to=None):
 
         
 
+
+        
+
 class Transition(object):
     element_name = "transition"
     n = 0
@@ -1078,6 +1081,15 @@ class Component(object):
         symbols.update(self.assigned_variables)
         symbols.update(self.independent_variables)
         return symbols
+
+    @property
+    @cache
+    def state_variables(self):
+        symbols = set([])
+        symbols.update(self.integrated_variables)
+        symbols.update(self.assigned_variables)
+        return symbols
+
 
     @property
     @cache
