@@ -2,27 +2,44 @@ import nineml.abstraction_layer as nineml
 import nineml_stateupdater as brian9ml
 from brian.stateupdater import NonlinearStateUpdater
 import brian
+import brian.stdunits as units
 
+# Leaky iaf
 regimes = [
-    nineml.Union(
-        "dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn",
-        "dU/dt = a*(b*V - U)",
-        transitions = [nineml.On("V > theta",to="suprathreshold_regime")],
-        name="subthreshold_regime"
+    nineml.Sequence(
+    "dV/dt = (-gL*(V-vL) + Isyn)/C",
+    transitions = [nineml.On("V>Vth","set_tspike")],
+    events = [nineml.SpikeOutputPort("V>Vth")],
+    name = "sub-threshold-regime"
     ),
+
     nineml.Union(
-        "V = c",
-        "U += d",
-        transitions = [nineml.On("true",to="subthreshold_regime")],
-        name="suprathreshold_regime"
+    "tspike = t",
+    "V = Vreset",
+    transitions = [nineml.On("true","refractory-regime")],
+    name = "set_tspike"
+    ),
+
+    nineml.Union(
+    transitions = [nineml.On("t >= tspike + trefractory","sub-threshold-regime")],
+    name = "refractory-regime"
     )]
 
 
-c1 = nineml.Component("Izhikevich", parameters,
-                             regimes = regimes )
+ports = [nineml.Port("V"),
+         nineml.ReducePort("Isyn",op="+")]
 
 
-model = brian9ml.NineMLStateUpdater(c1,regime_updater_cls=NonlinearStateUpdater,
+c1 = nineml.Component("LeakyIAF", regimes = regimes, ports = ports)
+
+
+
+
+# this is a hack until 9ml defines units,
+# which defines the unit of time in Brian ODE
+__time_factor__ = 1.*units.ms
+
+model = brian9ml.NineMLStateUpdater(c1,solver=NonlinearStateUpdater,
                                     base_regime=regimes[0])
 
 # Initial conditions
