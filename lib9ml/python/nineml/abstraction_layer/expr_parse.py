@@ -17,9 +17,20 @@
 import ply.lex as lex
 import ply.yacc as yacc
 import os
+from nineml.abstraction_layer import math_namespace
 
 class NineMLMathParseError(ValueError):
     pass
+
+
+def call_expr_func(expr_func, ns):
+    args = []
+    for var in expr_func.func_code.co_varnames:
+        try:
+            args.append(ns[var])
+        except KeyError:
+            raise KeyError, "call_expr_func: namespace missing variable '%s'" % var
+    return expr_func(*args)
 
 
 class Parser(object):
@@ -55,7 +66,16 @@ class Parser(object):
             yacc.parse(expr)
         except NineMLMathParseError as e:
             raise NineMLMathParseError, str(e)+" Expression was: '%s'" % expr
-        return set(self.names), set(self.funcs)
+
+        # remove names from the math_namespace
+        self.names = set(self.names)
+        self.names.difference_update(math_namespace.namespace)
+
+        python_func = eval("lambda %s: %s" % (','.join(self.names),expr), math_namespace.namespace)
+
+        return self.names, set(self.funcs), python_func
+
+
 
     
 class Calc(Parser):
@@ -127,7 +147,11 @@ class Calc(Parser):
         """
         # EM: Supports up to 3 args.  Don't know how to support N.
         
-        self.funcs.append(p[1][:-1].strip())
+        # check that function name is known
+        func_name = p[1][:-1].strip()
+        if func_name not in math_namespace.namespace:
+            raise NineMLMathParseError, "Undefined function '%s'" % func_name
+        self.funcs.append(func_name)
 
     def p_expression_group(self, p):
         'expression : LPAREN expression RPAREN'
