@@ -6,6 +6,35 @@ from nineml.abstraction_layer.xmlns import *
 
 from nineml.abstraction_layer import math_namespace
 
+def get_args(s):
+    """ return arguments of a function in a list,
+    handling functions in the arguments. """
+
+    # bracket level count
+    bl = 0
+    last_arg_end = 0
+    args = []
+
+    if s[0]==",":
+        raise ValueError, "get_args: missing first arg."
+
+    if s[0]==")":
+        return 0,[]
+    
+    for i in xrange(len(s)):
+        if s[i]=="(":
+            bl+=1
+        elif s[i]=="," and bl==0:
+            args+=[s[last_arg_end:i].strip()]
+            last_arg_end=i+1
+        elif s[i]==")":
+            if bl==0:
+                args+=[s[last_arg_end:i].strip()]
+                return i, args
+            bl-=1
+
+
+
 class RegimeElement(object):
     """ Base class for all things that can be elements of a regime """
     pass
@@ -30,6 +59,81 @@ class Expression(object):
     def python_func(self,namespace={}):
         """ Returns a python callable which evaluates the expression in namespace and returns the result """
         return eval("lambda %s: %s" % (','.join(self.names),self.rhs), math_namespace.namespace,namespace)
+
+    def substitute_binding(self,b):
+        """ replaces all occurences of binding symbol or function with the binding rhs with arguments substituted """
+        import re
+
+        if b.args==():
+            p_func = re.compile(r"(^|([ */+-,(]+))%s\(" % b.name)
+            if p_func.search(self.rhs):
+                raise ValueError, "substituting non-function binding '%s', found use in '%s' as function." % (b.name, self.as_expr())
+            # binding is a symbol sub only
+            #self.rhs = self.rhs.replace(b.name,"(%s)" % b.rhs)
+            p_func = re.compile(r"(?<![a-zA-Z_0-9])(%s)(?![(a-zA-Z_0-9])" % b.name)
+            self.rhs = p_func.sub("(%s)" % b.rhs, self.rhs)
+
+        else:
+            # binding is a function
+            # find all occurences of start of the function
+            # don't know where is the end yet, thats the job of get_args
+            p_func = re.compile(r"(?<![a-zA-Z_0-9])%s\(" % b.name)
+
+            # accumulate string parts here, to be joined at the end.
+            parts = []
+            i_start = 0
+            i_end = 0
+            m = p_func.search(self.rhs)
+            while m:
+                # add un-modified bit to parts
+                parts+=[self.rhs[i_start:m.start()]]
+
+                # traverse arguments 
+                i, args = get_args(self.rhs[m.end():])
+                i_start = m.end()+i+1
+
+                # replace occurences in function arguments as well
+                for j,arg in enumerate(args):
+                    e = Expression()
+                    e.rhs = arg
+                    e.substitute_binding(b)
+                    args[j]=e.rhs
+                
+                # this is the string to replace
+                #func = self.rhs[m.end():i_start]
+                
+                if not len(args) == len(b.args):
+                    raise ValueError, "Sustituting function binding: mis-match on number of function arguments."
+                subs_expr = "(%s)" % b.rhs
+
+                #subs_expr
+                for frm,to in zip(b.args,args):
+                    p_arg_rep = re.compile(r"(?<![a-zA-Z_0-9])(%s)(?![(a-zA-Z_0-9])" % frm)
+                    subs_expr = p_arg_rep.sub(to, subs_expr)
+                parts+=[subs_expr]
+
+                # match next after the closing bracket of the function
+                # this ensures recursive function calls don't get
+                # replaced yet
+                m = p_func.search(self.rhs,i_start)
+
+            parts+=[self.rhs[i_start:]]
+            self.rhs = "".join(parts)
+
+    @property
+    def missing_functions(self):
+        """ yield names of functions in the rhs which are not in the math namespace"""
+        for f in self.funcs:
+            if f not in math_namespace.namespace:
+                yield f
+
+    def has_missing_functions(self):
+        """ returns True if at least 1 function on the rhs is not in the math namespace"""
+        for f in self.funcs:
+            if f not in math_namespace.namespace:
+                return True
+        return False
+
 
 
 class Binding(Expression, RegimeElement):
@@ -56,11 +160,19 @@ class Binding(Expression, RegimeElement):
 
         self.parse_rhs()
 
-        # remove args from names 
-        self.names.difference_update(self.args)
-
         if self.name in self.names:
             raise ValueError, "Binding expression '%s': may not self reference." % self.name
+
+        # detect recursive binding
+        if self.args and self.name in self.funcs:
+            raise ValueError, "Binding expression '%s': is recursive." % self.as_expr()
+
+        # check that rhs depends on all args
+        if self.args and self.names.intersection(self.args)!=set(self.args):
+            raise ValueError, "Binding expression '%s': rhs does not depend on some of the arguments ." % self.as_expr()
+
+        # remove args from names 
+        self.names.difference_update(self.args)
 
         if self.name in self.args:
             raise ValueError, "Binding expression '%s': function binding has argument symbol = binding symbol." % self.name
@@ -124,10 +236,14 @@ class Binding(Expression, RegimeElement):
         args = [arg.strip() for arg in args]
         
         return symbol,tuple(args),rhs
-        
-    @property
-    def rhs(self):
+
+    def get_rhs(self):
         return self.value
+
+    def set_rhs(self,v):
+        self.value = v
+
+    rhs = property(get_rhs, set_rhs)
 
     @property
     def lhs(self):
@@ -148,7 +264,7 @@ class Binding(Expression, RegimeElement):
                  name=self.lhs)
 
     def as_expr(self):
-        return "%s := %s" % (self.name, self.value)
+        return "%s := %s" % (self.lhs, self.value)
 
     @classmethod
     def from_xml(cls, element):
@@ -230,10 +346,6 @@ class Assignment(Equation, RegimeElement):
     element_name = "assignment"
     n = 0
     
-    @property
-    def rhs(self):
-        return self.expr
-
     def __init__(self, to, expr, name=None):
         self.to = to
         self.expr = expr
@@ -245,6 +357,17 @@ class Assignment(Equation, RegimeElement):
         Assignment.n += 1
 
         self.parse_rhs()
+
+
+    def get_rhs(self):
+        return self.expr
+
+    def set_rhs(self,v):
+        self.expr = v
+
+    rhs = property(get_rhs, set_rhs)
+
+
 
     def self_referencing(self):
         """ Returns True if the assignment is of the form U = f(U,...), otherwise False"""

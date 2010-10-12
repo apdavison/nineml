@@ -40,6 +40,107 @@ class ComponentTestCase(unittest.TestCase):
         e = expr_to_obj("U = V+1")
         assert not e.self_referencing()
 
+    def test_binding_backsub(self):
+        from nineml.abstraction_layer import expr_to_obj, get_args
+
+        # Determine missing functions
+        e = expr_to_obj("U(x,y):= exp(x) + y")
+        assert list(e.missing_functions)==[]
+
+        e = expr_to_obj("dA/dt = exp(x) + whatfunc(u)")
+        assert list(e.missing_functions) == ['whatfunc']
+
+        e = expr_to_obj("U = exp(x) + q(u,U)")
+        assert list(e.missing_functions) == ['q']
+
+        e = expr_to_obj("U(x,y):= exp(x) + _q10(y,x)")
+        assert list(e.missing_functions) == ['_q10']
+
+        e = expr_to_obj("U(x,y):= exp(x) + _q10(y,x)")
+        b = expr_to_obj("_q10 := 20")
+        self.assertRaises(ValueError, e.substitute_binding, b)
+
+        e = expr_to_obj("U = exp(x) + _q10")
+        e.substitute_binding(b)
+        #print e.rhs
+        assert e.rhs == "exp(x) + (20)"
+
+        i,args = get_args("exp(exp(z)+1),cos(sin(q)-tan(z))) + 1/_q10(z,w)")
+        assert args == ['exp(exp(z)+1)', 'cos(sin(q)-tan(z))']
+        
+    
+        e = expr_to_obj("U(x,y):= exp(x) + _q10(y,x) + 1/_q10(z,w)")
+        b = expr_to_obj("_q10(a,b) := a+b")
+        e.substitute_binding(b)
+        #print e.rhs
+        assert e.rhs == "exp(x) + (y+x) + 1/(z+w)"
+
+        e = expr_to_obj("dA/dt = exp(x) + _q10(exp(exp(z)+1),cos(sin(q)-tan(z))) + 1/_q10(z,w)")
+        b = expr_to_obj("_q10(a,b) := a+b")
+        e.substitute_binding(b)
+        assert e.rhs == "exp(x) + (exp(exp(z)+1)+cos(sin(q)-tan(z))) + 1/(z+w)"
+
+        # check that it does all levels of binding resolution (i.e. also in arguments of a binding)
+        e = expr_to_obj("dA/dt = exp(x) + _q10(_q10(exp(z),1),cos(sin(q)-tan(z))) + 1/_q10(z,w)")
+        b = expr_to_obj("_q10(a,b) := a+b")
+        e.substitute_binding(b)
+        assert e.rhs == "exp(x) + ((exp(z)+1)+cos(sin(q)-tan(z))) + 1/(z+w)"
+
+        # catch number of args mismatch
+        e = expr_to_obj("U(x,y):= exp(x) + _q10(y,x,z) + 1/_q10(z,w)")
+        self.assertRaises(ValueError, e.substitute_binding, b)
+        
+        # check recursive binding is caught
+        self.assertRaises(ValueError, expr_to_obj, "a(x) := a(x) + 1")
+
+        # check
+        b1 = expr_to_obj("v1(x) := exp(x)")
+        b2 = expr_to_obj("p := e")
+        b1.substitute_binding(b2)
+        #print b1.rhs
+        assert b1.rhs == "exp(x)"
+        
+
+        # check catch of binding rhs having no dependance on lhs args
+        self.assertRaises(ValueError, expr_to_obj, "a(x) := exp(z) + 1")
+        self.assertRaises(ValueError, expr_to_obj, "a(x,y,z) := exp(z) + x")
+        b = expr_to_obj("a(x,y,z) := exp(z) + x + y")
+
+        b1 = expr_to_obj("v1(x) := 1/v2(x+1,v3(x)+1) + v3(x)")
+        b2 = expr_to_obj("v2(x,y) := v3(x)*y + 10")
+        b3 = expr_to_obj("v3(x) := exp(x)")
+        b2.substitute_binding(b3)
+        #print b2.rhs
+        assert b2.rhs == "(exp(x))*y + 10"
+        b1.substitute_binding(b2)
+        #print b1.rhs
+        assert b1.rhs == "1/((exp(x+1))*v3(x)+1 + 10) + v3(x)"
+        b1.substitute_binding(b3)
+        #print b1.rhs
+        assert b1.rhs == "1/((exp(x+1))*(exp(x))+1 + 10) + (exp(x))"
+        #assert e.rhs == "exp(x) + ((exp(z)+1)+cos(sin(q)-tan(z))) + 1/(z+w)"
+
+
+
+        # now to components
+
+        import nineml.abstraction_layer as nineml
+
+        bindings = [
+            "v1(x) := 1/v2(x+1,v3(x)+1) + v3(x)",
+            "v2(x,y) := v3(x)*y + 10",
+            "v3(x) := exp(x)**2"
+            ]
+        r = nineml.Union("dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn + v1(v3(x))")
+
+
+        c1 = nineml.Component("Izhikevich", regimes = [r], bindings=bindings )
+
+        bm = c1.bindings_map
+        assert bm['v1'].rhs == "1/((exp(x+1)**2)*(exp(x)**2)+1 + 10) + (exp(x)**2)"
+        assert bm['v2'].rhs == "(exp(x)**2)*y + 10"
+        assert bm['v3'].rhs == "exp(x)**2"
+
 
     def test_trivial_conditions(self):
         """ Disallow trivial conditions """

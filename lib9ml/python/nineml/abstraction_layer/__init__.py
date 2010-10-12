@@ -641,6 +641,8 @@ class Component(object):
             bindings_map[b.name] = b
         self.bindings_map = bindings_map
 
+        self.simplify_bindings()
+
         # check bindings only have static parameters and functions on rhs
         self.check_binding_expressions()
 
@@ -664,6 +666,30 @@ class Component(object):
         """ Gets as a list all regimes that transition to regime"""
         
         return [t.from_ for t in self.transitions if t.to==regime]
+
+
+    def simplify_bindings(self):
+        """ This function finds bindings which undefined functions, and """
+
+        # build binding dependency tree
+
+        def build_and_resolve_bdtree(b):
+            _bd_tree = {}
+            for f in b.missing_functions:
+                if f in self.bindings_map:
+                    _bd_tree[f] = build_and_resolve_bdtree(self.bindings_map[f])
+                    # resolve (lower level is already resolved now) 
+                    b.substitute_binding(self.bindings_map[f])
+                else:
+                    raise ValueError, "binding '%s' calls unresolvable functions." % b.as_expr()
+            return _bd_tree  
+
+        bd_tree = {}
+        for b in self.bindings_map.itervalues():
+            bd_tree[b.name] = build_and_resolve_bdtree(b)
+
+        
+
             
     def resolve_references(self):
         """ Uses self.regimes_map and self.transitions_map to resolve references in self.regimes and self.transitions"""
