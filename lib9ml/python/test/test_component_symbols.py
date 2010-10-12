@@ -14,7 +14,7 @@ class ComponentSymbolsTestCase(unittest.TestCase):
     def test_basic(self):
 
         bound = ['q']
-        parameters = ['a','b','c','d','theta']
+        parameters = ['a','b','c','d','theta','w']
         in_ports = ['Isyn']
         #out_ports = ['spike']
         state_vars = ["V","U"]
@@ -22,18 +22,13 @@ class ComponentSymbolsTestCase(unittest.TestCase):
 
         regimes = [
             nineml.Union(
-                "q := 20.0 + a*b",
+                "q := 20.0 + a*b + w",
                 "dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn",
                 "dU/dt = a*(b*V - U)",
-                transitions = [nineml.On("V > theta",to="suprathreshold_regime")],
+                transitions = [nineml.On("V > theta",do=["V = c","U += d"])],
                 name="subthreshold_regime"
             ),
-            nineml.Union(
-                "V = c",
-                "U += d",
-                transitions = [nineml.On("true",to="subthreshold_regime")],
-                name="suprathreshold_regime"
-            )]
+            ]
 
 
         c1 = nineml.Component("Izhikevich",

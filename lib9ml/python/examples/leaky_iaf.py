@@ -1,28 +1,37 @@
 import nineml.abstraction_layer as nineml
 
+
 parameters = ["Isyn", "gL", "vL", "theta", "Vreset", "C", "trefractory"]
 
-subthreshold_regime = nineml.Sequence(
-    nineml.ODE("V", "t", "(-gL*(V-vL) + Isyn)/C"),
-    )
 
+subthreshold_regime = nineml.Union(
+                        "dV/dt = (-gL*(V-vL) + Isyn)/C",
+                        name="subthreshold_regime"
+                      )
 
 refractory_regime = nineml.Union(
-    nineml.Assignment("V", "Vreset"),
-    )
+                        "V = Vreset",
+                        name="refractory_regime"
+                    )
 
-tspike_assignment = nineml.Assignment("tspike", "t")
-spike_transition = nineml.Transition(subthreshold_regime,
-                                     refractory_regime,
-                                     "V > theta",
-                                     tspike_assignment)
+spike_event = nineml.Event(
+                        "tspike = t",
+                        from_=subthreshold_regime,
+                        to=refractory_regime,
+                        condition="V > theta",
+                        name="spike_transition"
+                    )
 
-subthreshold_transition = nineml.Transition(refractory_regime,
-                                            subthreshold_regime,
-                                            "t >= tspike + trefractory")
+subthreshold_event = nineml.Event(
+                            from_=refractory_regime,
+                            to=subthreshold_regime,
+                            condition="t >= tspike + trefractory",
+                            name="subthreshold_transition"
+                          )
 
-c1 = nineml.Component("LeakyIAF", parameters,
-                             transitions=(spike_transition, subthreshold_transition))
+c1 = nineml.Component("LeakyIAF", parameters=parameters,
+                             events=(spike_event, subthreshold_event))
+
 
 
 # write to file object f if defined
@@ -32,7 +41,7 @@ try:
 except NameError:
     import os
 
-    base = "leaky_iaf"
+    base = "leaky_iaf2"
     c1.write(base+".xml")
     c2 = nineml.parse(base+".xml")
     assert c1==c2

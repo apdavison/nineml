@@ -1,4 +1,9 @@
 
+
+from nineml.abstraction_layer.xmlns import *
+
+
+
 from nineml.abstraction_layer import math_namespace
 
 class RegimeElement(object):
@@ -6,13 +11,13 @@ class RegimeElement(object):
     pass
 
 
-class Expression(RegimeElement):
+class Expression(object):
 
     def parse_rhs(self):
         """ parses and checks validity of rhs """
         from nineml.abstraction_layer.expr_parse import expr_parse
 
-        self.names, self.funcs, self.python_func = expr_parse(self.rhs)
+        self.names, self.funcs = expr_parse(self.rhs)
 
         # Parser now does this check
         
@@ -22,8 +27,12 @@ class Expression(RegimeElement):
         #    raise ValueError, "In expression '%s', undefined functions: %s" % \
         #          (e.as_expr(),repr(list(undef_funcs)))
 
+    def python_func(self,namespace={}):
+        """ Returns a python callable which evaluates the expression in namespace and returns the result """
+        return eval("lambda %s: %s" % (','.join(self.names),self.rhs), math_namespace.namespace,namespace)
 
-class Binding(Expression):
+
+class Binding(Expression, RegimeElement):
     # this is very similar to Assignment. Maybe we don't need it.
     # EM: In the context of NEST and GPU code generation, bindings make sense:
     #  They are constants, i.e. a binding which takes state vars or ports in rhs
@@ -36,24 +45,97 @@ class Binding(Expression):
     
     element_name = "binding"
     
-    def __init__(self, name, value):
+    def __init__(self, lhs,rhs):
 
-        self.name = name
-        self.value = value
+        import re
 
-        if name in math_namespace.symbols:
+        self.name, self.args, self.value = Binding.parse(lhs + ":=" + rhs)
+
+        if self.name in math_namespace.symbols:
             raise ValueError, "binding '%s' redefines math symbols (such as 'e','pi')" % self.as_expr()
 
         self.parse_rhs()
 
-        if name in self.names:
-            raise ValueError, "Binding expression '%s': may not self reference." % name
+        # remove args from names 
+        self.names.difference_update(self.args)
 
+        if self.name in self.names:
+            raise ValueError, "Binding expression '%s': may not self reference." % self.name
 
+        if self.name in self.args:
+            raise ValueError, "Binding expression '%s': function binding has argument symbol = binding symbol." % self.name
 
+    @classmethod
+    def match(cls,s):
+        """ Checks the syntax of the lhs to be that of a binding
+        rhs parsing is not yet performed """
+
+        try:
+            cls.parse(s)
+        except ValueError:
+            return False
+
+        return True
+
+    @classmethod
+    def parse(cls,s):
+        """ Determines if the lhs is a symbol binding, or function binding
+
+        If symbol:
+
+        return symbol, (), rhs
+
+        If function:
+
+        return symbol, args, rhs
+        where args is a tuple of function argument symbols
+        """
+
+        import re
+        
+        if s.count(':=')!=1:
+            raise ValueError, "Invalid binding syntax. Must contain ':=' once"
+
+        lhs,rhs = s.split(":=")
+
+        lhs = lhs.strip()
+        rhs = rhs.strip()
+
+        p_binding_symbol = re.compile("^[a-zA-Z_]+[a-zA-Z_0-9]*$")
+
+        # not a function
+        if p_binding_symbol.match(lhs):
+            return lhs,(),rhs
+
+        # lha matches a function?
+
+        func_regex = r"[a-zA-Z_]+[a-zA-Z_0-9]*[ ]*\([ ]*([a-zA-Z_]+[a-zA-Z_0-9]*)([ ]*,[ ]*[a-zA-Z_]+[a-zA-Z_0-9]*)*[ ]*\)"
+
+        p_binding_func = re.compile(func_regex)
+
+        if not p_binding_func.match(lhs):
+            raise ValueError, "Invalid binding lhs syntax '%s'. Not symbol binding, and not a function" % lhs
+
+        symbol,rest = lhs.split("(")
+        symbol = symbol.strip()
+
+        args = rest.split(",")
+        args[-1] = args[-1].replace(")","")
+        args = [arg.strip() for arg in args]
+        
+        return symbol,tuple(args),rhs
+        
     @property
     def rhs(self):
         return self.value
+
+    @property
+    def lhs(self):
+        if self.args:
+            return self.name+"("+", ".join(self.args)+")"
+        else:
+            return self.name
+
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
@@ -63,7 +145,7 @@ class Binding(Expression):
     def to_xml(self):
         return E(self.element_name,
                  E("math-inline", self.value),
-                 name=self.name)
+                 name=self.lhs)
 
     def as_expr(self):
         return "%s := %s" % (self.name, self.value)
@@ -80,7 +162,7 @@ class Equation(Expression):
     pass
         
 
-class ODE(Equation):
+class ODE(Equation, RegimeElement):
     """
     Represents a first-order, ordinary differential equation.
     """
@@ -107,6 +189,8 @@ class ODE(Equation):
                                       self.rhs)
 
     def __eq__(self, other):
+        from operator import and_
+
         if not isinstance(other, self.__class__):
             return False
 
@@ -142,7 +226,7 @@ class ODE(Equation):
                    name=element.get("name"))
     
 
-class Assignment(Equation):
+class Assignment(Equation, RegimeElement):
     element_name = "assignment"
     n = 0
     
@@ -174,6 +258,8 @@ class Assignment(Equation):
                             self.expr)
 
     def __eq__(self, other):
+        from operator import and_
+
         if not isinstance(other, self.__class__):
             return False
 
@@ -236,6 +322,8 @@ class Inplace(Equation):
 
 
     def __eq__(self, other):
+        from operator import and_
+
         if not isinstance(other, self.__class__):
             return False
 
@@ -277,20 +365,28 @@ def expr_to_obj(s, name = None):
     import re
 
     # Is our job already done?
-    if isinstance(s,Expression):
+    if isinstance(s,(RegimeElement,Inplace)):
         return s
 
     # strip surrounding whitespace
     s = s.strip()
+
+    # Do we have a binding?
+    if Binding.match(s):
+        lhs, rhs = [x.strip() for x in s.split(":=")]
+        return Binding(lhs, rhs)
 
     # re for an expression -> groups into lhs, op, rhs
     p_eqn = re.compile(r"(?P<lhs>[a-zA-Z_]+[a-zA-Z_0-9]*(/?[a-zA-Z_]+[a-zA-Z_0-9]*)?)\s*(?P<op>[+\-*/:]?=)\s*(?P<rhs>.*)")
     # re for lhs for ODE
     p_ode_lhs = re.compile(r"(?:d)([a-zA-Z_]+[a-zA-Z_0-9]*)/(?:d)([a-zA-Z_]+[a-zA-Z_0-9]*)")
 
+    
+
 
     m = p_eqn.match(s)
     if not m:
+       
         raise ValueError, "Not a valid nineml expression: %s" % s
 
     # get lhs, op, rhs
@@ -313,11 +409,6 @@ def expr_to_obj(s, name = None):
     # Do we have an assignment?
     if op=="=":
         return Assignment(lhs,rhs, name = name)
-
-    # Do we have a binding?
-    if op==":=":
-        return Binding(lhs,rhs)
-
         
     # If we get here, what do we have?
     raise ValueError, "Cannot map expr '%s' to a nineml Expression" % s

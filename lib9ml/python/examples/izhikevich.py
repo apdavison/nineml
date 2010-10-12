@@ -3,37 +3,22 @@ import nineml.abstraction_layer as nineml
 
 parameters = ["Isyn", "a", "b", "c", "d", "theta"]
 
-subthreshold_regime = nineml.Sequence(
-    nineml.Union(
-        "dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn",
-        "dU/dt = a*(b*V - U)",
-        ),
+subthreshold_regime = nineml.Union(
+    "dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn",
+    "dU/dt = a*(b*V - U)",
     name="subthreshold_regime"
     )
 
-post_spike_regime = nineml.Union(
+spike_event = nineml.Event(
     "V = c",
     "U += d",
-    name="post_spike_regime"
+    from_=subthreshold_regime,
+    condition="V > theta",
+    name="spike_event"
     )
 
-spike_transition = nineml.Transition(
-                        from_=subthreshold_regime,
-                        to=post_spike_regime,
-                        condition="V > theta",
-                        assignment=nineml.Assignment("tspike", "t"),
-                        name="spike_transition"
-                    )
-
-return_transition = nineml.Transition(
-                            from_=post_spike_regime,
-                            to=subthreshold_regime,
-                            condition=None,
-                            name="return_transition"
-                          )
-
-c1 = nineml.Component("Izhikevich", parameters,
-                             transitions=(spike_transition, return_transition))
+c1 = nineml.Component("Izhikevich", parameters = parameters,
+                             events=(spike_event,))
 
 
 # write to file object f if defined

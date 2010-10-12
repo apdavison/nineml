@@ -1,15 +1,10 @@
 class Condition(object):
 
-    element_name = "condition"
-    n = 0
-    
     def __init__(self, cond, name=None):
 
         from nineml.abstraction_layer.cond_parse import cond_parse
 
         self.cond = cond
-        self.name = name or ("Condition%d" % Condition.n)
-        Condition.n += 1
         
         self.names, self.funcs, self.python_func = cond_parse(cond)
 
@@ -25,11 +20,12 @@ class Condition(object):
         return "Condition('%s')" % (self.cond)
 
     def __eq__(self, other):
+        from operator import and_
+
         if not isinstance(other, self.__class__):
             return False
 
-        return reduce(and_, (self.name == other.name,
-                             self.cond == other.cond))
+        return self.cond == other.cond
 
 
 ##     def to_xml(self):
@@ -50,6 +46,12 @@ def cond_to_obj(cond_str):
     if isinstance(cond_str,Condition):
         return cond_str
 
-    return Condition(cond_str.strip())
+    elif cond_str == None:
+        return None
+
+    elif isinstance(cond_str,str):
+        return Condition(cond_str.strip())
+
+    raise ValueError, "Condition: expected None, str, or Condition object"
 
     

@@ -18,6 +18,7 @@ namespace = {
     "sin":numpy.sin,
     "cos":numpy.cos,
     "atan2":numpy.arctan2,
+    "log":numpy.log,
     "pi":numpy.pi,
     "e":numpy.e
     }
