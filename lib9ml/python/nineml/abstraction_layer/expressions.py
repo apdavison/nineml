@@ -114,10 +114,11 @@ class Expression(object):
                     args[j]=e.rhs
                 
                 # this is the string to replace
-                #func = self.rhs[m.end():i_start]
+                func = self.rhs[m.start():i_start]
                 
                 if not len(args) == len(b.args):
-                    raise ValueError, "Sustituting function binding: mis-match on number of function arguments."
+                    raise ValueError, "Substituting function binding: mis-match on number of function arguments.\n"+\
+                          "Expression: '%s', Binding: '%s', on: '%s', arg: '%s', Binding args: '%s'" % (self.as_expr(), b.as_expr(),func,args,b.args)
                 subs_expr = "(%s)" % b.rhs
 
                 #subs_expr

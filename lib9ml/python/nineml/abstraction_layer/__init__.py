@@ -742,6 +742,21 @@ class Component(object):
         
         return [t.from_ for t in self.transitions if t.to==regime]
 
+    @property
+    def ports(self):
+        """ yield all ports for component"""
+        for p in self.analog_ports:
+            yield p
+        for p in self.event_ports:
+            yield p
+
+    def filter_ports(self,cls=None,mode=None,symb=None):
+        """ yields all ports filtered by class, mode, symbol """
+        for p in self.ports:
+            if cls and not isinstance(p,cls): continue
+            if mode and p.mode!=mode: continue
+            if symb and p.symbol!=symb: continue
+            yield p
 
     def backsub_bindings(self):
         """ This function finds bindings with undefined functions, and uses
@@ -776,7 +791,10 @@ class Component(object):
                     e.substitute_binding(self.bindings_map[f])
                 else:
                     raise ValueError, "Equation '%s' calls unresolvable functions." % e.as_expr()
-
+            e.parse_rhs()
+            for n in e.names:
+                if n in self.bindings_map:
+                    e.substitute_binding(self.bindings_map[n])
             e.parse_rhs()
 
         # There should be no missing functions now.

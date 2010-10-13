@@ -151,13 +151,29 @@ class ComponentTestCase(unittest.TestCase):
 
         r = nineml.Union(
             "dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn",
-            events = nineml.On(nineml.SpikeInputEvent,do="V+=10"))
+            events = [nineml.On(nineml.SpikeInputEvent,do="V+=10"),
+                      nineml.On("V>Vth",do=["V=c","U+=d",nineml.SpikeOutputEvent])])
 
-        c1 = nineml.Component("Izhikevich", regimes = [r] )
+        c1 = nineml.Component("Izhikevich", regimes = [r], ports=[nineml.AnalogPort("V")] )
         ep = list(c1.event_ports)
-        assert len(ep)==1
+        assert len(ep)==2
 
+        # test some port filtering, get with symb="V"
+        ep = list(c1.filter_ports(symb="V"))
+        assert len(ep)==1
+        assert ep[0]==nineml.AnalogPort("V")
+
+        # get all the event ports
+        ep = list(c1.filter_ports(cls=nineml.EventPort))
+        assert len(ep)==2
+        assert nineml.SpikeInputEvent in ep
+        assert nineml.SpikeOutputEvent in ep
+        
+        # get just the "recv" EventPort
+        ep = list(c1.filter_ports(mode="recv", cls=nineml.EventPort))
+        assert len(ep)==1
         assert ep[0]==nineml.SpikeInputEvent
+
 
         # check that Event catches condition in mode="send"
         self.assertRaises(ValueError, nineml.On,nineml.SpikeOutputEvent,do="V+=10" )
