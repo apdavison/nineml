@@ -124,8 +124,6 @@ class ComponentTestCase(unittest.TestCase):
 
         # now to components
 
-        import nineml.abstraction_layer as nineml
-
         bindings = [
             "v1(x) := 1/v2(x+1,v3(x)+1) + v3(x)",
             "v2(x,y) := v3(x)*y + 10",
@@ -148,6 +146,71 @@ class ComponentTestCase(unittest.TestCase):
         # as the code is custom written, some syntactic differences might still
         # cause problems.  An implementation using sympy might also be an option
         # to consider ...
+
+    def test_ports(self):
+
+        r = nineml.Union(
+            "dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn",
+            events = nineml.On(nineml.SpikeInputEvent,do="V+=10"))
+
+        c1 = nineml.Component("Izhikevich", regimes = [r] )
+        ep = list(c1.event_ports)
+        assert len(ep)==1
+
+        assert ep[0]==nineml.SpikeInputEvent
+
+        # check that Event catches condition in mode="send"
+        self.assertRaises(ValueError, nineml.On,nineml.SpikeOutputEvent,do="V+=10" )
+        # check that it won't accept a simple Port
+        self.assertRaises(ValueError, nineml.On,nineml.Port("hello",mode="recv"),do="V+=10" )
+        # check that it won't accept an AnalogPort
+        self.assertRaises(ValueError, nineml.On,nineml.Port("hello",mode="recv"),do="V+=10" )
+
+        # user defined EventPort should be ok.
+        e = nineml.On(nineml.EventPort("hello",mode="recv"),do="V+=10" )
+
+        
+        r = nineml.Union(
+            "_q10(V):=exp(V)",
+            "dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn",
+            events = nineml.On(nineml.SpikeInputEvent,do="V+=10"))
+
+        # ok to read from a binding, where function bindings are most interesting.
+        c1 = nineml.Component("Izhikevich", regimes = [r], ports=[nineml.AnalogPort("_q10","send")] )
+        # may not write to a binding
+        self.assertRaises(ValueError,nineml.Component, "Izhikevich", regimes = [r], ports=[nineml.AnalogPort("_q10","recv")])
+
+        # may not read from an undefined symbol
+        self.assertRaises(ValueError,nineml.Component, "Izhikevich", regimes = [r], ports=[nineml.AnalogPort("_q11","send")])
+
+        # Should be AnalogPort
+        self.assertRaises(ValueError,nineml.Component, "Izhikevich", regimes = [r], ports=[nineml.Port("_q10","send")])
+
+        # Should be AnalogPort
+        self.assertRaises(ValueError,nineml.Component, "Izhikevich", regimes = [r], ports=[nineml.EventPort("_q10","send")])
+
+
+        # EventPorts as nodes in Events
+
+        # multiple EventPorts
+        myeventport = nineml.EventPort('myeventport',mode="send")
+        r = nineml.Union(
+            "dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn",
+            events = nineml.On("V>Vth",do=[nineml.SpikeOutputEvent,myeventport ]))
+
+        c1 = nineml.Component("Izhikevich", regimes = [r] )
+        ep = list(c1.event_ports)
+        assert len(ep)==2
+
+        assert ep[0]==nineml.SpikeOutputEvent
+        assert ep[1]==myeventport
+
+
+        # ok
+        e = nineml.On("V>Vth", do=nineml.EventPort("hello",mode="send"))
+        # not ok: do=EventPort cannot recv
+        self.assertRaises(ValueError, nineml.On, "V>Vth", do=nineml.EventPort("hello",mode="recv"))
+
 
     def test_trivial_conditions(self):
         """ Disallow trivial conditions """

@@ -358,7 +358,7 @@ def On(condition, do=None,to=None):
     """
     if do:
         # handle one do op more gracefully
-        if isinstance(do,str):
+        if isinstance(do,(str,EventPort)):
             do = (do,)
         return Transition(*do,to=to,condition=condition)
     else:
@@ -417,7 +417,7 @@ class Transition(object):
         if isinstance(condition,EventPort):
             self.condition=condition
             if condition.mode!="recv":
-                raise ValueError, "Transition/Event condition as an EventPort: EventPort modemust be 'recv'"
+                raise ValueError, "Transition/Event condition as an EventPort: EventPort mode must be 'recv'"
         else:
             # cond_to_obj does type checking
             self.condition = cond_to_obj(condition)
@@ -436,7 +436,11 @@ class Transition(object):
         if isinstance(node,str):
             node = expr_to_obj(node)
         
-        if isinstance(node, (Assignment, Inplace, EventPort)):
+        if isinstance(node, (Assignment, Inplace)):
+            self.nodes.append(node)
+        elif isinstance(node, EventPort):
+            if node.mode=="recv":
+                raise ValueError, "EventPort node '%s' must have mode='send'." % repr(node)
             self.nodes.append(node)
         else:
             raise ValueError, "Event node '%s' not of valid type." % repr(node)
@@ -719,6 +723,12 @@ class Component(object):
         for p in ports:
             if not isinstance(p,AnalogPort):
                 raise ValueError, "Component ports attribute can contain only AnalogPort objects.  EventPorts go in Event conditions(recv) and Event nodes (send)"
+            # may only write to user_parameters
+            if p.mode=="recv" and p.symbol not in self.user_parameters:
+                raise ValueError, "'recv' AnalogPorts may target parameters, but not binding symbols, ODE lhs vars, or lhs of Assignments/Inplace ops."
+
+            if p.symbol not in self.non_parameter_symbols and p.symbol not in self.user_parameters:
+                raise ValueError, "'send' AnalogPorts must source from a defined symbol."
                 
 
         self.analog_ports = ports
