@@ -60,19 +60,33 @@ class Expression(object):
         """ Returns a python callable which evaluates the expression in namespace and returns the result """
         return eval("lambda %s: %s" % (','.join(self.names),self.rhs), math_namespace.namespace,namespace)
 
+    @classmethod
+    def name_replace(cls,frm,to,rhs):
+        """ replaces all occurences of name 'frm' with 'to' in rhs (not self.rhs) ('frm' may not occur as a function name on the rhs) ...
+        'to' can be an arbitrary string so this function can also be used for argument substitution.
+
+        Does not write inplace to self.rhs, but returns the resulting string. """
+
+        import re
+
+        # check 'frm' is not used as a function
+        p_func = re.compile(r"(^|([ */+-,(]+))%s\(" % frm)
+        if p_func.search(rhs):
+            raise ValueError, "substituting non-function binding '%s', found use in '%s' as function." % (frm, rhs)
+
+        # do replace using regex
+        # this matches names, using lookahead and lookbehind to be sure we don't
+        # match for example 'xp' in name 'exp' ...
+        p_func = re.compile(r"(?<![a-zA-Z_0-9])(%s)(?![(a-zA-Z_0-9])" % frm)
+        return p_func.sub(to, rhs)
+        
+
     def substitute_binding(self,b):
         """ replaces all occurences of binding symbol or function with the binding rhs with arguments substituted """
         import re
 
         if b.args==():
-            p_func = re.compile(r"(^|([ */+-,(]+))%s\(" % b.name)
-            if p_func.search(self.rhs):
-                raise ValueError, "substituting non-function binding '%s', found use in '%s' as function." % (b.name, self.as_expr())
-            # binding is a symbol sub only
-            #self.rhs = self.rhs.replace(b.name,"(%s)" % b.rhs)
-            p_func = re.compile(r"(?<![a-zA-Z_0-9])(%s)(?![(a-zA-Z_0-9])" % b.name)
-            self.rhs = p_func.sub("(%s)" % b.rhs, self.rhs)
-
+            self.rhs = Expression.name_replace(b.name,"(%s)" % b.rhs,self.rhs)
         else:
             # binding is a function
             # find all occurences of start of the function
@@ -108,8 +122,7 @@ class Expression(object):
 
                 #subs_expr
                 for frm,to in zip(b.args,args):
-                    p_arg_rep = re.compile(r"(?<![a-zA-Z_0-9])(%s)(?![(a-zA-Z_0-9])" % frm)
-                    subs_expr = p_arg_rep.sub(to, subs_expr)
+                    subs_expr = Expression.name_replace(frm,to,subs_expr)
                 parts+=[subs_expr]
 
                 # match next after the closing bracket of the function

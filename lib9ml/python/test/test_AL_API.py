@@ -133,14 +133,21 @@ class ComponentTestCase(unittest.TestCase):
             ]
         r = nineml.Union("dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn + v1(v3(x))")
 
-
         c1 = nineml.Component("Izhikevich", regimes = [r], bindings=bindings )
+        c1.backsub_bindings()
+        c1.backsub_equations()
 
         bm = c1.bindings_map
         assert bm['v1'].rhs == "1/((exp(x+1)**2)*(exp(x)**2)+1 + 10) + (exp(x)**2)"
         assert bm['v2'].rhs == "(exp(x)**2)*y + 10"
         assert bm['v3'].rhs == "exp(x)**2"
+        for e in c1.equations:
+            assert e.rhs == "0.04*V*V + 5*V + 140.0 - U + Isyn + (1/((exp((exp(x)**2)+1)**2)*(exp((exp(x)**2))**2)+1 + 10) + (exp((exp(x)**2))**2))"
 
+        # TODO More tests here ... Although the basic functionality is there,
+        # as the code is custom written, some syntactic differences might still
+        # cause problems.  An implementation using sympy might also be an option
+        # to consider ...
 
     def test_trivial_conditions(self):
         """ Disallow trivial conditions """

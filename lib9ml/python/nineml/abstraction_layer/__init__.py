@@ -641,13 +641,18 @@ class Component(object):
             bindings_map[b.name] = b
         self.bindings_map = bindings_map
 
-        self.simplify_bindings()
+        # We should not do this for the user
+        #self.backsub_bindings()
 
         # check bindings only have static parameters and functions on rhs
         self.check_binding_expressions()
 
         # check we aren't redefining math symbols (like e,pi)
         self.check_non_parameter_symbols()
+
+        # now would be a good time to backsub expressions
+        # but we should not do this for the user.
+        #self.backsub_equations()
 
         # Up till now, we've inferred parameters
         # Now let's check what the user provided
@@ -668,11 +673,12 @@ class Component(object):
         return [t.from_ for t in self.transitions if t.to==regime]
 
 
-    def simplify_bindings(self):
-        """ This function finds bindings which undefined functions, and """
+    def backsub_bindings(self):
+        """ This function finds bindings with undefined functions, and uses
+        the binding_map to attempt to resolve them. """
 
         # build binding dependency tree
-
+        # and perform substitution, recursively
         def build_and_resolve_bdtree(b):
             _bd_tree = {}
             for f in b.missing_functions:
@@ -680,6 +686,8 @@ class Component(object):
                     _bd_tree[f] = build_and_resolve_bdtree(self.bindings_map[f])
                     # resolve (lower level is already resolved now) 
                     b.substitute_binding(self.bindings_map[f])
+                    # re-calc functions
+                    b.parse_rhs()
                 else:
                     raise ValueError, "binding '%s' calls unresolvable functions." % b.as_expr()
             return _bd_tree  
@@ -688,7 +696,21 @@ class Component(object):
         for b in self.bindings_map.itervalues():
             bd_tree[b.name] = build_and_resolve_bdtree(b)
 
-        
+    def backsub_equations(self):
+        """ this function finds all undefined functions in equations, and uses
+        the binding_map to resolve them """
+
+        for e in self.equations:
+            for f in e.missing_functions:
+                if f in self.bindings_map:
+                    e.substitute_binding(self.bindings_map[f])
+                else:
+                    raise ValueError, "Equation '%s' calls unresolvable functions." % e.as_expr()
+
+            e.parse_rhs()
+
+        # There should be no missing functions now.
+        assert [f for e in self.equations for f in e.missing_functions] == []
 
             
     def resolve_references(self):
@@ -779,6 +801,13 @@ class Component(object):
         params = self.user_parameters
         
         for binding in self.bindings:
+            # It is up to the user to call backsub at the appropriate time,
+            # or implement other facilities for resolving user defined functions
+            # bindings ...
+            # There for the following check is removed:
+            #for f in binding.missing_functions:
+            #    raise ValueError, "Binding '%s' calls undefined function '%s' " % str(binding.as_expr(),f)
+
             non_param_names = self.non_parameter_symbols.intersection(binding.names)
             # may reference other bindings
             non_param_names = non_param_names.difference(self.bindings_map.iterkeys())
