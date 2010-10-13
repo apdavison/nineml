@@ -8,7 +8,7 @@ regimes = [
     nineml.Union(
         "dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn",
         "dU/dt = a*(b*V - U)",
-        events = [nineml.On("V > theta",do=["V = c","U += d"])],
+        events = nineml.On("V > theta",do=["V = c","U += d"]),
         name="subthreshold_regime"
     )]
 

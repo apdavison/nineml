@@ -1,32 +1,63 @@
 # A leaky_iaf which defines ports to play with an ampa synapse
 import nineml.abstraction_layer as nineml
 
-
-threshold_event = nineml.Event(
-    "tspike = t",
-    "V = Vreset",
-    nineml.SpikeOutputEvent,
-    condition = "V>Vth"
-    transition = "refractory-regime"
-    )
-
-
 # Leaky iaf
 regimes = [
-    nineml.Sequence(
-    "dV/dt = (-gL*(V-vL) + Isyn)/C",
-    events = [threshold_event],
-    name = "sub-threshold-regime"
-    ),
-
     nineml.Union(
-    events = [nineml.Event(condition="t >= tspike + trefractory",transition="sub-threshold-regime")],
-    name = "refractory-regime"
+        "dV/dt = (-gL*(V-vL) + Isyn)/C",
+        events = nineml.On("V>Vth",do=["tspike = t","V = V_reset", nineml.SpikeOutputEvent],to="refractory-regime"),
+        name = "sub-threshold-regime"
+    ),
+    nineml.Union(
+        "V = V_reset",
+        events = nineml.On("t >= tspike + trefractory",to="sub-threshold-regime"),
+        name = "refractory-regime"
     )]
 
 
-ports = [nineml.Port("V"),
+ports = [nineml.SendPort("V"),
          nineml.ReducePort("Isyn",op="+")]
 
-c1 = nineml.Component("LeakyIAF", regimes = regimes, ports = ports)
+leaky_iaf = nineml.Component("LeakyIAF", regimes = regimes, ports = ports)
+
+# ampa
+
+
+regimes = [
+    nineml.Union(
+        "dg/dt = -g/tau",
+        "Isyn = g(E-V)",
+        events = nineml.On(nineml.SpikeInputEvent,do="g+=q")
+        )]
+        
+
+ports = [nineml.RecvPort("V"),
+         nineml.SendPort("Isyn")]
+
+coba_syn = nineml.Component("CoBaSynapse", regimes = regimes, ports = ports)
+
+# User layer connects
+# leaky_iaf.ports['V'] -> coba_syn.ports['V']
+# coba_syn.ports['Isyn'] -> leaky_iaf.ports['Isyn'] for multiple synapses (reduce port)
+# Simulator attaches to SpikeInput and SpikeOutput ports for input and output.
+
+
+# write to file object f if defined
+
+c1 = coba_syn
+
+try:
+    # This case is used in the test suite for examples.
+    c1.write(f)
+except NameError:
+    import os
+
+    base = "leaky_iaf_ampa_ports_events"
+    c1.write(base+".xml")
+    c2 = nineml.parse(base+".xml")
+    assert c1==c2
+
+    #c1.to_dot(base+".dot")
+    #os.system("dot -Tpng %s -o %s" % (base+".dot",base+".png"))
+
 

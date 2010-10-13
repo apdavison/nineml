@@ -9,9 +9,9 @@ inter_event_regime = Union(
     "dB/dt = -B/tau_d",
     "g = gB(V)*gmax*(B-A)",
     name="inter_event_regime",
-    events=[On("SpikeInputEvent == 1.0",
-                    do=["A = A + weight*factor",
-                        "B = B + weight*factor"])]
+    events=On("SpikeInputEvent == 1.0",
+              do=["A = A + weight*factor",
+                  "B = B + weight*factor"])
     )
 
  

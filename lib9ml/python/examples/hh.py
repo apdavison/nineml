@@ -50,7 +50,7 @@ hh_regime = Union( # or Union? do we solve for m,h,n first then V, or all togeth
     current_calculation,
     "dV/dt = (ina + ik + il + Isyn)/C",
     name="hh_regime",
-    events=[On("V > theta",do=["tspike=t"])]
+    events=On("V > theta",do=["tspike=t"])
 )
 
 

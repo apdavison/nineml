@@ -92,6 +92,9 @@ class Regime(RegimeElement):
 
         events = kwargs.get('events')
         if events:
+            # handle only one event more gracefully
+            if isinstance(events,Event):
+                events = (events,)
             events=set(events)
         else:
             events=set()
@@ -354,6 +357,9 @@ def On(condition, do=None,to=None):
     
     """
     if do:
+        # handle one do op more gracefully
+        if isinstance(do,str):
+            do = (do,)
         return Transition(*do,to=to,condition=condition)
     else:
         return Transition(to=to,condition=condition)
@@ -364,6 +370,19 @@ class Transition(object):
     n = 0
     
     def __init__(self, *nodes, **kwargs):
+        """
+        Event/Transition
+
+        nodes = is a collection of assignments, inplace operations, or EventPorts of mode="send"
+                which happen when the condition triggers.
+                
+        'condition' may be be a string like "V>10" or an EventPort of mode="recv"
+
+        from_ = Regime to transition from
+        to = Regime to transition to (maybe None)
+        name = name for transition, maybe None, in which case one is assigned.
+
+        """
 
         #from_=None, to=None, condition=None, name=None
         from_ = kwargs.get("from_")
@@ -395,8 +414,13 @@ class Transition(object):
         self.from_ = from_
         self.to = to
 
-        # cond_to_obj does type checking
-        self.condition = cond_to_obj(condition)
+        if isinstance(condition,EventPort):
+            self.condition=condition
+            if condition.mode!="recv":
+                raise ValueError, "Transition/Event condition as an EventPort: EventPort modemust be 'recv'"
+        else:
+            # cond_to_obj does type checking
+            self.condition = cond_to_obj(condition)
 
         if not self.condition:
             raise ValueError, "Transition condition may not be none"
@@ -420,7 +444,10 @@ class Transition(object):
     @property
     def event_ports(self):
         """ Yields all EventPorts in the Event"""
-        return self.nodes_filter(lambda x: isinstance(x,EventPort))
+        if isinstance(self.condition,EventPort):
+            yield self.condition
+        for p in self.nodes_filter(lambda x: isinstance(x,EventPort)):
+            yield p
 
     @property
     def equations(self):
@@ -473,14 +500,23 @@ class Transition(object):
                              sorted(self.nodes, key=sort_key) == sorted(other.nodes, key=sort_key)))
 
     def to_xml(self):
-        attrs = {"name": self.name,
-                 "condition": self.condition.cond}
+        attrs = {"name": self.name}
+        args = []
+
+        # TODO this duality of EventPorts and Conditions
+        # should be cleaned up
+        if isinstance(self.condition,EventPort):
+            args+=[E("condition-on-event-port", self.condition.to_xml())]
+        else:
+            attrs["condition"] = self.condition.cond
+
+            
         if self.to:
             attrs['to'] = self.to.name
         if self.from_:
             attrs['from'] = self.from_.name
         
-        return E(self.element_name, *[node.to_xml() for node in self.nodes], **attrs)
+        return E(self.element_name, *args+[node.to_xml() for node in self.nodes], **attrs)
 
 ##     def resolve(self, regimes):
 ##         for attr_name in ("from_", "to"):
@@ -506,13 +542,31 @@ class Transition(object):
         to = element.get("to")
         if to:
             to = Reference(Regime,to )
+
+        # Handling condition="V>Vth", but also EventPort as condition
         condition = element.get("condition")
+        on_event_port = element.findall(NINEML+"condition-on-event-port")
+        if not condition and not on_event_port:
+            raise ValueError, "Transition did not define condition attribute, or condition-on-event-port element"
+        if condition and on_event_port:
+            raise ValueError, "Transition defined both condition attribute, and condition-on-event-port element"
+        if len(on_event_port)>1:
+            raise ValueError, "multiple condition-on-event-port elements"
+        if on_event_port:
+            oep = on_event_port[0]
+            ep_elems = oep.findall(NINEML+EventPort.element_name)
+            if len(ep_elems)>1:
+                raise ValueError, "condition-on-event-port defined multiple event-port elements"
+            condition = EventPort.from_xml(ep_elems[0])
+
+            
         name = element.get("name")
         nodes = []
         tag_class_map = {}
         for node_cls in (EventPort, Assignment, Inplace):
             tag_class_map[NINEML+node_cls.element_name] = node_cls
         for elem in element.iterchildren():
+            if elem.tag==NINEML+"condition-on-event-port": continue
             node_cls = tag_class_map[elem.tag]
             tmp = node_cls.from_xml(elem)
             nodes.append(tmp)
@@ -662,7 +716,13 @@ class Component(object):
                 raise ValueError, "Declared parameter list %s does not match inferred parameter list %s." % (str(sorted(parameters)),str(sorted(self.user_parameters)))
 
         self.parameters = self.user_parameters
-        self.ports = ports
+        for p in ports:
+            if not isinstance(p,AnalogPort):
+                raise ValueError, "Component ports attribute can contain only AnalogPort objects.  EventPorts go in Event conditions(recv) and Event nodes (send)"
+                
+
+        self.analog_ports = ports
+        
         
         # we should check that parameters is correct
         # even better, we could auto-generate parameters
@@ -758,7 +818,8 @@ class Component(object):
                              sorted(self.transitions, key=sort_key) == sorted(other.transitions, key=sort_key),
                              sorted(self.regimes, key=sort_key) == sorted(other.regimes, key=sort_key),
                              sorted(self.bindings, key=sort_key) == sorted(other.bindings, key=sort_key)))
-    
+
+   
     @property
     def equations(self):
         #for transition in self.transitions:
@@ -934,6 +995,7 @@ class Component(object):
     
     def to_xml(self):
         elements = [E.parameter(name=p) for p in self.parameters] + \
+                   [p.to_xml() for p in self.analog_ports] +\
                    [r.to_xml() for r in self.regimes] + \
                    [b.to_xml() for b in self.bindings] +\
                    [t.to_xml() for t in self.transitions]
@@ -960,10 +1022,15 @@ class Component(object):
             for e in element.findall(NINEML+regime_cls.element_name):
                 regimes.append(regime_cls.from_xml(e))
 
+        analog_ports = []
+        for port_cls in (AnalogPort,):
+            for e in element.findall(NINEML+port_cls.element_name):
+                analog_ports.append(port_cls.from_xml(e))
+
         transitions = [Transition.from_xml(t) for t in element.findall(NINEML+Transition.element_name)]
 
         # allocate new component
-        new_comp = cls(element.get("name"), parameters, regimes=regimes, transitions=transitions, bindings=bindings)
+        new_comp = cls(element.get("name"), parameters, regimes=regimes, transitions=transitions, bindings=bindings, ports=analog_ports)
 
         return new_comp
 

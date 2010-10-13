@@ -1,5 +1,6 @@
 
 from nineml.helpers import curry
+from nineml.abstraction_layer.xmlns import *
 
 class Port(object):
     """ Base class for EventPort and AnalogPort, etc."""
@@ -17,7 +18,7 @@ class Port(object):
                   "specified undefined mode: '%s'" %\
                   (self.symbol, self.mode)
         if self.mode=='reduce':
-            if reduce_op not in reduce_op_map.keys():
+            if self.reduce_op not in self.reduce_op_map.keys():
                 raise ValueError, "Port(symbol='%s')"+\
                       "specified undefined reduce_op: '%s'" %\
                       (self.symbol, str(self.reduce_op))
@@ -35,8 +36,15 @@ class Port(object):
         else:
             return "Port(symbol='%s', mode='%s')" % (self.symbol, self.mode)
 
-    def __eq__(self, other):
-        return Port.__eq__(self, other) and self.condition==other.condition
+    @property
+    def names(self):
+        return []
+
+    @property
+    def name(self):
+        return self.symbol
+
+
 
     def to_xml(self, **kwargs):
         if self.reduce_op:
@@ -58,16 +66,21 @@ class Port(object):
 
 
 class AnalogPort(Port):
+    element_name = "analog-port"
     """ Port which may be in a Regime """
     pass
 
 class EventPort(Port):
+    element_name = "event-port"
     """ Port which may be in an Event """
     pass
 
 
+SpikeOutputEvent = EventPort('spike_output')
+SpikeInputEvent = EventPort('spike_input', mode="recv")
 # Syntactic sugar
-SpikeOutputEvent = curry(EventPort, 'spike_output')
-SpikeInputEvent = curry(EventPort, 'spike_input', mode="recv")
 ReducePort = curry(AnalogPort,mode="reduce")
 RecvPort = curry(AnalogPort,mode="recv")
+SendPort = curry(AnalogPort,mode="send")
+
+# allows: RecvPort("V")
