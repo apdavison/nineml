@@ -8,10 +8,6 @@ def regime_equations(regime, level=1, **kwargs):
 
     eqns = []
     for e in regime.equations:
-        eqn = e.as_expr()
-        # bindings need ':=' replaced with '='
-        if isinstance(e, nineml.Binding):
-            eqn.replace(':=','=')
         # TODO: add units to nineml to remove the
         # __time_factor__ hack
         # insert __time_factor__ for ODEs on rhs
@@ -30,7 +26,6 @@ def forward_euler_subset(eqns,S,subset,dt):
     with the forward Euler algorithm over step dt.
 
     Subset is a slice on the neuron population
-    only euler on the subset is performed
     '''
     # Calculate all static variables (or do that after?)
     #for var in self._eq_names:
