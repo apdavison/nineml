@@ -36,8 +36,8 @@ hh_regime = Union(
     events=On("V > theta",do=[SpikeOutputEvent])
 )
 
-# the rest are not "parameters" but bindings, assigned vars, state vars, indep vars, etc.
-parameters = ['el', 'C', 'ek', 'ena', 'Isyn', 'gkbar', 'gnabar', 'theta', 'gl','celsius']
+# the rest are not "parameters" but bindings, assigned vars, state vars, indep vars, ports, etc.
+parameters = ['el', 'C', 'ek', 'ena', 'gkbar', 'gnabar', 'theta', 'gl','celsius']
 
 ports = [SendPort("V"),
          ReducePort("Isyn",op="+")]

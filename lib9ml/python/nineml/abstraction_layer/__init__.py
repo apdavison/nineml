@@ -58,16 +58,12 @@ class Reference(object):
     def __repr__(self):
         return "Reference(%s, name='%s')" % (self.cls.__name__, self.name)
 
-# This is a reference to the only regime that transitions to this regime
-# The concept is used for the On function, so that a standalone do
-# Can return to the previous regime on completion.
-# It is for syntactic sugar, and requires no additional concepts in the XML ...
-
         
 class Regime(RegimeElement):
-    """A regime is something that can be joined by a transition.
+    """A regime is something that contains ODEs, has temporal extent, defines a set of Events
+    which occur based on conditions, and can be joined to other Regimes by a "transition" Event.
 
-    This is an Abstract base class.  Union and Sequence are subclasses for the user.
+    This is an Abstract base class.  Union and (Deprecated: Sequence) are subclasses for the user.
     This class does not define and element_name so it cannot be written to XML.
 
     """
@@ -82,13 +78,16 @@ class Regime(RegimeElement):
 
         nodes = map(expr_to_obj,nodes)
 
-        # user can define transitions emanating from this
-        # regime
-        t = kwargs.get('transitions')
-        if t:
-            self.transitions=set(t)
-        else:
-            self.transitions=set()
+##         # user can define transitions emanating from this
+##         # regime
+##         t = kwargs.get('transitions')
+##         if t:
+##             self.events=set(t)
+##         else:
+##             self.events=set()
+
+        if kwargs.get('transitions'):
+            raise ValueError, "kwarg 'transitions' has been removed. Used 'events' instead."
 
         events = kwargs.get('events')
         if events:
@@ -99,8 +98,10 @@ class Regime(RegimeElement):
         else:
             events=set()
 
-        # Events are transitions, union the two sets
-        self.transitions = self.transitions.union(events) 
+        # Here: my_events, because a Union of sub-Unions
+        # should also include sub-Union events.
+        # self.events will iterate over all
+        self.my_events = events
 
         for node in nodes:
             self.add_node(node)
@@ -112,7 +113,7 @@ class Regime(RegimeElement):
         sort_key = lambda node: node.name
         return reduce(and_, (self.name == other.name, 
                              sorted(self.nodes, key=sort_key) == sorted(other.nodes, key=sort_key),
-                             sorted(self.transitions, key=sort_key) == sorted(other.transitions, key=sort_key)))
+                             sorted(self.events, key=sort_key) == sorted(other.events, key=sort_key)))
 
     def __repr__(self):
         return "%s(%s)" % (self.__class__.__name__, self.name)
@@ -137,48 +138,59 @@ class Regime(RegimeElement):
 
 
 
-    def add_transition(self, t):
-        """ Add a transition to the regime"""
-        if isinstance(t, Transition):
+    def add_event(self, t):
+        """ Add an event to the regime"""
+        if isinstance(t, Event):
             if t.from_ is None:
                 t.from_=self
             if not t.from_==self:
-                print "WARNING: transition whose from_ was reassigned to the Regime."
-            assert t.to!=self, "transition '%s' assigns Regime '%s' to itself!." % (t.name, self.name)
+                print "WARNING: Event whose from_ was reassigned to the Regime."
+            assert t.to!=self, "Event '%s' assigns Regime '%s' to itself!." % (t.name, self.name)
         else:
-            assert isinstance(t,Reference) and t.cls==Transition, "Regime.add_transition(t): t must be Transition or Reference(Transition, name)"
+            assert isinstance(t,Reference) and t.cls==Event, "Regime.add_event(t): t must be Event or Reference(Event, name)"
         
-        self.transitions.add(t)
+        self.my_events.add(t)
 
     @property
     def neighbors(self):
-        """ Get all regimes we transition to """
-        return [t.to for t in self.transitions_with_target]
+        """ Get all regimes we transition to via an Event """
+        return [t.to for t in self.events_with_target]
 
     @property
-    def transitions_with_target(self):
-        """ Get all transitions which define a target"""
-        for t in self.transitions:
+    def events(self):
+        """ Get events of Regime and all sub-regimes"""
+        for e in self.my_events:
+            yield e
+
+        # now from Regime nodes
+        for r in self.nodes_filter(lambda x: isinstance(x,Regime)):
+            for e in r.events:
+                yield e
+
+    @property
+    def events_with_target(self):
+        """ Get all Events which define a target"""
+        for t in self.events:
             if t.to:
                 yield t
 
-    def get_transition_to(self,to):
-        """ Returns transition if Regime transitions to Regime 'to', otherwise None """
+    def get_event_to(self,to):
+        """ Returns Event if Regime transitions to Regime 'to', otherwise None """
 
-        for t in self.transitions:
+        for t in self.events:
             if t.to == to:
                 return t
         else:
             return None
 
     def neighbor_map(self):
-        """Returns a map of neighbors to transitions, from self
+        """Returns a map of {neighbor:event,...} with event.to=neighbor, from_=self
 
-        Such that neighbor_map[neighbor] is the transition from self to neighbor """
-
+        """
+        
         d = {}
-        for t in self.transitions:
-            # transition might have no target
+        for t in self.events:
+            # event might have no target
             if t.to:
                 d[t.to] = t
 
@@ -246,12 +258,12 @@ class Regime(RegimeElement):
         # Add self to regimes set
         regimes_set.add(self)
 
-        # Go through transitions of this regime
-        for t in self.transitions:
+        # Go through Events of this regime
+        for t in self.events:
             # if found a new regime, have it add itself and
             # all its new regimes recursively
                 
-            # transitions may have to=None
+            # Events may have to=None
             if t.to:
                 assert not isinstance(t.to, Reference), "Unresolved references.  Is this Regime part of a Component?"
 
@@ -345,14 +357,14 @@ class Union(Regime):
 
 
 def On(condition, do=None,to=None):
-    """ returns new Transition which goes to 'to' if condition is True.
+    """ returns new Event which goes to 'to' if condition is True.
 
     Equivalent to :
-    Transition(from_=None,to=Reference(Regime,to),condition=condition)
+    Event(from_=None,to=Reference(Regime,to),condition=condition)
 
     'On' is syntactic sugar for defining light regimes.
 
-    The resulting Transition has from_=None, so it must be added to a Regime
+    The resulting Event has from_=None, so it must be added to a Regime
     to be activated.
     
     """
@@ -360,13 +372,13 @@ def On(condition, do=None,to=None):
         # handle one do op more gracefully
         if isinstance(do,(str,EventPort)):
             do = (do,)
-        return Transition(*do,to=to,condition=condition)
+        return Event(*do,to=to,condition=condition)
     else:
-        return Transition(to=to,condition=condition)
+        return Event(to=to,condition=condition)
         
 
-class Transition(object):
-    element_name = "transition"
+class Event(object):
+    element_name = "event"
     n = 0
     
     def __init__(self, *nodes, **kwargs):
@@ -380,7 +392,7 @@ class Transition(object):
 
         from_ = Regime to transition from
         to = Regime to transition to (maybe None)
-        name = name for transition, maybe None, in which case one is assigned.
+        name = name for Event, maybe None, in which case one is assigned.
 
         """
 
@@ -425,8 +437,8 @@ class Transition(object):
         if not self.condition:
             raise ValueError, "Transition condition may not be none"
 
-        self.name = name or ("Transition%d" % Transition.n)
-        Transition.n += 1
+        self.name = name or ("Event%d" % Event.n)
+        Event.n += 1
 
         self.nodes = []
         for node in nodes:
@@ -473,7 +485,7 @@ class Transition(object):
         
 
     def __repr__(self):
-        return "Transition(from %s to %s if %s)" % (self.from_, self.to, self.condition)
+        return "Event(from %s to %s if %s)" % (self.from_, self.to, self.condition)
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
@@ -551,9 +563,9 @@ class Transition(object):
         condition = element.get("condition")
         on_event_port = element.findall(NINEML+"condition-on-event-port")
         if not condition and not on_event_port:
-            raise ValueError, "Transition did not define condition attribute, or condition-on-event-port element"
+            raise ValueError, "Event did not define condition attribute, or condition-on-event-port element"
         if condition and on_event_port:
-            raise ValueError, "Transition defined both condition attribute, and condition-on-event-port element"
+            raise ValueError, "Event defined both condition attribute, and condition-on-event-port element"
         if len(on_event_port)>1:
             raise ValueError, "multiple condition-on-event-port elements"
         if on_event_port:
@@ -577,72 +589,71 @@ class Transition(object):
         
         return cls(*nodes,from_=from_, to=to, condition=condition, name=name)
 
-Event = Transition
 
 class Component(object):
     element_name = "component"
     
-    def __init__(self, name, parameters = [], regimes = [], transitions = [], events=[],
+    def __init__(self, name, parameters = [], regimes = [], events=[],
                  ports = [], bindings = []):
         """
         Regime graph should not be edited after contructing a component
 
         *TODO*: if the user maintains a ref to a regime in regimes,
         etc. they can violate this.  Code generators will need to
-        query regimes, transtions, so we can't privatize self
+        query regimes, events, so we can't privatize self
         attributes {_regimes, _transitions, _regime_map,
         _transition_map} by prefixing with "_".
 
-        We should do some privatizing for regimes, transitions, or do a deepcopy here.
-        We could make regimes and transitions tuples, and expose only read-only apis in
-        Regime and Transition class.  Then the _map could be made a sort of ImmutableDict.
+        We should do some privatizing for regimes, events, or do a deepcopy here.
+        We could make regimes and events tuples, and expose only read-only apis in
+        Regime and Event class.  Then the _map could be made a sort of ImmutableDict.
         *END TODO*
 
 
-        Specifying Regimes & Transitions
+        Specifying Regimes & Events
         --------------------------------
 
-        The user passed 'regimes' and 'transitions'|'events' should contain true objects, i.e.
+        The user passed 'regimes' and 'events' should contain true objects, i.e.
         they may not contain References. 
         
         Options to the user:
         
-        1) provide both 'regimes' and 'transitions' (references will be resolved)
+        1) provide both 'regimes' and 'events' (references will be resolved)
         2) provide 'regimes' only (in which case there must be no unresolved references),
-        3) provide 'transitions' only (in which case there must be at least
-           one transition in the model, and no unresolved references),
+        3) provide 'events' only (in which case there must be at least
+           one event in the model, and no unresolved references),
 
-        transitions and events are synonymous.
+        NB: events and transitions are synonymous.  Transition is the old term.
 
         """
 
         self.name = name
 
         # check for empty component, we do not support inplace building of a component.
-        if not regimes and not transitions and not events:
+        if not regimes and not events:
             raise ValueError, "Component constructor needs at least 'regimes'"+\
-                  "or 'transitions' or 'events' to build component graph."
+                  "or 'events' to build component graph."
 
-        # add to transitions from regimes
-        # get only true transition objects (not references) from regimes
-        # these will be added to transition map in next step
-        trans_objects = [t for r in regimes for t in r.transitions if isinstance(t,Transition)]
-        # model with no transitions is indeed allowed.
+        # add to events from regimes
+        # get only true event objects (not references) from regimes
+        # these will be added to event map in next step
+        event_objects = [t for r in regimes for t in r.events if isinstance(t,Event)]
+        # model with no events is indeed allowed.
 
-        trans_refs = [t for t in transitions if isinstance(t,Reference)]
-        assert not trans_refs, "Component constructor: kwarg 'transitions' may not"+\
+        event_refs = [t for t in events if isinstance(t,Reference)]
+        assert not event_refs, "Component constructor: kwarg 'events' may not"+\
                "contain references."
 
-        transitions = set(transitions).union(set(events))
-        transitions.update(trans_objects)
+        events = set(events)
+        events.update(event_objects)
 
         # add to regimes from transitions
         # get only true regime objects (not references) from transitions
         # these will be added to regime map in next step
-        regime_objects = [r for t in transitions for r in (t.to,t.from_) if isinstance(r,Regime)]
+        regime_objects = [r for t in events for r in (t.to,t.from_) if isinstance(r,Regime)]
 
         if not regimes:
-            assert regime_objects, "Cannot build regime set: User supplied only Transitions "+\
+            assert regime_objects, "Cannot build regime set: User supplied only Events "+\
                    "to Component constructor, but all 'to','from_' attributes are references!"
         regime_refs = [r for r in regimes if isinstance(r,Reference)]
         assert not regime_refs, "Component constructor: kwarg 'regimes' may not contain references."
@@ -657,23 +668,23 @@ class Component(object):
                 raise ValueError, "Regime collection has Regimes with colliding names."
             self.regime_map[r.name] = r
 
-        # build transitions map
-        self.transition_map = {}
-        for t in transitions:
-            if self.transition_map.has_key(t.name):
-                raise ValueError, "Transition collection has Transitions with colliding names."
-            self.transition_map[t.name] = t
+        # build event map
+        self.event_map = {}
+        for t in events:
+            if self.event_map.has_key(t.name):
+                raise ValueError, "Event collection has Events with colliding names."
+            self.event_map[t.name] = t
                
-        # store final regime and transition sets for this component
+        # store final regime and event sets for this component
         self.regimes = set(regimes)
-        self.transitions = set(transitions)
+        self.events = set(events)
 
         # We have extracted all implicit knowledge of graph members, proceed to
         # resolve references.
         self.resolve_references()
 
         # check that there is an island regime only if there is only 1 regime
-        island_regimes = set([r for r in self.regimes if not list(r.transitions_with_target) and\
+        island_regimes = set([r for r in self.regimes if not list(r.events_with_target) and\
                               not self.get_regimes_to(r)])
         if island_regimes:
             assert len(self.regimes)==1, "User Error: Component contains island regimes"+\
@@ -729,9 +740,9 @@ class Component(object):
         #self.backsub_equations()
 
     def get_regimes_to(self,regime):
-        """ Gets as a list all regimes that transition to regime"""
+        """ Gets as a list all regimes that event to regime"""
         
-        return [t.from_ for t in self.transitions if t.to==regime]
+        return [t.from_ for t in self.events if t.to==regime]
 
     @property
     def ports(self):
@@ -744,7 +755,7 @@ class Component(object):
     @property
     def event_ports(self):
         """ return all event ports in regime events"""
-        for t in self.transitions:
+        for t in self.events:
             for ep in t.event_ports:
                     yield ep
 
@@ -824,36 +835,36 @@ class Component(object):
 
             
     def resolve_references(self):
-        """ Uses self.regimes_map and self.transitions_map to resolve references in self.regimes and self.transitions"""
+        """ Uses self.regimes_map and self.events_map to resolve references in self.regimes and self.events"""
 
-        # resolve transition from_=None to parent regime
+        # resolve event from_=None to parent regime
         for r in self.regimes:
-            for t in r.transitions:
+            for t in r.events:
                 if t.from_==None:
                     t.from_=r
 
-        # resolve regime references in transitions:
-        for t in self.transitions:
+        # resolve regime references in events:
+        for t in self.events:
             for attr in ('to','from_'):
                 ref = t.__getattribute__(attr)
-                # transition defines no to,from
+                # event defines no to,from
                 if ref==None: continue
                 if not isinstance(ref,Regime):
                     assert isinstance(ref,Reference) and issubclass(ref.cls,Regime), "Expected Regime reference or Regime"
                     t.__setattr__(attr,self.regime_map[ref.name])
 
-        # resolve transition references in regimes
+        # resolve event references in regimes
 
         for r in self.regimes:
-            for t in r.transitions:
-                if isinstance(t, Transition ): continue
-                assert isinstance(t,Reference) and r.cls==Transition, "Expected Transition reference or Transition" 
-                r.transitions.remove(t)
-                r.transitions.add(self.transition_map[t.name])
+            for t in r.events:
+                if isinstance(t, Event ): continue
+                assert isinstance(t,Reference) and r.cls==Event, "Expected Event reference or Event" 
+                r.events.remove(t)
+                r.events.add(self.event_map[t.name])
 
         # add transitions to regimes:
-        for t in self.transitions:
-            t.from_.add_transition(t)
+        for t in self.events:
+            t.from_.add_event(t)
             
 
 
@@ -865,7 +876,7 @@ class Component(object):
 
         return reduce(and_, (self.name == other.name,
                              self.parameters == other.parameters,
-                             sorted(self.transitions, key=sort_key) == sorted(other.transitions, key=sort_key),
+                             sorted(self.events, key=sort_key) == sorted(other.events, key=sort_key),
                              sorted(self.regimes, key=sort_key) == sorted(other.regimes, key=sort_key),
                              sorted(self.bindings, key=sort_key) == sorted(other.bindings, key=sort_key)))
 
@@ -877,10 +888,9 @@ class Component(object):
 
     @property
     def equations(self):
-        #for transition in self.transitions:
-        #    for regime in transition.from_, transition.to:
+
         for r in self.regimes:
-            for t in r.transitions:
+            for t in r.events:
                 for eq in t.equations:
                     yield eq
             for eq in r.equations:
@@ -893,7 +903,7 @@ class Component(object):
     def conditions(self):
         """ Returns all conditions """
         # TODO events
-        for t in self.transitions:
+        for t in self.events:
             yield t.condition
 
     @property
@@ -958,7 +968,7 @@ class Component(object):
         symbols = symbols.difference(self.non_parameter_symbols)
         symbols = symbols.difference(math_namespace.symbols)
         # remove symbols of AnalogPorts with mode='recv'
-        symbols = symbols.difference([p.symbol for p in self.analog_ports if p.mode=='recv'])
+        symbols = symbols.difference([p.symbol for p in self.filter_ports(cls=AnalogPort,mode=('recv','reduce'))])
         return symbols.difference(math_namespace.reserved_symbols)
 
                  
@@ -1048,7 +1058,7 @@ class Component(object):
                    [p.to_xml() for p in self.analog_ports] +\
                    [r.to_xml() for r in self.regimes] + \
                    [b.to_xml() for b in self.bindings] +\
-                   [t.to_xml() for t in self.transitions]
+                   [t.to_xml() for t in self.events]
         attrs = {"name": self.name}
         return E(self.element_name, *elements, **attrs)
        
@@ -1077,10 +1087,10 @@ class Component(object):
             for e in element.findall(NINEML+port_cls.element_name):
                 analog_ports.append(port_cls.from_xml(e))
 
-        transitions = [Transition.from_xml(t) for t in element.findall(NINEML+Transition.element_name)]
+        events = [Event.from_xml(t) for t in element.findall(NINEML+Event.element_name)]
 
         # allocate new component
-        new_comp = cls(element.get("name"), parameters, regimes=regimes, transitions=transitions, bindings=bindings, ports=analog_ports)
+        new_comp = cls(element.get("name"), parameters, regimes=regimes, events=events, bindings=bindings, ports=analog_ports)
 
         return new_comp
 
@@ -1136,7 +1146,7 @@ class Component(object):
                 ns['contents'] = r.dot_content()
                 out.write(t_regime % ns)
         
-        for t in self.transitions:
+        for t in self.events:
             if show_contents:
     
                 out.write('\tregime_%d -> regime_%d [label="%s @ %s"];\n' % (regime_id[t.from_.name], regime_id[t.to.name],

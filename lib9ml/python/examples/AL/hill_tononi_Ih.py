@@ -1,7 +1,8 @@
 from nineml.abstraction_layer import *
 
-# H-current (I_h) from Hill & Tononi, 2005
-# Is based on:
+# H-current (I_h) from
+#  Hill & Tononi, J Neurophysiol 93:1671-1698, 2005. doi:10.1152/jn.00915.2004
+# Which in turn, is based on:
 #  Huguenard, J.R. and McCormick, D.A. (1992) Voltage clamp simulations
 #  of currents involved in rhythmic oscillations in thalamic relay neurones. Journal of Neurophysiology, 68: 1373-1383.  
 

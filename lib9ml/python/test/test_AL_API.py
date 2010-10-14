@@ -6,11 +6,6 @@ import os, tempfile
 
 
 
-
-# regimes maynot have transition(condition=None)
-# events : transition maynot have condition
-
-
 class ComponentTestCase(unittest.TestCase):
 
     def test_expressions(self):
@@ -303,22 +298,22 @@ class ComponentTestCase(unittest.TestCase):
 
         
         u = nineml.Union("dU/dt = -U")
-        assert not list(u.transitions_with_target)
+        assert not list(u.events_with_target)
 
         u = nineml.Union("dU/dt = -U", events=[nineml.On("V>10",to="test")])
-        assert list(u.transitions_with_target)
+        assert list(u.events_with_target)
 
         u = nineml.Union("dU/dt = -U", events=[nineml.Event("U+=10",condition="U>10")])
-        assert not list(u.transitions_with_target)
+        assert not list(u.events_with_target)
 
         u = nineml.Union("dU/dt = -U", events=[nineml.Event("U+=10",condition="U>10",to="test")])
-        assert list(u.transitions_with_target)
+        assert list(u.events_with_target)
 
 
 
-    def test_transition(self):
+    def test_event(self):
 
-        t = nineml.Transition(to=nineml.Reference(nineml.Regime,"test"), condition = "V>10")
+        t = nineml.Event(to=nineml.Reference(nineml.Regime,"test"), condition = "V>10")
         
         
     def test_event(self):
@@ -343,10 +338,10 @@ class ComponentTestCase(unittest.TestCase):
         e = nineml.Event("A+=10", condition="A>10", to=nineml.Reference(nineml.Union,"test"))
 
 
-        t = nineml.Transition(to=nineml.Reference(nineml.Regime,"test"), condition = "V>10")
+        t = nineml.Event(to=nineml.Reference(nineml.Regime,"test"), condition = "V>10")
                 
         self.assertRaises(ValueError, nineml.Event, "A+=10", condition="A>10", to=t)
-        self.assertRaises(ValueError, nineml.Event, "A+=10", condition="A>10", to=nineml.Reference(nineml.Transition,"test"))
+        self.assertRaises(ValueError, nineml.Event, "A+=10", condition="A>10", to=nineml.Reference(nineml.Event,"test"))
 
 
     def test_component(self):

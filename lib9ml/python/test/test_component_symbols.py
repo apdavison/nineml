@@ -25,16 +25,18 @@ class ComponentSymbolsTestCase(unittest.TestCase):
                 "q := 20.0 + a*b + w",
                 "dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn",
                 "dU/dt = a*(b*V - U)",
-                transitions = [nineml.On("V > theta",do=["V = c","U += d"])],
+                events = [nineml.On("V > theta",do=["V = c","U += d"])],
                 name="subthreshold_regime"
             ),
             ]
 
+        ports = [nineml.ReducePort("Isyn",op="+")]
 
         c1 = nineml.Component("Izhikevich",
-                                     regimes = regimes )
+                                     regimes = regimes, ports=ports )
 
-        assert c1.parameters == set(parameters+in_ports)
+        print parameters, c1.user_parameters
+        assert c1.user_parameters == set(parameters)
             
         assert c1.bound_symbols == set(bound)
         assert c1.independent_variables == set(indep_vars)
