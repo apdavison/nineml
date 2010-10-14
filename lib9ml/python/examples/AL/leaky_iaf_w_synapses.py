@@ -9,7 +9,6 @@ regimes = [
         name = "sub-threshold-regime"
     ),
     nineml.Union(
-        "V = V_reset",
         events = nineml.On("t >= tspike + trefractory",to="sub-threshold-regime"),
         name = "refractory-regime"
     )]
@@ -26,13 +25,11 @@ leaky_iaf = nineml.Component("LeakyIAF", regimes = regimes, ports = ports)
 regimes = [
     nineml.Union(
         "dg/dt = -g/tau",
-        "Isyn = g(E-V)",
         events = nineml.On(nineml.SpikeInputEvent,do="g+=q")
         )]
         
-
 ports = [nineml.RecvPort("V"),
-         nineml.SendPort("Isyn")]
+         nineml.SendPort("Isyn = g(E-V)")]
 
 coba_syn = nineml.Component("CoBaSynapse", regimes = regimes, ports = ports)
 

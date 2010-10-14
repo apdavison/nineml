@@ -1,7 +1,7 @@
 import nineml.abstraction_layer as nineml
 
 
-parameters = ["Isyn", "a", "b", "c", "d", "theta"]
+#parameters = ["Isyn", "a", "b", "c", "d", "theta"]
 
 subthreshold_regime = nineml.Union(
     "dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn",
@@ -12,13 +12,15 @@ subthreshold_regime = nineml.Union(
 spike_event = nineml.Event(
     "V = c",
     "U += d",
+    nineml.SpikeOutputEvent,
     from_=subthreshold_regime,
-    condition="V > theta",
-    name="spike_event"
+    condition="V > theta"
     )
 
-c1 = nineml.Component("Izhikevich", parameters = parameters,
-                             events=(spike_event,))
+ports = [nineml.SendPort("V"),
+         nineml.ReducePort("Isyn",op="+")]
+
+c1 = nineml.Component("Izhikevich", regimes = [subthreshold_regime])
 
 
 # write to file object f if defined
@@ -33,6 +35,6 @@ except NameError:
     c2 = nineml.parse(base+".xml")
     assert c1==c2
 
-    c1.to_dot(base+".dot")
-    os.system("dot -Tpng %s -o %s" % (base+".dot",base+".png"))
+    #c1.to_dot(base+".dot")
+    #os.system("dot -Tpng %s -o %s" % (base+".dot",base+".png"))
 

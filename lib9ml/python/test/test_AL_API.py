@@ -147,7 +147,54 @@ class ComponentTestCase(unittest.TestCase):
         # cause problems.  An implementation using sympy might also be an option
         # to consider ...
 
-    def test_ports(self):
+    def test_ports_construction(self):
+
+        # Check catches bad mode
+        self.assertRaises(ValueError, nineml.AnalogPort,"q",mode="11")
+
+        # Check catches op on non-reduce port
+        self.assertRaises(ValueError, nineml.AnalogPort,"q",mode="send", op='+')
+
+        # Check catches bad op for reduce port
+        self.assertRaises(ValueError, nineml.AnalogPort,"q",mode="reduce", op='^')
+
+        # No expressions for 'recv','reduce'
+        for mode in ('recv','reduce'):
+            self.assertRaises(ValueError, nineml.AnalogPort,"q = v**2",mode=mode)
+
+        # Check symbol as expression ...
+        p = nineml.AnalogPort("q = v**2",mode='send')
+        assert p.symbol == 'q'
+        assert p.expr.rhs == "v**2"
+
+        # catch a binding expression ...
+        self.assertRaises(ValueError, nineml.AnalogPort, "q := v**2",mode='send')
+        # ode
+        self.assertRaises(ValueError, nineml.AnalogPort, "dq/dt = v**2",mode='send')
+        # inplace
+        self.assertRaises(ValueError, nineml.AnalogPort, "q += 10",mode='send')
+
+    def test_find_port_expr_symbols(self):
+        # check that symbols on rhs of a 'send' port expr
+        # are considered for user parameters
+
+        parameters = ['tau','E','q']
+        
+        regimes = [
+            nineml.Union(
+                "dg/dt = -g/tau",
+                events = nineml.On(nineml.SpikeInputEvent,do="g+=q")
+                )]
+
+        ports = [nineml.RecvPort("V"),
+                 nineml.SendPort("Isyn = g(E-V)")]
+
+        coba_syn = nineml.Component("CoBaSynapse", regimes = regimes, ports = ports)
+
+        assert sorted(parameters) == sorted(coba_syn.parameters)
+        
+
+    def test_ports_diverse(self):
 
         r = nineml.Union(
             "dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn",
@@ -303,8 +350,15 @@ class ComponentTestCase(unittest.TestCase):
 
 
     def test_component(self):
-        pass
-        
+    
+        r = nineml.Union(
+            "_q10(V):=exp(V)",
+            "dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn",
+            events = nineml.On(nineml.SpikeInputEvent,do="V+=10"))
+
+        # ok to read from a binding, where function bindings are most interesting.
+        c1 = nineml.Component("Izhikevich", regimes = [r], ports=[nineml.AnalogPort("_q10","send")] )
+
         
 
 

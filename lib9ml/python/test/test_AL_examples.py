@@ -14,8 +14,9 @@ class ExamplesTestCase(unittest.TestCase):
 
         
         examples = ['izhikevich2.py','izhikevich.py', 'nmda.py',
-                    'leaky_iaf.py','hh.py',
-                    'step_current.py','spike_generator.py','leaky_iaf_ampa_ports_events.py']
+                    'leaky_iaf.py','hh.py','coba_synapse.py',
+                    'step_current.py','spike_generator.py',
+                    'leaky_iaf_w_synapses.py']
 
         print ""
                     
@@ -23,7 +24,7 @@ class ExamplesTestCase(unittest.TestCase):
             print e
             f = tempfile.TemporaryFile()
             d = dict(f=f)
-            execfile(os.path.join('../examples',e),d)
+            execfile(os.path.join('../examples/AL',e),d)
             # create component 'c1' and writes to f, if defined
 
             # re-read the xml output of the component

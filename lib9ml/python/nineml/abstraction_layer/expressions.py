@@ -381,7 +381,9 @@ class Assignment(Equation, RegimeElement):
 
     rhs = property(get_rhs, set_rhs)
 
-
+    @property
+    def lhs(self):
+        return self.to
 
     def self_referencing(self):
         """ Returns True if the assignment is of the form U = f(U,...), otherwise False"""
@@ -429,6 +431,10 @@ class Inplace(Equation):
     @property
     def rhs(self):
         return self.expr
+
+    @property
+    def lhs(self):
+        return self.to
 
     def __init__(self, to, op, expr, name=None):
         

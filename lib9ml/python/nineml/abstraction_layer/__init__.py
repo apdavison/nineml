@@ -128,8 +128,8 @@ class Regime(RegimeElement):
     def add_node(self, node):
 
         if isinstance(node, (RegimeElement)):
-            if isinstance(node, Assignment) and node.self_referencing():
-                raise ValueError, "Assignments in Regimes may not self reference.  Only in Events."
+            if isinstance(node, Assignment):
+                raise ValueError, "Assignments are now only allowed in Events.  Use a function binding instead"
         else:
             raise ValueError, "Invalid node '%s' in Regime.add_node. " % repr(node)
 
@@ -276,7 +276,7 @@ class Regime(RegimeElement):
         kwargs = {}
         tag_class_map = {}
         name = element.get("name")
-        for node_cls in (ODE, Assignment, Sequence, Union, Binding):
+        for node_cls in (ODE, Sequence, Union, Binding):
             tag_class_map[NINEML+node_cls.element_name] = node_cls
         for elem in element.iterchildren():
             node_cls = tag_class_map[elem.tag]
@@ -672,7 +672,6 @@ class Component(object):
         # resolve references.
         self.resolve_references()
 
-
         # check that there is an island regime only if there is only 1 regime
         island_regimes = set([r for r in self.regimes if not list(r.transitions_with_target) and\
                               not self.get_regimes_to(r)])
@@ -699,43 +698,35 @@ class Component(object):
             bindings_map[b.name] = b
         self.bindings_map = bindings_map
 
-        # We should not do this for the user
-        #self.backsub_bindings()
 
-        # check bindings only have static parameters and functions on rhs
-        self.check_binding_expressions()
-
-        # check we aren't redefining math symbols (like e,pi)
-        self.check_non_parameter_symbols()
-
-        # now would be a good time to backsub expressions
-        # but we should not do this for the user.
-        #self.backsub_equations()
+        # Get the user defined ports and check them
+        # this must happen before computing self.user_parameters
+        # as 'recv' ports should not appear as user_parameters
+        self.analog_ports = ports
+        self.check_ports()
 
         # Up till now, we've inferred parameters
         # Now let's check what the user provided
         # is consistant and finally set self.parameters
         if parameters:
             if self.user_parameters!=set(parameters):
-                raise ValueError, "Declared parameter list %s does not match inferred parameter list %s." % (str(sorted(parameters)),str(sorted(self.user_parameters)))
+                raise ValueError, "Declared parameter list %s does not match inferred parameter list %s." \
+                      % (str(sorted(parameters)),str(sorted(self.user_parameters)))
 
         self.parameters = self.user_parameters
-        for p in ports:
-            if not isinstance(p,AnalogPort):
-                raise ValueError, "Component ports attribute can contain only AnalogPort objects.  EventPorts go in Event conditions(recv) and Event nodes (send)"
-            # may only write to user_parameters
-            if p.mode=="recv" and p.symbol not in self.user_parameters:
-                raise ValueError, "'recv' AnalogPorts may target parameters, but not binding symbols, ODE lhs vars, or lhs of Assignments/Inplace ops."
 
-            if p.symbol not in self.non_parameter_symbols and p.symbol not in self.user_parameters:
-                raise ValueError, "'send' AnalogPorts must source from a defined symbol."
-                
+        # check bindings only have static parameters and functions on rhs
+        self.check_binding_expressions()
+        
+        # check we aren't redefining math symbols (like e,pi)
+        self.check_non_parameter_symbols()
 
-        self.analog_ports = ports
-        
-        
-        # we should check that parameters is correct
-        # even better, we could auto-generate parameters
+        # We should not do this for the user
+        #self.backsub_bindings()
+
+        # now would be a good time to backsub expressions
+        # but we should not do this for the user.
+        #self.backsub_equations()
 
     def get_regimes_to(self,regime):
         """ Gets as a list all regimes that transition to regime"""
@@ -750,12 +741,43 @@ class Component(object):
         for p in self.event_ports:
             yield p
 
+    @property
+    def event_ports(self):
+        """ return all event ports in regime events"""
+        for t in self.transitions:
+            for ep in t.event_ports:
+                    yield ep
+
+    def check_ports(self):
+        for p in self.analog_ports:
+            if not isinstance(p,AnalogPort):
+                raise ValueError, "Component ports attribute can contain only AnalogPort objects."+\
+                      "EventPorts go in Event conditions(recv) and Event nodes (send)"
+            # may only write to user_parameters
+            if p.mode=="recv" and p.symbol in self.non_parameter_symbols:
+                raise ValueError, "'recv' AnalogPorts may not target existing binding symbols,"+\
+                      "ODE lhs vars, or lhs of Assignments/Inplace ops."
+
+            if p.mode=="send" and p.expr==None and (p.symbol not in self.non_parameter_symbols):
+                raise ValueError, "'send' AnalogPort with symbol='%s' source undefined in component." % (p.symbol,)
+        
+
     def filter_ports(self,cls=None,mode=None,symb=None):
-        """ yields all ports filtered by class, mode, symbol """
+        """ yields all ports filtered by class, mode, symb
+
+        mode,symb can be strings, or collections of strings
+        on which "in" is defined.
+        
+        """
+        if isinstance(mode,str):
+            mode = (mode,)
+        if isinstance(symb,str):
+            symb = (symb,)
+
         for p in self.ports:
             if cls and not isinstance(p,cls): continue
-            if mode and p.mode!=mode: continue
-            if symb and p.symbol!=symb: continue
+            if mode and p.mode not in mode: continue
+            if symb and p.symbol not in symb: continue
             yield p
 
     def backsub_bindings(self):
@@ -847,7 +869,12 @@ class Component(object):
                              sorted(self.regimes, key=sort_key) == sorted(other.regimes, key=sort_key),
                              sorted(self.bindings, key=sort_key) == sorted(other.bindings, key=sort_key)))
 
-   
+    @property
+    def odes(self):
+        for r in self.regimes:
+            for ode in r.odes:
+                yield ode
+
     @property
     def equations(self):
         #for transition in self.transitions:
@@ -858,15 +885,9 @@ class Component(object):
                     yield eq
             for eq in r.equations:
                 yield eq
-
-    @property
-    def event_ports(self):
-        """ return all event ports in regime events"""
-        for t in self.transitions:
-            for ep in t.event_ports:
-                    yield ep
-
-
+        # 'send' AnalogPorts can have an expression
+        for p in self.filter_ports(cls=AnalogPort,mode='send'):
+            if p.expr: yield p.expr
 
     @property
     def conditions(self):
@@ -934,16 +955,17 @@ class Component(object):
         for b in self.bindings:
             symbols.update(b.names)
 
-
         symbols = symbols.difference(self.non_parameter_symbols)
         symbols = symbols.difference(math_namespace.symbols)
+        # remove symbols of AnalogPorts with mode='recv'
+        symbols = symbols.difference([p.symbol for p in self.analog_ports if p.mode=='recv'])
         return symbols.difference(math_namespace.reserved_symbols)
 
                  
     @property
     @cache
     def non_parameter_symbols(self):
-        """ All bindings, assignment and inplace left-hand-sides, plus X for ODE dX/dt = ... """ 
+        """ All bindings, assignment and inplace left-hand-sides, plus X for ODE dX/dt = ...""" 
         # TODO: cache once determined
         symbols = set([])
         symbols.update(self.variables)

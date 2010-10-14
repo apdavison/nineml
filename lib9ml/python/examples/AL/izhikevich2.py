@@ -1,7 +1,7 @@
 import nineml.abstraction_layer as nineml
 
 
-parameters = ["Isyn","a", "b", "c", "d", "theta"]
+#parameters = ["Isyn","a", "b", "c", "d", "theta"]
 
 
 regimes = [
@@ -13,8 +13,11 @@ regimes = [
     )]
 
 
-c1 = nineml.Component("Izhikevich", parameters,
-                             regimes = regimes )
+ports = [nineml.SendPort("V"),
+         nineml.ReducePort("Isyn",op="+")]
+
+
+c1 = nineml.Component("Izhikevich", regimes = regimes )
 
 # write to file object f if defined
 try:

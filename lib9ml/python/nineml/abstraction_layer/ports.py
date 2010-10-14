@@ -1,6 +1,7 @@
 
 from nineml.helpers import curry
 from nineml.abstraction_layer.xmlns import *
+from nineml.abstraction_layer.expressions import expr_to_obj, Assignment
 
 class Port(object):
     """ Base class for EventPort and AnalogPort, etc."""
@@ -10,24 +11,54 @@ class Port(object):
                      '+':'+', '-':'-', '*':'*', '/':'/'}
 
     def __init__(self, internal_symbol, mode='send', op=None):
+        """
+
+        For AnalogPorts:
+
+          if mode='send', internal_symbol may be an expression, e.g. "Isyn = g(E-V)"
+          in which case the rhs is computed and made available as the port with symbol=lhs
+          (in the example 'Isyn')
+
+
+        """
+
+        self.expr = None
         self.symbol = internal_symbol
+        # allow ports which expose an expression as a symbol
+        # via passing e.g "Isyn = g(E-V)"
+        if '=' in self.symbol:
+            if not isinstance(self,AnalogPort):
+                raise ValueError, "Port expression '%s' is valid only for AnalogPort" % internal_symbol
+            if mode!="send":
+                raise ValueError, "Port expression '%s' is valid only for mode='send'" % internal_symbol
+            self.expr = expr_to_obj(internal_symbol)
+            if not isinstance(self.expr, Assignment):
+                raise ValueError, "Port expression '%s' is not a valid assignment" % internal_symbol
+            self.symbol = self.expr.lhs
+
         self.mode = mode
         self.reduce_op = op
         if self.mode not in self.modes:
-            raise ValueError, "Port(symbol='%s')"+\
-                  "specified undefined mode: '%s'" %\
+            raise ValueError, ("Port(symbol='%s')"+\
+                  "specified undefined mode: '%s'") %\
                   (self.symbol, self.mode)
         if self.mode=='reduce':
             if self.reduce_op not in self.reduce_op_map.keys():
-                raise ValueError, "Port(symbol='%s')"+\
-                      "specified undefined reduce_op: '%s'" %\
+                raise ValueError, ("Port(symbol='%s')"+\
+                      "specified undefined reduce_op: '%s'") %\
                       (self.symbol, str(self.reduce_op))
+
+        if op and self.mode!="reduce":
+            raise ValueError, "Port of mode!=reduce may not specify 'op'."
+            
+        # TODO: EventPort can also be reduce?  Then no op needed.
+
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
         return self.symbol == other.symbol and self.mode == other.mode\
-               and self.reduce_op == other.reduce_op
+               and self.reduce_op == other.reduce_op and self.expr==other.expr
 
     def __repr__(self):
         if self.reduce_op:
@@ -44,11 +75,11 @@ class Port(object):
     def name(self):
         return self.symbol
 
-
-
     def to_xml(self, **kwargs):
         if self.reduce_op:
             kwargs['op']=self.reduce_op
+        if self.expr:
+            kwargs['expression']=self.expr.rhs
         return E(self.element_name, symbol=self.symbol,
                  mode=self.mode, **kwargs)
 
@@ -60,8 +91,12 @@ class Port(object):
     def from_xml(cls,element):
         assert element.tag == NINEML+cls.element_name
         symbol = element.get("symbol")
+        assert symbol
         mode = element.get("mode")
         reduce_op = element.get("op")
+        expr = element.get("expression")
+        if expr:
+            symbol = "%s = %s" % (symbol,expr)
         return cls(symbol,mode,reduce_op)
 
 
