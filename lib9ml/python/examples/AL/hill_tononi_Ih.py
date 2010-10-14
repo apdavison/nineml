@@ -14,7 +14,7 @@ regime = Union(
 ports = [RecvPort("V"),
          SendPort("I = gmax*m*(E-V)")]
 
-c1 = Component("AMPA", regimes=[regime], ports = ports)
+c1 = Component("Ih", regimes=[regime], ports = ports)
 
 
 # write to file object f if defined
