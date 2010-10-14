@@ -16,7 +16,8 @@ class ExamplesTestCase(unittest.TestCase):
         examples = ['izhikevich2.py','izhikevich.py', 'nmda.py',
                     'leaky_iaf.py','hh.py','coba_synapse.py',
                     'step_current.py','spike_generator.py',
-                    'leaky_iaf_w_synapses.py','destexhe_ampa.py']
+                    'leaky_iaf_w_synapses.py','destexhe_ampa.py',
+                    'hill_tononi_Ih.py']
 
         print ""
                     
