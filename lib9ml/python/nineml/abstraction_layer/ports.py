@@ -108,7 +108,10 @@ class AnalogPort(Port):
 class EventPort(Port):
     element_name = "event-port"
     """ Port which may be in an Event """
-    pass
+
+    def is_bool(self):
+        """ To match the Condition interface.  Event needs to check. """
+        return False
 
 
 SpikeOutputEvent = EventPort('spike_output')

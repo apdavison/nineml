@@ -27,7 +27,7 @@ class BindingLhsParseTestCase(unittest.TestCase):
 
         for b in bindings:
             assert nineml.Binding.match(b[0])
-            symbol,args,rhs = nineml.Binding.parse(b[0])
+            symbol,args,rhs = nineml.Binding.pre_parse(b[0])
             assert symbol == b[1]
             #print args, b[2]
             assert args == b[2]

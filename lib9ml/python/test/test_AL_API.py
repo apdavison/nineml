@@ -270,20 +270,7 @@ class ComponentTestCase(unittest.TestCase):
         self.assertRaises(ValueError, nineml.On, "V>Vth", do=nineml.EventPort("hello",mode="recv"))
 
 
-    def test_trivial_conditions(self):
-        """ Disallow trivial conditions """
-
-        from nineml.abstraction_layer import cond_to_obj
-
-        self.assertRaises(ValueError,cond_to_obj,"true")
-        self.assertRaises(ValueError,cond_to_obj,"false")
-
-        # undefined functions
-        #self.assertRaises(ValueError, cond_to_obj,"U > WhatFunc(x)")
-
-        
-      
-    def test_regime(self):
+    def test_regime_basic(self):
 
         for cls in (nineml.Union,nineml.Sequence):
             # no self-referencing Assignments in Regimes
@@ -296,24 +283,83 @@ class ComponentTestCase(unittest.TestCase):
         u = nineml.Union("dU/dt = -U")
         self.assertRaises(nineml.UnimplementedError,nineml.Regime,"dU/dt = -U")
 
+
+    def test_regime_symbol_collision(self):
+
+        self.assertRaises(ValueError,nineml.Union,"dU/dt = -U", "dU/dt = -U +10" )
         
+        u1  = nineml.Union("dU/dt = -U")
+        u2 = nineml.Union("dU/dt = -U + 10")
+
+        self.assertRaises(ValueError,nineml.Union, u1,u2)
+
+
+    def test_expression_interface(self):
+
+        # Guarantee Expression interface:
+        # e.rhs, e.lhs, e.to, e.as_expr()
+
+        from nineml.abstraction_layer import expr_to_obj
+
+        exprs = ["dU/dt = -U",
+                 "U = 10",
+                 "U := 20",
+                 "U += 10",
+                 "U(V) := exp(V)"]
+
+        rhs_s = ["-U", "10","20","10","exp(V)"]
+        lhs_s = ["dU/dt","U","U","U","U(V)"]
+        to_s = ["U"]*5
+
+        objs = map(expr_to_obj,exprs)
+
+        for e,lhs in zip(objs,lhs_s):
+            assert e.lhs == lhs
+
+        for e,rhs in zip(objs,rhs_s):
+            assert e.rhs == rhs
+
+        for e,to in zip(objs,to_s):
+            assert e.to == to
+
+        for e,expr in zip(objs,exprs):
+            assert e.as_expr()==expr
+        
+
+            
+
+        
+
+
+    def test_regime_events_with_target(self):
+
+        # Test Regime.events_with_target
+        
+        # no events, we should have no targets
         u = nineml.Union("dU/dt = -U")
         assert not list(u.events_with_target)
 
+        # check we get a target with 'On' sugar
         u = nineml.Union("dU/dt = -U", events=[nineml.On("V>10",to="test")])
         assert list(u.events_with_target)
 
+        # test we have no target if we don't define one in the event
         u = nineml.Union("dU/dt = -U", events=[nineml.Event("U+=10",condition="U>10")])
         assert not list(u.events_with_target)
 
+        # test we get a target if we define it
         u = nineml.Union("dU/dt = -U", events=[nineml.Event("U+=10",condition="U>10",to="test")])
         assert list(u.events_with_target)
 
+        # Test sub-Regime adds its events 
+        u1 = nineml.Union("dV/dt = -V",u, events=[nineml.Event("V+=10",condition="V>10",to="test")])
+        assert len(list(u1.events_with_target))==2
 
 
-    def test_event(self):
 
-        t = nineml.Event(to=nineml.Reference(nineml.Regime,"test"), condition = "V>10")
+    def test_event_construction(self):
+
+        t = nineml.Event(to=nineml.Reference(nineml.Regime,"test"), condition = "V>10", do="V=10")
         
         
     def test_event(self):
@@ -352,7 +398,14 @@ class ComponentTestCase(unittest.TestCase):
             events = nineml.On(nineml.SpikeInputEvent,do="V+=10"))
 
         # ok to read from a binding, where function bindings are most interesting.
-        c1 = nineml.Component("Izhikevich", regimes = [r], ports=[nineml.AnalogPort("_q10","send")] )
+        p_q10 = nineml.AnalogPort("_q10","send")
+        ports = [p_q10]
+        c1 = nineml.Component("Izhikevich", regimes = [r], ports=ports )
+
+        # attribute lookup for ports and user parameters:
+
+        assert c1._q10 == p_q10
+        #assert c1.Isyn == 'Isyn'
 
         
 

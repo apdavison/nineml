@@ -10,7 +10,7 @@ from nineml import __version__
 import re
 import copy
 
-from nineml.cache_decorator import cache_decorator as cache
+from nineml.cache_decorator import im_cache_decorator as cache
 from nineml.abstraction_layer import math_namespace
 from nineml import helpers
 from nineml.abstraction_layer.expressions import *
@@ -103,6 +103,7 @@ class Regime(RegimeElement):
         # self.events will iterate over all
         self.my_events = events
 
+        self.symbol_map = {}
         for node in nodes:
             self.add_node(node)
                 
@@ -131,6 +132,18 @@ class Regime(RegimeElement):
         if isinstance(node, (RegimeElement)):
             if isinstance(node, Assignment):
                 raise ValueError, "Assignments are now only allowed in Events.  Use a function binding instead"
+            elif isinstance(node,Regime):
+                for s in node.symbol_map:
+                    if s in self.symbol_map:
+                        raise ValueError, "Adding sub-Regime node to Regime '%s', '%s' node '%s' collides with existing node '%s'" %\
+                              (self.name, node.name, node.symbol_map[s].as_expr(), self.symbol_map[s].as_expr())
+                self.symbol_map.update(node.symbol_map)
+            else:
+                if node.to in self.symbol_map:
+                        raise ValueError, "Adding node to Regime '%s', expression '%s' symbol='%s' collides with existing node '%s'" %\
+                              (self.name, node.as_expr(), node.to, self.symbol_map[node.to].as_expr())
+                self.symbol_map[node.to]=node
+                    
         else:
             raise ValueError, "Invalid node '%s' in Regime.add_node. " % repr(node)
 
@@ -437,6 +450,10 @@ class Event(object):
         if not self.condition:
             raise ValueError, "Transition condition may not be none"
 
+        if self.condition.is_bool():
+            raise ValueError, "condition is always true or false."
+
+
         self.name = name or ("Event%d" % Event.n)
         Event.n += 1
 
@@ -627,6 +644,9 @@ class Component(object):
 
         """
 
+        # this must be early, as we override attribute lookup to grap from the
+        # ports map
+        self.ports_map = {}
         self.name = name
 
         # check for empty component, we do not support inplace building of a component.
@@ -715,6 +735,9 @@ class Component(object):
         # as 'recv' ports should not appear as user_parameters
         self.analog_ports = ports
         self.check_ports()
+        for p in self.ports:
+            self.ports_map[p.symbol] = p
+            
 
         # Up till now, we've inferred parameters
         # Now let's check what the user provided
@@ -738,6 +761,14 @@ class Component(object):
         # now would be a good time to backsub expressions
         # but we should not do this for the user.
         #self.backsub_equations()
+
+
+    def __getattribute__(self,name):
+        ga = object.__getattribute__
+        if name in ga(self,'ports_map'):
+            return ga(self,'ports_map')[name]
+        else:
+            return ga(self, name)
 
     def get_regimes_to(self,regime):
         """ Gets as a list all regimes that event to regime"""
@@ -805,7 +836,7 @@ class Component(object):
                     # resolve (lower level is already resolved now) 
                     b.substitute_binding(self.bindings_map[f])
                     # re-calc functions
-                    b.parse_rhs()
+                    b.parse()
                 else:
                     raise ValueError, "binding '%s' calls unresolvable functions." % b.as_expr()
             return _bd_tree  
@@ -824,16 +855,17 @@ class Component(object):
                     e.substitute_binding(self.bindings_map[f])
                 else:
                     raise ValueError, "Equation '%s' calls unresolvable functions." % e.as_expr()
-            e.parse_rhs()
+            e.parse()
             for n in e.names:
                 if n in self.bindings_map:
                     e.substitute_binding(self.bindings_map[n])
-            e.parse_rhs()
+            e.parse()
 
         # There should be no missing functions now.
         assert [f for e in self.equations for f in e.missing_functions] == []
 
-            
+    # TODO: backsub_conditions
+    
     def resolve_references(self):
         """ Uses self.regimes_map and self.events_map to resolve references in self.regimes and self.events"""
 
@@ -1158,7 +1190,106 @@ class Component(object):
         out.write('}')
 
 
+    def join(self, component, prefix=None, **port_connections):
+        """ Creates a component which is the self component joined with component.
+
+        For example, this is great for constructing HH components with additional channels in
+        a modular way.
+
+        The Regime spaces are 'crossed' such that if c1 as regimes=(a,b), and c2 has regimes=(X,Y)
+        then the joined component, CJ, has regimes Union(a,X), Union(a,Y), Union(b,X), Union(b,Y),
+        where Union here refers to the Regime "Union".  Event 'to=' are set up to transition so as
+        to leave the other component unaffected, i.e. if c2.X has an event with to=Y, then
+        Union(a,X) has an Event with to=Union(a,Y) and Union(b,X) has an Event with to=Union(b,Y).
+
+        Symbol/Name collisions:
+
+        Unioning two components brings with it the possibility for name collisions.
+
+        An example would be the HH model and an additional channel model both using the symbol 'm'
+        to denote a gating variable.
+
+        As such, the component to join has all its variables prefixed
+        by its component name by default.  If the component name is
+        such that this is not possible, or the user simple chooses to
+        do so, the user may override the preix with the prefix kwarg.
+
+        hh_im = hh.join(im,prefix="Im",I=im.I)
+
+        This will prefix the im component state vars, bindings, parameters with Im_ in the resulting Component hh_im.
+
+        Notes:
+
+         - RecvPorts which are connected are no longer visible in the ComponentUnion.
+
+         - ReducePorts, SendPorts persist and are visible in the ComponentUnion.
+
+         - If SendPorts are connected to a ReducePort, the local symbol (LS_reduce) of the reduce port is replaced
+           by: (LS_reduce <reduce_op> SP0 <reduce_op> ... SPN)  where SP0..SPN are the local symbols of the SendPorts.
+           In this way, the ReducePort remains available in the joined Component for additional connections.
+
+         - EventPorts persist and are visible in the ComponentUnion.
+
+         - Connected EventPorts:
+           1) For the InputEvent, the "do" must be moved to where the OutputEvent
+              the "to" should modify the "to" of the Event which generates the OutputEvent
+              to induce the appropriate transition in the Regime space of the InputEvent component.
+
+           2) OutputEvents persist.  Connected InputEvents do not persist in the joined model.
+
+
+        """
+
+        # cross regime spaces
+        # setup new events
+
+        # component name prefixing:
+        # bindings: lhs, rhs names & funcs if not in math_namespace
+        # ode dep var, rhs names & funcs if not in math_namespace
+        # assignment lhs, rhs names & funcs if not in math_namespace
+        # inplace lhs, rhs names & funcs if not in math_namespace
+        # conditions, cond names & funcs if not in math_namespace
         
+
+        # contianer for cross of regime spaces of 2 components
+        new_regimes = []
+        for r1 in self.regimes:
+            for r2 in component.regimes:
+                name = "%s*%s" % (r1.name, r2.name)
+                # we will lose all sub-Union-like nodes this way
+                nodes = list(r2.nodes_filter(lambda x: True))
+                # AnalogPorts: What needs to be done:
+                # - RecvPorts -> substitute local name of sent variable to prefixed port symbol
+                # - SendPorts -> prefix
+                # - ReducePorts -> substitute: prefixed_port_symbol op sent_var
+
+                nodes += list(r1.nodes_filter(lambda x: True))
+                # AnalogPorts: What needs to be done:
+                # - RecvPorts -> substituted local (prefixed name) of sent variable to port symbol
+                # - SendPorts -> nothing.
+                # - ReducePorts -> substitute: port_symbol op prefixed_sent_var
+
+                # events:
+                events = []
+                for e in r1.events:
+                    # prevent name collision
+                    e_name = "%s.%s" % (r1.name,e.name)
+                    # to name does not change r2.regime
+                    to_name = "%s*%s" % (e.to.name,r2.name)
+                    events += [Event(e.nodes, to=to_name, name=e_name)]
+
+                new_regimes += [Union(nodes, name=name,events=events)]
+
+        # ports
+
+
+        # build list of outward facing AnalogPorts
+
+        name = "*".join([c.name for c in comps])
+        return Component(name, regimes = regimes, ports=ports)
+
+    
+    
         
         
 #def resolve_reference(ref, *where):

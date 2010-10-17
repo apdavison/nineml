@@ -1,9 +1,6 @@
 
 
 from nineml.abstraction_layer.xmlns import *
-
-
-
 from nineml.abstraction_layer import math_namespace
 
 def get_args(s):
@@ -41,8 +38,11 @@ class RegimeElement(object):
 
 
 class Expression(object):
+    """ This is a base class for Expressions and Conditionals which provides
+    the basic interface for parsing, yielding of python functions,
+    C equivalents, binding and name substitution """
 
-    def parse_rhs(self):
+    def parse(self):
         """ parses and checks validity of rhs """
         from nineml.abstraction_layer.expr_parse import expr_parse
 
@@ -56,12 +56,38 @@ class Expression(object):
         #    raise ValueError, "In expression '%s', undefined functions: %s" % \
         #          (e.as_expr(),repr(list(undef_funcs)))
 
+
     def python_func(self,namespace={}):
         """ Returns a python callable which evaluates the expression in namespace and returns the result """
         return eval("lambda %s: %s" % (','.join(self.names),self.rhs), math_namespace.namespace,namespace)
 
+
+    def prefix(self, prefix="", exclude=[], expr=None):
+        """ Applies a prefix to all names & funcs if not in math_namespace
+        returns new expr ... does not modify inplace
+
+        Exclude is a list of names (not functions) to be excluded from prefixing
+
+        If expr is None, the prefixing is computed for self.rhs and returned.
+        self.rhs is not modified.
+        
+        """
+
+        # names that are in math_symbol space do not show up in self.names
+        if expr==None:
+            expr = self.rhs
+        for name in self.names:
+            if name in exclude: continue
+            expr = Expression.name_replace(name,prefix+name,expr)
+        for func in self.funcs:
+            if func not in math_namespace.namespace:
+                expr = Expression.name_replace(func,prefix+func,expr, func_ok=True)
+
+        return expr
+        
+
     @classmethod
-    def name_replace(cls,frm,to,rhs):
+    def name_replace(cls,frm,to,rhs, func_ok=False):
         """ replaces all occurences of name 'frm' with 'to' in rhs (not self.rhs) ('frm' may not occur as a function name on the rhs) ...
         'to' can be an arbitrary string so this function can also be used for argument substitution.
 
@@ -69,15 +95,16 @@ class Expression(object):
 
         import re
 
-        # check 'frm' is not used as a function
-        p_func = re.compile(r"(^|([ */+-,(]+))%s\(" % frm)
-        if p_func.search(rhs):
-            raise ValueError, "substituting non-function binding '%s', found use in '%s' as function." % (frm, rhs)
-
         # do replace using regex
         # this matches names, using lookahead and lookbehind to be sure we don't
         # match for example 'xp' in name 'exp' ...
-        p_func = re.compile(r"(?<![a-zA-Z_0-9])(%s)(?![(a-zA-Z_0-9])" % frm)
+        if func_ok:
+            # func_ok indicates we may replace a function name
+            p_func = re.compile(r"(?<![a-zA-Z_0-9])(%s)(?![a-zA-Z_0-9])" % frm)
+        else:
+            # this will not replace a function name even if its name matches from
+            # due to the lookahead disallowing '('
+            p_func = re.compile(r"(?<![a-zA-Z_0-9])(%s)(?![(a-zA-Z_0-9])" % frm)
         return p_func.sub(to, rhs)
         
 
@@ -86,6 +113,11 @@ class Expression(object):
         import re
 
         if b.args==():
+            # check b.name is not used as a function
+            p_func = re.compile(r"(^|([ */+-,(]+))%s\(" % b.name)
+            if p_func.search(self.rhs):
+                raise ValueError, "substituting non-function binding '%s', found use in '%s' as function." % (b.name, self.rhs)
+
             self.rhs = Expression.name_replace(b.name,"(%s)" % b.rhs,self.rhs)
         else:
             # binding is a function
@@ -167,12 +199,12 @@ class Binding(Expression, RegimeElement):
 
         import re
 
-        self.name, self.args, self.value = Binding.parse(lhs + ":=" + rhs)
+        self.name, self.args, self.value = Binding.pre_parse(lhs + ":=" + rhs)
 
         if self.name in math_namespace.symbols:
             raise ValueError, "binding '%s' redefines math symbols (such as 'e','pi')" % self.as_expr()
 
-        self.parse_rhs()
+        self.parse()
 
         if self.name in self.names:
             raise ValueError, "Binding expression '%s': may not self reference." % self.name
@@ -191,20 +223,23 @@ class Binding(Expression, RegimeElement):
         if self.name in self.args:
             raise ValueError, "Binding expression '%s': function binding has argument symbol = binding symbol." % self.name
 
+    def prefix(self,prefix=""):
+        return prefix+Expression.prefix(self,prefix,exclude=self.args, expr=self.as_expr())
+
     @classmethod
     def match(cls,s):
         """ Checks the syntax of the lhs to be that of a binding
         rhs parsing is not yet performed """
 
         try:
-            cls.parse(s)
+            cls.pre_parse(s)
         except ValueError:
             return False
 
         return True
 
     @classmethod
-    def parse(cls,s):
+    def pre_parse(cls,s):
         """ Determines if the lhs is a symbol binding, or function binding
 
         If symbol:
@@ -233,7 +268,7 @@ class Binding(Expression, RegimeElement):
         if p_binding_symbol.match(lhs):
             return lhs,(),rhs
 
-        # lha matches a function?
+        # lhs matches a function?
 
         func_regex = r"[a-zA-Z_]+[a-zA-Z_0-9]*[ ]*\([ ]*([a-zA-Z_]+[a-zA-Z_0-9]*)([ ]*,[ ]*[a-zA-Z_]+[a-zA-Z_0-9]*)*[ ]*\)"
 
@@ -266,6 +301,9 @@ class Binding(Expression, RegimeElement):
         else:
             return self.name
 
+    @property
+    def to(self):
+        return self.name
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
@@ -309,7 +347,7 @@ class ODE(Equation, RegimeElement):
 
         self.name = name or ("ODE%d" % ODE.n)
         ODE.n += 1
-        self.parse_rhs()
+        self.parse()
 
 
         
@@ -333,11 +371,19 @@ class ODE(Equation, RegimeElement):
     @property
     def lhs(self):
         return "d%s/d%s" % (self.dependent_variable, self.indep_variable)
+
+    @property
+    def to(self):
+        return self.dependent_variable
     
     def as_expr(self):
         return "d%s/d%s = %s" % (self.dependent_variable,
                                  self.indep_variable,
                                  self.rhs)
+
+    def prefix(self,prefix=""):
+        return ("d%s/d%s = " % (prefix+self.dependent_variable, self.indep_variable)) + Expression.prefix(self,prefix)
+
 
     def to_xml(self):
         return E(self.element_name,
@@ -370,7 +416,7 @@ class Assignment(Equation, RegimeElement):
 
         Assignment.n += 1
 
-        self.parse_rhs()
+        self.parse()
 
 
     def get_rhs(self):
@@ -395,6 +441,9 @@ class Assignment(Equation, RegimeElement):
     def as_expr(self):
         return "%s = %s" % (self.to,
                             self.expr)
+
+    def prefix(self,prefix=""):
+        return ("%s = " % (prefix+self.to,)) + Expression.prefix(self,prefix)
 
     def __eq__(self, other):
         from operator import and_
@@ -454,7 +503,7 @@ class Inplace(Equation):
 
         self.name = name or ("Inplace%s%d" % (self.op_name,Inplace.n))
         Inplace.n += 1
-        self.parse_rhs()
+        self.parse()
 
 
     def __repr__(self):
@@ -463,6 +512,8 @@ class Inplace(Equation):
     def as_expr(self):
         return "%s %s %s" % (self.to,self.op, self.expr)
 
+    def prefix(self,prefix=""):
+        return ("%s %s " % (prefix+self.to,self.op)) + Expression.prefix(self,prefix)
 
     def __eq__(self, other):
         from operator import and_

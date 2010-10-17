@@ -74,12 +74,39 @@ class ExprParseTestCase(unittest.TestCase):
 
             ex = nineml.Expression()
             ex.rhs = e[0]
-            ex.parse_rhs()
+            ex.parse()
             assert set(ex.names)==set(e[1])
             assert set(ex.funcs)==set(e[2])
 
             r = call_expr_func(ex.python_func(),namespace)
             assert numpy.allclose(r,return_values[i])
+
+
+
+# its not so easy with sympy
+# conditional support is not up to snuff.
+
+##     def test_sympy_getvf(self):
+##         """Test that we can get vars and funcs out with sympy"""
+
+##         import sympy
+##         for i,e in enumerate(expr_vars):
+
+##             ex = nineml.Expression()
+##             ex.rhs = e[0]
+##             ex.parse()
+##             expr = sympy.S(e[0])
+
+##             s_names = set([str(x) for x in expr.atoms(sympy.Symbol)])
+##             s_funcs = set([str(x) for x in expr.atoms(sympy.Function)])
+##             print s_names,e[1],s_funcs,e[2]
+##             assert s_names==set(e[1])
+##             assert s_funcs==set(e[2])
+
+##             #r = call_expr_func(ex.python_func(),namespace)
+##             #assert numpy.allclose(r,return_values[i])
+
+
 
 
 

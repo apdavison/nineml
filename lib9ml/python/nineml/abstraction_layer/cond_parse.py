@@ -63,16 +63,7 @@ class Parser(object):
         self.names = set(self.names)
         self.names.difference_update(math_namespace.namespace)
 
-        # fix syntax to match python
-        expr = expr.replace('&&', ' and ')
-        expr = expr.replace('||', ' or ')
-        expr = expr.replace('true','True')
-        expr = expr.replace('false','False')
-        expr = expr.replace('!',' not ')
-
-        python_func = eval("lambda %s: %s" % (','.join(self.names),expr), math_namespace.namespace)
-
-        return self.names, set(self.funcs), python_func
+        return self.names, set(self.funcs)
 
 
     
@@ -91,7 +82,7 @@ class Calc(Parser):
     t_EXP     = r'\*\*'
     t_TIMES   = r'\*'
     t_CONDITIONAL   = r'(<=)|(>=)|(==)|(!=)|(>)|(<)'
-    t_LOGICAL = r'(&&)|(\|\|)'
+    t_LOGICAL = r'(&)|(\|)'
     t_NOT = r'\!'
     t_DIVIDE  = r'/'
     t_LPAREN  = r'\('
