@@ -17,7 +17,7 @@ class ExamplesTestCase(unittest.TestCase):
                     'leaky_iaf.py','hh.py','coba_synapse.py',
                     'step_current.py','spike_generator.py',
                     'leaky_iaf_w_synapses.py','destexhe_ampa.py',
-                    'hill_tononi_Ih.py']
+                    'hill_tononi_Ih.py','pfister_triplet_stdp.py']
 
         print ""
                     
