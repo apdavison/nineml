@@ -30,7 +30,6 @@ class ExpressionsTestCase(unittest.TestCase):
 
         i = Inplace("U","+=", "gk(n)*(V - ek)")
         pfx_i = i.prefix("PRE_")
-        print pfx_i
         assert pfx_i == "PRE_U += PRE_gk(PRE_n)*(PRE_V - PRE_ek)"
 
 
