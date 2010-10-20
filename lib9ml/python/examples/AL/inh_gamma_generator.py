@@ -29,7 +29,10 @@ regime = Union(
     events = [poisson_thin_process, gamma_hazard]
     )
 
-c1 = Component("Inhomogeneous Gamma Renewal Process (thinning method)", regimes=[regime])
+# As a,b are time varying, they must come in through analog ports, rather than a user parameter.
+ports = [RecvPort("a"), RecvPort("b")]
+
+c1 = Component("Inhomogeneous Gamma Renewal Process (thinning method)", regimes=[regime], ports=ports)
 
 
 try:
