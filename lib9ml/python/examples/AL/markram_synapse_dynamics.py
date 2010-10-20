@@ -6,13 +6,10 @@ depression and facilitation.
 
   Description:
   
-   Implemented is the synapse model described in [2].  Which is the
-   continuous ODE form of the iterative Eq (2) and Eq (3) in [1] or Eq
-   (6) in [3], whereby Eq [2] in [1] seems to have an error in the
+   Implemented is the ODE form of the short-term depression and
+   facilitation model as described Eq (2) and Eq (3) in [1] or Eq (6)
+   in [2], whereby Eq (2) in [1] seems to have an error in the
    subscript of u_{n+1}.  It should be u_{n}.
-
-   The symbols used here (R,u,U,tau_rec,tau_facil) correspond to
-   (R,U_se,U1,tau_rec,tau_facil) in [2].
 
    The model corresponds to the markram_synapse in NEST, which is a
    simplification of the NEST tsodyks_synapse (synaptic time course is
@@ -23,10 +20,7 @@ depression and facilitation.
    [1] Markram, Wang, Tsodyks (1998) Differential Signaling via the same axon 
        of neocortical pyramidal neurons.  PNAS, vol 95, pp. 5323-5328.
 
-   [2] Fuhrmann, Segev, Markram, Tsodyks (2002) Coding of Temporal
-   Information by Activity-Dependent Synapses. J.Neurophysiol, vol 87, 140-148.
-
-   [3] D. Sussillo, T. Toyoizumi, and W. Maass. Self-tuning of neural circuits through
+   [2] D. Sussillo, T. Toyoizumi, and W. Maass. Self-tuning of neural circuits through
    short-term synaptic plasticity. Journal of Neurophysiology, 97:4079-4095, 2007.
 
 Author: Eilif Muller, 2010.
@@ -38,12 +32,12 @@ import nineml.abstraction_layer as nineml
 
 regimes = [
     nineml.Union(
-        "dR/dt = (1-R)/tau_rec",
-        "du/dt = -u/t_facil",
+        "dR/dt = (1-R)/tau_r",  # tau_r is the recovery time constant for depression
+        "du/dt = -(u-U)/tau_f", # tau_f is the time constant of facilitation
         events = nineml.On(nineml.SpikeInputEvent,
                            do=["W = u*R",
                                "R -= u*R",
-                               "u += U*(1-u)"])
+                               "u += U*(1-u)"])  # Should I put a SpikeOutputEvent here?
     )]
 
 ports = [nineml.SendPort("W")]
