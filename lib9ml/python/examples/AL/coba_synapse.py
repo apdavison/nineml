@@ -12,7 +12,7 @@ regimes = [
         )]
 
 ports = [RecvPort("V"),
-         SendPort("Isyn = g(E-V)")]
+         SendPort("Isyn = g*(E-V)")]
 
 coba_syn = Component("CoBaSynapse", regimes = regimes, ports = ports, parameters = parameters)
 

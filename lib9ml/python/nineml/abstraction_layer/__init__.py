@@ -733,7 +733,13 @@ class Component(object):
         # Get the user defined ports and check them
         # this must happen before computing self.user_parameters
         # as 'recv' ports should not appear as user_parameters
-        self.analog_ports = ports
+
+        # implicit_send_ports: all variables can be read from by default
+        self.analog_ports = []
+        send_ports = [p.symbol for p in ports if p.mode=='send']
+        implicit_send_ports = [AnalogPort(var,'send') for var in self.variables if var not in send_ports]
+        # setup analog_ports
+        self.analog_ports = set(list(ports)+implicit_send_ports)
         self.check_ports()
         for p in self.ports:
             self.ports_map[p.symbol] = p
@@ -800,7 +806,7 @@ class Component(object):
                 raise ValueError, "'recv' AnalogPorts may not target existing binding symbols,"+\
                       "ODE lhs vars, or lhs of Assignments/Inplace ops."
 
-            if p.mode=="send" and p.expr==None and (p.symbol not in self.non_parameter_symbols):
+            if p.mode=="send" and p.expr==None and (p.symbol not in self.variables):
                 raise ValueError, "'send' AnalogPort with symbol='%s' source undefined in component." % (p.symbol,)
         
 

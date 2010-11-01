@@ -189,6 +189,19 @@ class ComponentTestCase(unittest.TestCase):
         assert sorted(parameters) == sorted(coba_syn.parameters)
         
 
+    def test_implicit_send_ports(self):
+        # test that send ports are implicit for component variables
+        r = nineml.Union(
+            "dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn",
+            events = [nineml.On(nineml.SpikeInputEvent,do="V+=10"),
+                      nineml.On("V>Vth",do=["V=c","U+=d",nineml.SpikeOutputEvent])])
+
+        c1 = nineml.Component("Izhikevich", regimes = [r], ports=[nineml.AnalogPort("V")] )
+        ap = list(c1.analog_ports)
+
+        assert sorted([p.symbol for p in ap]) == sorted(['V','U','t'])
+
+
     def test_ports_diverse(self):
 
         r = nineml.Union(
@@ -234,7 +247,8 @@ class ComponentTestCase(unittest.TestCase):
             events = nineml.On(nineml.SpikeInputEvent,do="V+=10"))
 
         # ok to read from a binding, where function bindings are most interesting.
-        c1 = nineml.Component("Izhikevich", regimes = [r], ports=[nineml.AnalogPort("_q10","send")] )
+        # TODO: read from binding
+        #c1 = nineml.Component("Izhikevich", regimes = [r], ports=[nineml.AnalogPort("_q10","send")] )
         # may not write to a binding
         self.assertRaises(ValueError,nineml.Component, "Izhikevich", regimes = [r], ports=[nineml.AnalogPort("_q10","recv")])
 
@@ -268,6 +282,7 @@ class ComponentTestCase(unittest.TestCase):
         e = nineml.On("V>Vth", do=nineml.EventPort("hello",mode="send"))
         # not ok: do=EventPort cannot recv
         self.assertRaises(ValueError, nineml.On, "V>Vth", do=nineml.EventPort("hello",mode="recv"))
+
 
 
     def test_regime_basic(self):
@@ -395,17 +410,18 @@ class ComponentTestCase(unittest.TestCase):
         r = nineml.Union(
             "_q10(V):=exp(V)",
             "dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn",
-            events = nineml.On(nineml.SpikeInputEvent,do="V+=10"))
+            events = nineml.On(nineml.SpikeInputEvent,do=["V+=10", "U+=d"]))
 
-        # ok to read from a binding, where function bindings are most interesting.
-        p_q10 = nineml.AnalogPort("_q10","send")
-        ports = [p_q10]
-        c1 = nineml.Component("Izhikevich", regimes = [r], ports=ports )
+        #TODO: ok to read from a binding, where function bindings are most interesting.
+        #p_q10 = nineml.AnalogPort("_q10(V)","send")
+        #ports = [p_q10]
+        c1 = nineml.Component("Izhikevich", regimes = [r] )
 
         # attribute lookup for ports and user parameters:
 
-        assert c1._q10 == p_q10
-        #assert c1.Isyn == 'Isyn'
+        #assert c1._q10 == p_q10
+        # an implicit port
+        assert c1.U.symbol == 'U'
 
         
 

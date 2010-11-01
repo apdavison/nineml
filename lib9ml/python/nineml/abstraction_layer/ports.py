@@ -39,14 +39,14 @@ class Port(object):
         self.mode = mode
         self.reduce_op = op
         if self.mode not in self.modes:
-            raise ValueError, ("Port(symbol='%s')"+\
+            raise ValueError, ("%s('%s')"+\
                   "specified undefined mode: '%s'") %\
-                  (self.symbol, self.mode)
+                  (self.__class__.__name__, self.symbol, self.mode)
         if self.mode=='reduce':
             if self.reduce_op not in self.reduce_op_map.keys():
-                raise ValueError, ("Port(symbol='%s')"+\
+                raise ValueError, ("%s('%s')"+\
                       "specified undefined reduce_op: '%s'") %\
-                      (self.symbol, str(self.reduce_op))
+                      (self.__class__.__name__, self.symbol, str(self.reduce_op))
 
         if op and self.mode!="reduce":
             raise ValueError, "Port of mode!=reduce may not specify 'op'."
@@ -62,10 +62,10 @@ class Port(object):
 
     def __repr__(self):
         if self.reduce_op:
-            return "Port(symbol='%s', mode='%s', op='%s')" % \
-                   (self.symbol, self.mode, self.reduce_op)
+            return "%s('%s', mode='%s', op='%s')" % \
+                   (self.__class__.__name__, self.symbol, self.mode, self.reduce_op)
         else:
-            return "Port(symbol='%s', mode='%s')" % (self.symbol, self.mode)
+            return "%s('%s', mode='%s')" % (self.__class__.__name__, self.symbol, self.mode)
 
     @property
     def names(self):
