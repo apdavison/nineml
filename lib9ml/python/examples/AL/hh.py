@@ -33,7 +33,7 @@ hh_regime = Union(
     "dh/dt = (hinf(V)-h)/htau(V)",
     "dV/dt = (ina(m,h,V) + ik(n,V) + il(V) + Isyn)/C",
     name="hh_regime",
-    events=On("V > theta",do=[SpikeOutputEvent])
+    transitions=On("V > theta",do=[SpikeOutputEvent])
 )
 
 # the rest are not "parameters" but bindings, assigned vars, state vars, indep vars, ports, etc.

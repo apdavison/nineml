@@ -4,12 +4,12 @@ import nineml.abstraction_layer as nineml
 
 subthreshold_regime = nineml.Union(
     "dV/dt = (-gL*(V-vL) + Isyn)/C",
-    events = nineml.On("V> theta", do=["t_spike = t", "V = V_reset", nineml.SpikeOutputEvent], to="refractory_regime"),
+    transitions = nineml.On("V> theta", do=["t_spike = t", "V = V_reset", nineml.SpikeOutputEvent], to="refractory_regime"),
     name="subthreshold_regime"
     )
 
 refractory_regime = nineml.Union(
-    events = nineml.On("t >= t_spike + t_ref", to=subthreshold_regime),
+    transitions = nineml.On("t >= t_spike + t_ref", to=subthreshold_regime),
     name="refractory_regime"
     )
 

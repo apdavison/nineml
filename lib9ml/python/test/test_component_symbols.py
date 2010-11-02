@@ -25,7 +25,7 @@ class ComponentSymbolsTestCase(unittest.TestCase):
                 "q := 20.0 + a*b + w",
                 "dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn",
                 "dU/dt = a*(b*V - U)",
-                events = [nineml.On("V > theta",do=["V = c","U += d"])],
+                transitions = [nineml.On("V > theta",do=["V = c","U += d"])],
                 name="subthreshold_regime"
             ),
             ]

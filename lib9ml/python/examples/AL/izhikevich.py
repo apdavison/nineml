@@ -9,7 +9,7 @@ subthreshold_regime = nineml.Union(
     name="subthreshold_regime"
     )
 
-spike_event = nineml.Event(
+spike_transition = nineml.Transition(
     "V = c",
     "U += d",
     nineml.SpikeOutputEvent,

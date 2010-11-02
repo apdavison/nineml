@@ -10,12 +10,12 @@ from nineml.abstraction_layer import *
 # - exp_rand
 # - rand
 # Implementation conformence:
-# - Events are simulataneous if their conditions can be simultaneously true.
-# - If the Regime solver has a timestep of dt, then events on the time-scale of dt are treated as simulteneous.
-# - all Regime Event conditions _must_ be evaluated before running any event nodes
-# - When Simultaneous events occur, the order of execution of each
-#   simulataneous event's do=[] code is not specifiable, i.e. the user
-#   should take care that the order does not matter.  Only one event can
+# - Transitions are simulataneous if their conditions can be simultaneously true.
+# - If the Regime solver has a timestep of dt, then transitions on the time-scale of dt are treated as simulteneous.
+# - all Regime Transition conditions _must_ be evaluated before running any transition nodes
+# - When Simultaneous transitions occur, the order of execution of each
+#   simulataneous transition's do=[] code is not specifiable, i.e. the user
+#   should take care that the order does not matter.  Only one transition can
 #   transition, and the transition happens after all do=[] code is
 #   executed.
 
@@ -26,7 +26,7 @@ gamma_hazard = On("( t>t_next ) & ( rand(0.0,1.0)<gamma_hazard(age,a,b)/nu_max) 
 
 regime = Union(
     "dage/dt = 1.0",
-    events = [poisson_thin_process, gamma_hazard]
+    transitions = [poisson_thin_process, gamma_hazard]
     )
 
 # As a,b are time varying, they must come in through analog ports, rather than a user parameter.

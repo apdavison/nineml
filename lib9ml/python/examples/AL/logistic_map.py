@@ -10,10 +10,10 @@ from nineml.abstraction_layer import *
 
 regime = Union(
     "dn/dt = 1",
-    events = On("n >=i",
+    transitions = On("n >=i",
                 do=["x = r*x*(1.0-x)",
                     "i += 1",
-                    # trigger an event such that the client
+                    # trigger an transition such that the client
                     # can read the new map iteration
                     EventPort("iteration-trigger",mode="send")]
                 )

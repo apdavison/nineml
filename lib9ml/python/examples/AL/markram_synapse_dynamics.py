@@ -34,7 +34,7 @@ regimes = [
     nineml.Union(
         "dR/dt = (1-R)/tau_r",  # tau_r is the recovery time constant for depression
         "du/dt = -(u-U)/tau_f", # tau_f is the time constant of facilitation
-        events = nineml.On(nineml.SpikeInputEvent,
+        transitions = nineml.On(nineml.SpikeInputEvent,
                            do=["W = u*R",
                                "R -= u*R",
                                "u += U*(1-u)"])  # Should I put a SpikeOutputEvent here?

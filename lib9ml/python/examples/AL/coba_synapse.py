@@ -8,7 +8,7 @@ parameters = ['tau','E','q']
 regimes = [
     Union(
         "dg/dt = -g/tau",
-        events = On(SpikeInputEvent,do="g+=q")
+        transitions = On(SpikeInputEvent,do="g+=q")
         )]
 
 ports = [RecvPort("V"),

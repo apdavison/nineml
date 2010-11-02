@@ -143,7 +143,7 @@ NET_RECEIVE(weight, on, nspike, r0, t0 (ms)) {
 
 # Erev -> E, i -> Isyn, v->V
 # synon could be removed, using the concept of Regimes
-# All the nspike business could be removed due to Regimes and Events
+# All the nspike business could be removed due to Regimes and Transitions
 
 from nineml.abstraction_layer import *
 
@@ -153,7 +153,7 @@ off_regime = Union(
     "dRoff/dt = -Beta*Roff",
     "g(on,off) := (on + off)",
     name="off_regime",
-    events=On(SpikeInputEvent,
+    transitions=On(SpikeInputEvent,
               do=["t_off = t+Cdur",
                   "r0 = r0*exp(-Beta*(t - t0))",
                   "t0 = t",
@@ -168,7 +168,7 @@ on_regime = Union(
     "dRon/dt = (weight*Rinf - Ron)/Rtau",
     "dRoff/dt = -Beta*Roff",
     name="on_regime",
-    events=[On(SpikeInputEvent,do="t_off = t+Cdur"), # Extend duration if input spike arrives while on
+    transitions=[On(SpikeInputEvent,do="t_off = t+Cdur"), # Extend duration if input spike arrives while on
             On("t_off>t",                            # What to do when its time to turn off 
                do=["r0 = weight*Rinf + (r0 - weight*Rinf)*exp(-(t - t0)/Rtau)",
                    "t0 = t",

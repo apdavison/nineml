@@ -13,7 +13,7 @@ inter_event_regime = Union(
     "dA/dt = -A/tau_r",
     "dB/dt = -B/tau_d",
     name="inter_event_regime",
-    events=On(SpikeInputEvent,
+    transitions=On(SpikeInputEvent,
               do=["A = A + weight*factor",
                   "B = B + weight*factor"])
     )

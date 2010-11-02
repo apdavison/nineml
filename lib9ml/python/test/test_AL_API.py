@@ -178,7 +178,7 @@ class ComponentTestCase(unittest.TestCase):
         regimes = [
             nineml.Union(
                 "dg/dt = -g/tau",
-                events = nineml.On(nineml.SpikeInputEvent,do="g+=q")
+                transitions = nineml.On(nineml.SpikeInputEvent,do="g+=q")
                 )]
 
         ports = [nineml.RecvPort("V"),
@@ -193,7 +193,7 @@ class ComponentTestCase(unittest.TestCase):
         # test that send ports are implicit for component variables
         r = nineml.Union(
             "dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn",
-            events = [nineml.On(nineml.SpikeInputEvent,do="V+=10"),
+            transitions = [nineml.On(nineml.SpikeInputEvent,do="V+=10"),
                       nineml.On("V>Vth",do=["V=c","U+=d",nineml.SpikeOutputEvent])])
 
         c1 = nineml.Component("Izhikevich", regimes = [r], ports=[nineml.AnalogPort("V")] )
@@ -206,7 +206,7 @@ class ComponentTestCase(unittest.TestCase):
 
         r = nineml.Union(
             "dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn",
-            events = [nineml.On(nineml.SpikeInputEvent,do="V+=10"),
+            transitions = [nineml.On(nineml.SpikeInputEvent,do="V+=10"),
                       nineml.On("V>Vth",do=["V=c","U+=d",nineml.SpikeOutputEvent])])
 
         c1 = nineml.Component("Izhikevich", regimes = [r], ports=[nineml.AnalogPort("V")] )
@@ -230,12 +230,12 @@ class ComponentTestCase(unittest.TestCase):
         assert ep[0]==nineml.SpikeInputEvent
 
 
-        # check that Event catches condition in mode="send"
+        # check that Transition catches condition in mode="send"
         self.assertRaises(ValueError, nineml.On,nineml.SpikeOutputEvent,do="V+=10" )
         # check that it won't accept a simple Port
         self.assertRaises(ValueError, nineml.On,nineml.Port("hello",mode="recv"),do="V+=10" )
         # check that it won't accept an AnalogPort
-        self.assertRaises(ValueError, nineml.On,nineml.Port("hello",mode="recv"),do="V+=10" )
+        self.assertRaises(ValueError, nineml.On,nineml.AnalogPort("hello",mode="recv"),do="V+=10" )
 
         # user defined EventPort should be ok.
         e = nineml.On(nineml.EventPort("hello",mode="recv"),do="V+=10" )
@@ -244,7 +244,7 @@ class ComponentTestCase(unittest.TestCase):
         r = nineml.Union(
             "_q10(V):=exp(V)",
             "dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn",
-            events = nineml.On(nineml.SpikeInputEvent,do="V+=10"))
+            transitions = nineml.On(nineml.SpikeInputEvent,do="V+=10"))
 
         # ok to read from a binding, where function bindings are most interesting.
         # TODO: read from binding
@@ -262,13 +262,13 @@ class ComponentTestCase(unittest.TestCase):
         self.assertRaises(ValueError,nineml.Component, "Izhikevich", regimes = [r], ports=[nineml.EventPort("_q10","send")])
 
 
-        # EventPorts as nodes in Events
+        # EventPorts as nodes in Transitions
 
         # multiple EventPorts
         myeventport = nineml.EventPort('myeventport',mode="send")
         r = nineml.Union(
             "dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn",
-            events = nineml.On("V>Vth",do=[nineml.SpikeOutputEvent,myeventport ]))
+            transitions = nineml.On("V>Vth",do=[nineml.SpikeOutputEvent,myeventport ]))
 
         c1 = nineml.Component("Izhikevich", regimes = [r] )
         ep = list(c1.event_ports)
@@ -346,63 +346,63 @@ class ComponentTestCase(unittest.TestCase):
         
 
 
-    def test_regime_events_with_target(self):
+    def test_regime_transitions_with_target(self):
 
-        # Test Regime.events_with_target
+        # Test Regime.transitions_with_target
         
-        # no events, we should have no targets
+        # no transitions, we should have no targets
         u = nineml.Union("dU/dt = -U")
-        assert not list(u.events_with_target)
+        assert not list(u.transitions_with_target)
 
         # check we get a target with 'On' sugar
-        u = nineml.Union("dU/dt = -U", events=[nineml.On("V>10",to="test")])
-        assert list(u.events_with_target)
+        u = nineml.Union("dU/dt = -U", transitions=[nineml.On("V>10",to="test")])
+        assert list(u.transitions_with_target)
 
-        # test we have no target if we don't define one in the event
-        u = nineml.Union("dU/dt = -U", events=[nineml.Event("U+=10",condition="U>10")])
-        assert not list(u.events_with_target)
+        # test we have no target if we don't define one in the transition
+        u = nineml.Union("dU/dt = -U", transitions=[nineml.Transition("U+=10",condition="U>10")])
+        assert not list(u.transitions_with_target)
 
         # test we get a target if we define it
-        u = nineml.Union("dU/dt = -U", events=[nineml.Event("U+=10",condition="U>10",to="test")])
-        assert list(u.events_with_target)
+        u = nineml.Union("dU/dt = -U", transitions=[nineml.Transition("U+=10",condition="U>10",to="test")])
+        assert list(u.transitions_with_target)
 
-        # Test sub-Regime adds its events 
-        u1 = nineml.Union("dV/dt = -V",u, events=[nineml.Event("V+=10",condition="V>10",to="test")])
-        assert len(list(u1.events_with_target))==2
+        # Test sub-Regime adds its transitions 
+        u1 = nineml.Union("dV/dt = -V",u, transitions=[nineml.Transition("V+=10",condition="V>10",to="test")])
+        assert len(list(u1.transitions_with_target))==2
 
 
 
-    def test_event_construction(self):
+    def test_transition_construction(self):
 
-        t = nineml.Event(to=nineml.Reference(nineml.Regime,"test"), condition = "V>10", do="V=10")
+        t = nineml.Transition(to=nineml.Reference(nineml.Regime,"test"), condition = "V>10", do="V=10")
         
         
-    def test_event(self):
+    def test_transition(self):
 
-        e = nineml.Event("A+=10",condition="A>10")
+        e = nineml.Transition("A+=10",condition="A>10")
 
-        # Event must have condition (otherwise it is not temporally sparse
-        self.assertRaises(ValueError, nineml.Event, "A+=10")
+        # Transition must have condition (otherwise it is not temporally sparse
+        self.assertRaises(ValueError, nineml.Transition, "A+=10")
 
-        # Event conditional may not be true or false
+        # Transition conditional may not be true or false
         # as the former violates temporal sparsesness,
-        # the latter neuters the Event.
-        self.assertRaises(ValueError, nineml.Event, "A+=10", condition="true")
-        self.assertRaises(ValueError, nineml.Event, "A+=10", condition="false")
+        # the latter neuters the Transition.
+        self.assertRaises(ValueError, nineml.Transition, "A+=10", condition="true")
+        self.assertRaises(ValueError, nineml.Transition, "A+=10", condition="false")
 
-        # No ODEs in Events
-        self.assertRaises(ValueError, nineml.Event, "dA/dt = -A", condition="A>10")
+        # No ODEs in Transitions
+        self.assertRaises(ValueError, nineml.Transition, "dA/dt = -A", condition="A>10")
 
-        e = nineml.Event("A+=10", condition="A>10", to="test")
-        e = nineml.Event("A+=10", condition="A>10", to=None)
-        e = nineml.Event("A+=10", condition="A>10", to=nineml.Reference(nineml.Regime,"test"))
-        e = nineml.Event("A+=10", condition="A>10", to=nineml.Reference(nineml.Union,"test"))
+        e = nineml.Transition("A+=10", condition="A>10", to="test")
+        e = nineml.Transition("A+=10", condition="A>10", to=None)
+        e = nineml.Transition("A+=10", condition="A>10", to=nineml.Reference(nineml.Regime,"test"))
+        e = nineml.Transition("A+=10", condition="A>10", to=nineml.Reference(nineml.Union,"test"))
 
 
-        t = nineml.Event(to=nineml.Reference(nineml.Regime,"test"), condition = "V>10")
+        t = nineml.Transition(to=nineml.Reference(nineml.Regime,"test"), condition = "V>10")
                 
-        self.assertRaises(ValueError, nineml.Event, "A+=10", condition="A>10", to=t)
-        self.assertRaises(ValueError, nineml.Event, "A+=10", condition="A>10", to=nineml.Reference(nineml.Event,"test"))
+        self.assertRaises(ValueError, nineml.Transition, "A+=10", condition="A>10", to=t)
+        self.assertRaises(ValueError, nineml.Transition, "A+=10", condition="A>10", to=nineml.Reference(nineml.Transition,"test"))
 
 
     def test_component(self):
@@ -410,7 +410,7 @@ class ComponentTestCase(unittest.TestCase):
         r = nineml.Union(
             "_q10(V):=exp(V)",
             "dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn",
-            events = nineml.On(nineml.SpikeInputEvent,do=["V+=10", "U+=d"]))
+            transitions = nineml.On(nineml.SpikeInputEvent,do=["V+=10", "U+=d"]))
 
         #TODO: ok to read from a binding, where function bindings are most interesting.
         #p_q10 = nineml.AnalogPort("_q10(V)","send")

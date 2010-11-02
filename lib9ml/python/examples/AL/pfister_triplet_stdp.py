@@ -23,7 +23,7 @@ regimes = [
         "dr2/dt = -r2/tau_x",
         "do1/dt = -o1/tau_minus",
         "do2/dt = -o2/tau_y",
-        events = [nineml.On(nineml.PreEvent,
+        transitions = [nineml.On(nineml.PreEvent,
                             do=["W  -= o1*(A2_minus + A3_minus*r2)",
                                 "r1 += 1.0",
                                 "r2 += 1.0"]),
