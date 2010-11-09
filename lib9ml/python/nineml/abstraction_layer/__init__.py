@@ -380,11 +380,11 @@ def On(condition, do=None,to=None):
     """
     if do:
         # handle one do op more gracefully
-        if isinstance(do,(str,EventPort)):
+        if isinstance(do, (str, EventPort)):
             do = (do,)
-        return Transition(*do,to=to,condition=condition)
+        return Transition(*do, **dict(to=to, condition=condition))
     else:
-        return Transition(to=to,condition=condition)
+        return Transition(to=to, condition=condition)
         
 
 class Transition(object):
@@ -601,7 +601,7 @@ class Transition(object):
             tmp = node_cls.from_xml(elem)
             nodes.append(tmp)
         
-        return cls(*nodes,from_=from_, to=to, condition=condition, name=name)
+        return cls(*nodes, **dict(from_=from_, to=to, condition=condition, name=name))
 
 
 class Component(object):

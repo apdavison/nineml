@@ -64,7 +64,7 @@ class Parser(object):
         self.funcs = []
         try:
             yacc.parse(expr)
-        except NineMLMathParseError as e:
+        except NineMLMathParseError, e:
             raise NineMLMathParseError, str(e)+" Expression was: '%s'" % expr
 
         # remove names from the math_namespace
