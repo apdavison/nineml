@@ -6,7 +6,7 @@ from nineml.abstraction_layer import *
 #  Huguenard, J.R. and McCormick, D.A. (1992) Voltage clamp simulations
 #  of currents involved in rhythmic oscillations in thalamic relay neurones. Journal of Neurophysiology, 68: 1373-1383.  
 
-regime = Union(
+regime = Regime(
     "m_inf(V) := 1/( 1 + exp((V-V_thresh)/5.5) )",
     "tau_m(V) := 1/( exp(-14.59 - 0.086*V) - exp(-1.87 + 0.0701*V) )",
     "dm/dt = (m_inf(V)-m)/tau_m(V)"

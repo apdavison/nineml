@@ -24,7 +24,7 @@ poisson_thin_process = On("t>t_next", do="t_next = t + exp_rand(nu_max)")
 gamma_hazard = On("( t>t_next ) & ( rand(0.0,1.0)<gamma_hazard(age,a,b)/nu_max) )",
                   do = ["age = 0.0", SpikeOutputEvent])
 
-regime = Union(
+regime = Regime(
     "dage/dt = 1.0",
     transitions = [poisson_thin_process, gamma_hazard]
     )

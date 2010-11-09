@@ -31,7 +31,7 @@ import nineml.abstraction_layer as nineml
 
 
 regimes = [
-    nineml.Union(
+    nineml.Regime(
         "dR/dt = (1-R)/tau_r",  # tau_r is the recovery time constant for depression
         "du/dt = -(u-U)/tau_f", # tau_f is the time constant of facilitation
         transitions = nineml.On(nineml.SpikeInputEvent,

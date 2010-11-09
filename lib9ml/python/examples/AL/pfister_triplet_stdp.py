@@ -18,7 +18,7 @@ import nineml.abstraction_layer as nineml
 
 
 regimes = [
-    nineml.Union(
+    nineml.Regime(
         "dr1/dt = -r1/tau_plus",
         "dr2/dt = -r2/tau_x",
         "do1/dt = -o1/tau_minus",

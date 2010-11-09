@@ -183,7 +183,6 @@ class Expression(object):
 
 
 class Binding(Expression, RegimeElement):
-    # this is very similar to Assignment. Maybe we don't need it.
     # EM: In the context of NEST and GPU code generation, bindings make sense:
     #  They are constants, i.e. a binding which takes state vars or ports in rhs
     #  should throw an exception.

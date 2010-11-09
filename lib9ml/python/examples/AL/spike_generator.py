@@ -17,7 +17,7 @@ events = []
 for i,t_spike in enumerate(spike_times):
         events+=[nineml.On("t>%f" % t_spike,do=nineml.SpikeOutputEvent)]
 
-spiker = nineml.Union(events=events)
+spiker = nineml.Regime(events=events)
 
 c1 = nineml.Component("Spike Generator", regimes=[spiker])
 

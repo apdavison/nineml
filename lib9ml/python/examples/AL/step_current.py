@@ -4,7 +4,7 @@ import nineml.abstraction_layer as nineml
 
 #parameters = ["t_step", "dI"]
 
-step = nineml.Union(events=nineml.On("t>t_step",do=["I+=dI"]))
+step = nineml.Regime(events=nineml.On("t>t_step",do=["I+=dI"]))
 ports = [nineml.SendPort("I")]
 
 c1 = nineml.Component("Step Current", regimes=(step,))

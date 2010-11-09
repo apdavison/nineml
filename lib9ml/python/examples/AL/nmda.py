@@ -5,7 +5,7 @@ from nineml.abstraction_layer import *
 # providing parameters allows a sanity check on component construction
 parameters = ['E', 'eta', 'gamma', 'gmax', 'mg_conc', 'tau_d', 'tau_r', 'weight']
 
-inter_event_regime = Union(
+inter_event_regime = Regime(
     "tau_peak := tau_r*tau_d/(tau_d - tau_r)*log(tau_d/tau_r)",
     "factor := 1/(exp(-tau_peak/tau_d) - exp(-tau_peak/tau_r))",
     "gB(V) := 1/(1 + mg_conc*eta*exp(-1*gamma*V))",

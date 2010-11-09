@@ -27,7 +27,7 @@ bindings = [
     "ik(n,V) := gk(n)*(ek - V)",
     "il(V) := gl*(el - V )"]
 
-hh_regime = Union(
+hh_regime = Regime(
     "dn/dt = (ninf(V)-n)/ntau(V)",
     "dm/dt = (minf(V)-m)/mtau(V)",
     "dh/dt = (hinf(V)-h)/htau(V)",

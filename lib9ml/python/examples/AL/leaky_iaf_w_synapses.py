@@ -3,12 +3,12 @@ import nineml.abstraction_layer as nineml
 
 # Leaky iaf
 regimes = [
-    nineml.Union(
+    nineml.Regime(
         "dV/dt = (-gL*(V-vL) + Isyn)/C",
         transitions = nineml.On("V>Vth",do=["tspike = t","V = V_reset", nineml.SpikeOutputEvent],to="refractory-regime"),
         name = "sub-threshold-regime"
     ),
-    nineml.Union(
+    nineml.Regime(
         transitions = nineml.On("t >= tspike + trefractory",to="sub-threshold-regime"),
         name = "refractory-regime"
     )]
@@ -23,7 +23,7 @@ leaky_iaf = nineml.Component("LeakyIAF", regimes = regimes, ports = ports)
 
 
 regimes = [
-    nineml.Union(
+    nineml.Regime(
         "dg/dt = -g/tau",
         transitions = nineml.On(nineml.SpikeInputEvent,do="g+=q")
         )]

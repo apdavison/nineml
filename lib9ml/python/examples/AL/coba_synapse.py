@@ -6,7 +6,7 @@ from nineml.abstraction_layer import *
 parameters = ['tau','E','q']
 
 regimes = [
-    Union(
+    Regime(
         "dg/dt = -g/tau",
         transitions = On(SpikeInputEvent,do="g+=q")
         )]

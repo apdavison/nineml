@@ -148,7 +148,7 @@ NET_RECEIVE(weight, on, nspike, r0, t0 (ms)) {
 from nineml.abstraction_layer import *
 
 
-off_regime = Union(
+off_regime = Regime(
     "dRon/dt =  -Ron/Rtau",
     "dRoff/dt = -Beta*Roff",
     "g(on,off) := (on + off)",
@@ -164,7 +164,7 @@ off_regime = Union(
               )
     )
 
-on_regime = Union(
+on_regime = Regime(
     "dRon/dt = (weight*Rinf - Ron)/Rtau",
     "dRoff/dt = -Beta*Roff",
     name="on_regime",

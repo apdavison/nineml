@@ -124,7 +124,7 @@ class ComponentTestCase(unittest.TestCase):
             "v2(x,y) := v3(x)*y + 10",
             "v3(x) := exp(x)**2"
             ]
-        r = nineml.Union("dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn + v1(v3(x))")
+        r = nineml.Regime("dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn + v1(v3(x))")
 
         c1 = nineml.Component("Izhikevich", regimes = [r], bindings=bindings )
         c1.backsub_bindings()
@@ -176,7 +176,7 @@ class ComponentTestCase(unittest.TestCase):
         parameters = ['tau','E','q']
         
         regimes = [
-            nineml.Union(
+            nineml.Regime(
                 "dg/dt = -g/tau",
                 transitions = nineml.On(nineml.SpikeInputEvent,do="g+=q")
                 )]
@@ -191,7 +191,7 @@ class ComponentTestCase(unittest.TestCase):
 
     def test_implicit_send_ports(self):
         # test that send ports are implicit for component variables
-        r = nineml.Union(
+        r = nineml.Regime(
             "dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn",
             transitions = [nineml.On(nineml.SpikeInputEvent,do="V+=10"),
                       nineml.On("V>Vth",do=["V=c","U+=d",nineml.SpikeOutputEvent])])
@@ -204,7 +204,7 @@ class ComponentTestCase(unittest.TestCase):
 
     def test_ports_diverse(self):
 
-        r = nineml.Union(
+        r = nineml.Regime(
             "dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn",
             transitions = [nineml.On(nineml.SpikeInputEvent,do="V+=10"),
                       nineml.On("V>Vth",do=["V=c","U+=d",nineml.SpikeOutputEvent])])
@@ -241,7 +241,7 @@ class ComponentTestCase(unittest.TestCase):
         e = nineml.On(nineml.EventPort("hello",mode="recv"),do="V+=10" )
 
         
-        r = nineml.Union(
+        r = nineml.Regime(
             "_q10(V):=exp(V)",
             "dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn",
             transitions = nineml.On(nineml.SpikeInputEvent,do="V+=10"))
@@ -266,7 +266,7 @@ class ComponentTestCase(unittest.TestCase):
 
         # multiple EventPorts
         myeventport = nineml.EventPort('myeventport',mode="send")
-        r = nineml.Union(
+        r = nineml.Regime(
             "dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn",
             transitions = nineml.On("V>Vth",do=[nineml.SpikeOutputEvent,myeventport ]))
 
@@ -287,26 +287,21 @@ class ComponentTestCase(unittest.TestCase):
 
     def test_regime_basic(self):
 
-        for cls in (nineml.Union,nineml.Sequence):
-            # no self-referencing Assignments in Regimes
-            self.assertRaises(ValueError,cls,"U = U+1")
+        # no self-referencing Assignments in Regimes
+        self.assertRaises(ValueError,nineml.Regime,"U = U+1")
 
             # no self-referencing Inplace ops in Regime
-            self.assertRaises(ValueError,cls,"U += 10")
-
-        # no constructing from Regime base-class
-        u = nineml.Union("dU/dt = -U")
-        self.assertRaises(nineml.UnimplementedError,nineml.Regime,"dU/dt = -U")
+        self.assertRaises(ValueError,nineml.Regime,"U += 10")
 
 
     def test_regime_symbol_collision(self):
 
-        self.assertRaises(ValueError,nineml.Union,"dU/dt = -U", "dU/dt = -U +10" )
+        self.assertRaises(ValueError,nineml.Regime,"dU/dt = -U", "dU/dt = -U +10" )
         
-        u1  = nineml.Union("dU/dt = -U")
-        u2 = nineml.Union("dU/dt = -U + 10")
+        u1  = nineml.Regime("dU/dt = -U")
+        u2 = nineml.Regime("dU/dt = -U + 10")
 
-        self.assertRaises(ValueError,nineml.Union, u1,u2)
+        self.assertRaises(ValueError,nineml.Regime, u1,u2)
 
 
     def test_expression_interface(self):
@@ -351,23 +346,23 @@ class ComponentTestCase(unittest.TestCase):
         # Test Regime.transitions_with_target
         
         # no transitions, we should have no targets
-        u = nineml.Union("dU/dt = -U")
+        u = nineml.Regime("dU/dt = -U")
         assert not list(u.transitions_with_target)
 
         # check we get a target with 'On' sugar
-        u = nineml.Union("dU/dt = -U", transitions=[nineml.On("V>10",to="test")])
+        u = nineml.Regime("dU/dt = -U", transitions=[nineml.On("V>10",to="test")])
         assert list(u.transitions_with_target)
 
         # test we have no target if we don't define one in the transition
-        u = nineml.Union("dU/dt = -U", transitions=[nineml.Transition("U+=10",condition="U>10")])
+        u = nineml.Regime("dU/dt = -U", transitions=[nineml.Transition("U+=10",condition="U>10")])
         assert not list(u.transitions_with_target)
 
         # test we get a target if we define it
-        u = nineml.Union("dU/dt = -U", transitions=[nineml.Transition("U+=10",condition="U>10",to="test")])
+        u = nineml.Regime("dU/dt = -U", transitions=[nineml.Transition("U+=10",condition="U>10",to="test")])
         assert list(u.transitions_with_target)
 
         # Test sub-Regime adds its transitions 
-        u1 = nineml.Union("dV/dt = -V",u, transitions=[nineml.Transition("V+=10",condition="V>10",to="test")])
+        u1 = nineml.Regime("dV/dt = -V",u, transitions=[nineml.Transition("V+=10",condition="V>10",to="test")])
         assert len(list(u1.transitions_with_target))==2
 
 
@@ -396,7 +391,7 @@ class ComponentTestCase(unittest.TestCase):
         e = nineml.Transition("A+=10", condition="A>10", to="test")
         e = nineml.Transition("A+=10", condition="A>10", to=None)
         e = nineml.Transition("A+=10", condition="A>10", to=nineml.Reference(nineml.Regime,"test"))
-        e = nineml.Transition("A+=10", condition="A>10", to=nineml.Reference(nineml.Union,"test"))
+        e = nineml.Transition("A+=10", condition="A>10", to=nineml.Reference(nineml.Regime,"test"))
 
 
         t = nineml.Transition(to=nineml.Reference(nineml.Regime,"test"), condition = "V>10")
@@ -407,7 +402,7 @@ class ComponentTestCase(unittest.TestCase):
 
     def test_component(self):
     
-        r = nineml.Union(
+        r = nineml.Regime(
             "_q10(V):=exp(V)",
             "dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn",
             transitions = nineml.On(nineml.SpikeInputEvent,do=["V+=10", "U+=d"]))

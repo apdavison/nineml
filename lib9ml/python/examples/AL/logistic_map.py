@@ -8,7 +8,7 @@ from nineml.abstraction_layer import *
 # x = x0
 # i = 1
 
-regime = Union(
+regime = Regime(
     "dn/dt = 1",
     transitions = On("n >=i",
                 do=["x = r*x*(1.0-x)",

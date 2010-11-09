@@ -5,7 +5,7 @@ import nineml.abstraction_layer as nineml
 
 
 regimes = [
-    nineml.Union(
+    nineml.Regime(
         "dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn",
         "dU/dt = a*(b*V - U)",
         transitions = nineml.On("V > theta",do=["V = c","U += d", nineml.SpikeOutputEvent]),

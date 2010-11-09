@@ -67,10 +67,12 @@ class Regime(RegimeElement):
     This class does not define and element_name so it cannot be written to XML.
 
     """
+    element_name = "regime"
     n = 0
     
     def __init__(self, *nodes, **kwargs):
-        """A node may either be an Equation or a Regime.""" 
+        """A node may either be an Equation or a Regime."""
+        self.nodes = set()
         self.name = kwargs.get("name")
         if self.name is None:
             self.name = "Regime%d" % Regime.n
@@ -123,7 +125,6 @@ class Regime(RegimeElement):
         """ Returns a reference to this regime """
         return Reference(Regime, self.name)
 
-
     def add_node(self, node):
 
         if isinstance(node, (RegimeElement)):
@@ -146,16 +147,14 @@ class Regime(RegimeElement):
 
         self._add_node_to_collection(node)
 
-
-
     def add_transition(self, t):
-        """ Add an transition to the regime"""
+        """ Add a transition to the regime"""
         if isinstance(t, Transition):
             if t.from_ is None:
                 t.from_=self
             if not t.from_==self:
                 print "WARNING: Transition whose from_ was reassigned to the Regime."
-            assert t.to!=self, "Transition '%s' assigns Regime '%s' to itself!." % (t.name, self.name)
+            #I think we decided that circular transitions were ok# assert t.to!=self, "Transition '%s' assigns Regime '%s' to itself!." % (t.name, self.name)
         else:
             assert isinstance(t,Reference) and t.cls==Transition, "Regime.add_transition(t): t must be Transition or Reference(Transition, name)"
         
@@ -298,7 +297,7 @@ class Regime(RegimeElement):
         kwargs = {}
         tag_class_map = {}
         name = element.get("name")
-        for node_cls in (ODE, Sequence, Union, Binding):
+        for node_cls in (ODE, Regime, Binding):
             tag_class_map[NINEML+node_cls.element_name] = node_cls
         for elem in element.iterchildren():
             node_cls = tag_class_map[elem.tag]
@@ -309,7 +308,6 @@ class Regime(RegimeElement):
             kwargs["name"] = name
             
         return cls(*nodes, **kwargs)
-
 
     def dot_content(self,level=0):
 
@@ -341,32 +339,11 @@ class Regime(RegimeElement):
 
         return ''.join(contents)
 
-
-class Sequence(Regime):
-    element_name = "sequence"
-    
-    def __init__(self, *nodes, **kwargs):
-        raise ValueError, "The Sequence object has been discontinued."
-        self.nodes = []
-        Regime.__init__(self, *nodes, **kwargs)
-
-    def _add_node_to_collection(self, node):
-        self.nodes.append(node)
-    
-
-        
-class Union(Regime):
-    element_name = "union"
-    
-    def __init__(self, *nodes, **kwargs):
-        self.nodes = set()
-        Regime.__init__(self, *nodes, **kwargs)
-
     def _add_node_to_collection(self, node):
         self.nodes.add(node)
 
 
-def On(condition, do=None,to=None):
+def On(condition, do=None, to=None, name=None):
     """ returns new Transition which goes to 'to' if condition is True.
 
     Equivalent to :
@@ -382,9 +359,9 @@ def On(condition, do=None,to=None):
         # handle one do op more gracefully
         if isinstance(do, (str, EventPort)):
             do = (do,)
-        return Transition(*do, **dict(to=to, condition=condition))
+        return Transition(*do, **dict(to=to, condition=condition, name=name))
     else:
-        return Transition(to=to, condition=condition)
+        return Transition(to=to, condition=condition, name=name)
         
 
 class Transition(object):
@@ -679,8 +656,8 @@ class Component(object):
         # build regime map
         self.regime_map = {}
         for r in regimes:
-            if self.regime_map.has_key(r.name):
-                raise ValueError, "Regime collection has Regimes with colliding names."
+            if self.regime_map.has_key(r.name) and self.regime_map[r.name] != r:
+                raise ValueError("Regime collection has Regimes with colliding names.")
             self.regime_map[r.name] = r
 
         # build transition map
@@ -1109,11 +1086,7 @@ class Component(object):
         assert element.tag == NINEML+cls.element_name
         parameters = [p.get("name") for p in element.findall(NINEML+"parameter")]
         bindings = [Binding.from_xml(b) for b in element.findall(NINEML+Binding.element_name)] 
-
-        regimes = []
-        for regime_cls in (Sequence, Union):
-            for e in element.findall(NINEML+regime_cls.element_name):
-                regimes.append(regime_cls.from_xml(e))
+        regimes = [Regime.from_xml(e) for e in element.findall(NINEML+Regime.element_name)]
 
         analog_ports = []
         for port_cls in (AnalogPort,):

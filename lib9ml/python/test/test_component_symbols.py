@@ -1,12 +1,7 @@
 
 import unittest
 import nineml.abstraction_layer as nineml
-
 import os, tempfile
-
-
-
-
 
 
 class ComponentSymbolsTestCase(unittest.TestCase):
@@ -21,7 +16,7 @@ class ComponentSymbolsTestCase(unittest.TestCase):
         indep_vars = ["t"]
 
         regimes = [
-            nineml.Union(
+            nineml.Regime(
                 "q := 20.0 + a*b + w",
                 "dV/dt = 0.04*V*V + 5*V + 140.0 - U + Isyn",
                 "dU/dt = a*(b*V - U)",
