@@ -56,6 +56,10 @@ class Condition(expressions.Expression):
     def __repr__(self):
         return "Condition('%s')" % (self.cond)
 
+
+    def encode(self, encoding):
+        return repr(self).encode(encoding)
+
     def __eq__(self, other):
         from operator import and_
 

@@ -14,13 +14,14 @@ spike_transition = nineml.Transition(
     "U += d",
     nineml.SpikeOutputEvent,
     from_=subthreshold_regime,
+    to=subthreshold_regime,
     condition="V > theta"
     )
 
 ports = [nineml.SendPort("V"),
          nineml.ReducePort("Isyn",op="+")]
 
-c1 = nineml.Component("Izhikevich", regimes = [subthreshold_regime])
+c1 = nineml.Component("Izhikevich", regimes = [subthreshold_regime], transitions = [spike_transition])
 
 
 # write to file object f if defined
@@ -35,6 +36,6 @@ except NameError:
     c2 = nineml.parse(base+".xml")
     assert c1==c2
 
-    #c1.to_dot(base+".dot")
-    #os.system("dot -Tpng %s -o %s" % (base+".dot",base+".png"))
+    c1.to_dot(base+".dot")
+    os.system("dot -Tpng %s -o %s" % (base+".dot",base+".png"))
 

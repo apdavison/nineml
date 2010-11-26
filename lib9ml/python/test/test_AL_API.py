@@ -298,12 +298,6 @@ class ComponentTestCase(unittest.TestCase):
 
         self.assertRaises(ValueError,nineml.Regime,"dU/dt = -U", "dU/dt = -U +10" )
         
-        u1  = nineml.Regime("dU/dt = -U")
-        u2 = nineml.Regime("dU/dt = -U + 10")
-
-        self.assertRaises(ValueError,nineml.Regime, u1,u2)
-
-
     def test_expression_interface(self):
 
         # Guarantee Expression interface:
@@ -360,11 +354,6 @@ class ComponentTestCase(unittest.TestCase):
         # test we get a target if we define it
         u = nineml.Regime("dU/dt = -U", transitions=[nineml.Transition("U+=10",condition="U>10",to="test")])
         assert list(u.transitions_with_target)
-
-        # Test sub-Regime adds its transitions 
-        u1 = nineml.Regime("dV/dt = -V",u, transitions=[nineml.Transition("V+=10",condition="V>10",to="test")])
-        assert len(list(u1.transitions_with_target))==2
-
 
 
     def test_transition_construction(self):

@@ -17,7 +17,7 @@ events = []
 for i,t_spike in enumerate(spike_times):
         events+=[nineml.On("t>%f" % t_spike,do=nineml.SpikeOutputEvent)]
 
-spiker = nineml.Regime(events=events)
+spiker = nineml.Regime(transitions=events)
 
 c1 = nineml.Component("Spike Generator", regimes=[spiker])
 
@@ -33,7 +33,7 @@ except NameError:
     c2 = nineml.parse(base+".xml")
     assert c1==c2
 
-    #c1.to_dot(base+".dot")
-    #os.system("dot -Tpng %s -o %s" % (base+".dot",base+".png"))
+    c1.to_dot(base+".dot")
+    os.system("dot -Tpng %s -o %s" % (base+".dot",base+".png"))
               
     

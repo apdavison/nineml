@@ -67,6 +67,12 @@ class Port(object):
         else:
             return "%s('%s', mode='%s')" % (self.__class__.__name__, self.symbol, self.mode)
 
+    def encode(self, encoding):
+        return repr(self).encode(encoding)
+
+    def as_expr(self):
+        return repr(self)
+
     @property
     def names(self):
         return []

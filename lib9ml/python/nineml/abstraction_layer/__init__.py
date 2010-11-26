@@ -59,12 +59,10 @@ class Reference(object):
         return "Reference(%s, name='%s')" % (self.cls.__name__, self.name)
 
         
-class Regime(RegimeElement):
-    """A regime is something that contains ODEs, has temporal extent, defines a set of Transitions
+class Regime(object):
+    """
+    A regime is something that contains ODEs, has temporal extent, defines a set of Transitions
     which occur based on conditions, and can be join the Regimes to other Regimes.
-
-    This is an Abstract base class.  Union and (Deprecated: Sequence) are subclasses for the user.
-    This class does not define and element_name so it cannot be written to XML.
 
     """
     element_name = "regime"
@@ -77,17 +75,16 @@ class Regime(RegimeElement):
         if self.name is None:
             self.name = "Regime%d" % Regime.n
         Regime.n += 1
-
+      
         nodes = map(expr_to_obj,nodes)
 
-##         # user can define transitions emanating from this
-##         # regime
-##         t = kwargs.get('transitions')
-##         if t:
-##             self.transitions=set(t)
-##         else:
-##             self.transitions=set()
+        # check user isn't using 'events' kwarg anymore
+        events = kwargs.get("events")
+        if events!=None:
+            raise ValueError, "'events' kwarg is deprecated.  Use 'transitions'."
 
+
+        # deal with user supplied transitions
         transitions = kwargs.get('transitions')
         if transitions:
             # handle only one transition more gracefully
@@ -97,10 +94,7 @@ class Regime(RegimeElement):
         else:
             transitions=set()
 
-        # Here: my_transitions, because a Union of sub-Unions
-        # should also include sub-Union transitions.
-        # self.transitions will iterate over all
-        self.my_transitions = transitions
+        self.transitions = transitions
 
         self.symbol_map = {}
         for node in nodes:
@@ -130,12 +124,6 @@ class Regime(RegimeElement):
         if isinstance(node, (RegimeElement)):
             if isinstance(node, Assignment):
                 raise ValueError, "Assignments are now only allowed in Transitions.  Use a function binding instead"
-            elif isinstance(node,Regime):
-                for s in node.symbol_map:
-                    if s in self.symbol_map:
-                        raise ValueError, "Adding sub-Regime node to Regime '%s', '%s' node '%s' collides with existing node '%s'" %\
-                              (self.name, node.name, node.symbol_map[s].as_expr(), self.symbol_map[s].as_expr())
-                self.symbol_map.update(node.symbol_map)
             else:
                 if node.to in self.symbol_map:
                         raise ValueError, "Adding node to Regime '%s', expression '%s' symbol='%s' collides with existing node '%s'" %\
@@ -158,23 +146,12 @@ class Regime(RegimeElement):
         else:
             assert isinstance(t,Reference) and t.cls==Transition, "Regime.add_transition(t): t must be Transition or Reference(Transition, name)"
         
-        self.my_transitions.add(t)
+        self.transitions.add(t)
 
     @property
     def neighbors(self):
         """ Get all regimes we transition to via an Transition """
         return [t.to for t in self.transitions_with_target]
-
-    @property
-    def transitions(self):
-        """ Get transitions of Regime and all sub-regimes"""
-        for e in self.my_transitions:
-            yield e
-
-        # now from Regime nodes
-        for r in self.nodes_filter(lambda x: isinstance(x,Regime)):
-            for e in r.transitions:
-                yield e
 
     @property
     def transitions_with_target(self):
@@ -237,8 +214,7 @@ class Regime(RegimeElement):
 
     def nodes_filter(self, filter_func):
         """
-        Yields all the nodes contained within this Regime or any of its
-        children for which filter_func yields true.
+        Yields all the nodes contained within this Regime
 
         Example of valid filter_func:
         filter_func = lambda x: isinstance(x, Equation)
@@ -247,9 +223,6 @@ class Regime(RegimeElement):
         for node in self.nodes:
             if filter_func(node):
                 yield node
-            elif isinstance(node, Regime):
-                for cnode in node.nodes_filter(filter_func):
-                    yield cnode
 
     def regimes_in_graph(self, regimes_set=None):
         """ Set of all regimes by walking through transition graph
@@ -297,7 +270,7 @@ class Regime(RegimeElement):
         kwargs = {}
         tag_class_map = {}
         name = element.get("name")
-        for node_cls in (ODE, Regime, Binding):
+        for node_cls in (ODE, Binding):
             tag_class_map[NINEML+node_cls.element_name] = node_cls
         for elem in element.iterchildren():
             node_cls = tag_class_map[elem.tag]
@@ -309,33 +282,22 @@ class Regime(RegimeElement):
             
         return cls(*nodes, **kwargs)
 
-    def dot_content(self,level=0):
+    def dot_content(self):
 
         # template & namespace
-        ns = {'level':level}
-        t = '<tr><td align="left" port="n_%(level)d_%(node_id)s">%(node_content)s</td></tr>\\\n\t\t'
+        ns = {}
+        t = '<tr><td align="left" port="n_%(node_id)s">%(node_content)s</td></tr>\\\n\t\t'
 
         # header
-        level_pad = ''.join(['  ']*level)
-        ns['node_id'] = 'root'
-        ns['node_content'] = level_pad+self.__class__.__name__+dot_escape('(name="%s"'%self.name)
-        contents = [t % ns]
+        contents = []
 
         node_id = 0
         for n in self.nodes:
-            if isinstance(n,Regime):
-                contents +=[n.dot_content(level+1)]
-            else:
-                # render node contents
-                ns['node_id'] = str(node_id)
-                node_id+=1
-                ns['node_content'] = level_pad+'  '+dot_escape(n.as_expr())
-                contents += [t % ns]
-
-        # footer
-        ns['node_id'] = 'tail'
-        ns['node_content'] = level_pad+dot_escape(')')
-        contents += [t % ns]
+            # render node contents
+            ns['node_id'] = str(node_id)
+            node_id+=1
+            ns['node_content'] = dot_escape(n.as_expr())
+            contents += [t % ns]
 
         return ''.join(contents)
 
@@ -388,6 +350,8 @@ class Transition(object):
         to = kwargs.get("to")
         condition = kwargs.get("condition")
         name = kwargs.get("name")
+
+      
 
         # handle to from_ as string
         if isinstance(to,str):
@@ -579,6 +543,32 @@ class Transition(object):
             nodes.append(tmp)
         
         return cls(*nodes, **dict(from_=from_, to=to, condition=condition, name=name))
+
+    def dot_content(self):
+
+        # template & namespace
+        ns = {}
+        t = '<tr><td align="left" port="n_%(node_id)s">%(node_content)s</td></tr>\\\n\t\t'
+        t_eventport = '<tr><td align="left" port="n_%(node_id)s"><font color="blue">%(node_content)s</font></td></tr>\\\n\t\t'
+
+        contents = []
+
+        node_id = 0
+        for n in self.equations:
+            # render node contents
+            ns['node_id'] = str(node_id)
+            node_id+=1
+            ns['node_content'] = dot_escape(n.as_expr())
+            contents += [t % ns]
+
+        for p in self.nodes_filter(lambda x: isinstance(x,EventPort)):
+            # render node contents
+            ns['node_id'] = str(node_id)
+            node_id+=1
+            ns['node_content'] = dot_escape(repr(p))
+            contents += [t_eventport % ns]
+
+        return ''.join(contents)
 
 
 class Component(object):
@@ -847,11 +837,13 @@ class Component(object):
     def resolve_references(self):
         """ Uses self.regimes_map and self.transitions_map to resolve references in self.regimes and self.transitions"""
 
-        # resolve transition from_=None to parent regime
+        # resolve transition from_=None to=None to parent regime
         for r in self.regimes:
             for t in r.transitions:
                 if t.from_==None:
                     t.from_=r
+                if t.to==None:
+                    t.to=r
 
         # resolve regime references in transitions:
         for t in self.transitions:
@@ -1151,15 +1143,38 @@ class Component(object):
                 ns['regime_name'] = r.name
                 ns['contents'] = r.dot_content()
                 out.write(t_regime % ns)
+
+        # transition template
+        t_transition = '\t"%(from)s" -> "%(to)s" [ style = "filled, bold" penwidth = 1 fillcolor = "white" fontname = "Courier New" \\\n'+\
+                       '\t\tlabel =<<table border="0" cellborder="0" cellpadding="3" bgcolor="#C0C0C0"> \\\n'+\
+                       '\t\t<tr><td bgcolor="blue" align="center" colspan="2"><font color="white"> \\\n'+\
+                       '\t\t%(trans_name)s</font> \\\n'+\
+                       '\t\t</td></tr> \\\n'+\
+                       '\t\t<tr><td bgcolor="green" align="center" colspan="2"><font color="black"> \\\n'+\
+                       '\t\t @ %(condition)s</font></td></tr> \\\n'+\
+                       '\t\t%(contents)s</table>> ];\n ' 
         
         for t in self.transitions:
             if show_contents:
-    
-                out.write('\tregime_%d -> regime_%d [label="%s @ %s"];\n' % (regime_id[t.from_.name], regime_id[t.to.name],
-                                                                   t.name.encode('utf-8'), t.condition.encode('utf-8')))
+
+                #out.write('label="%s @ %s"' % (t.name.encode('utf-8'), t.condition.encode('utf-8'),))
+                #out.write('\tregime_%d -> regime_%d [label="%s @ %s"];\n' % (regime_id[t.from_.name], regime_id[t.to.name],
+                #                                                   t.name.encode('utf-8'), t.condition.encode('utf-8')))
+
+                # to fill: node, regime_name, contents
+                ns = {}
+
+                ns['from'] = "regime_%d" % regime_id[t.from_.name]
+                ns['to'] = "regime_%d" % regime_id[t.to.name]
+                ns['trans_name'] = t.name
+                ns['condition'] = dot_escape(t.condition.as_expr())
+                #ns['contents'] = t.dot_content()
+                ns['contents'] = t.dot_content()
+                out.write(t_transition % ns)
+                
             else:
                 out.write('\tregime_%d -> regime_%d [label="%s"];\n' % (regime_id[t.from_.name], regime_id[t.to.name],
-                                                                   t.name.encode('utf-8'), t.condition.encode('utf-8')))
+                                                                   t.name.encode('utf-8')))
 
         out.write('}')
 
