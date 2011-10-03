@@ -962,8 +962,11 @@ class nineml_component_inspector:
             content.append(tex_plot)
 
         
+    def correctName(self, name):
+        return name.replace('_', '\\_')
+    
     def _addComponentToReport(self, content, component, name, parser):
-        comp_name = name.replace('_', '\\_')
+        comp_name = self.correctName(name)
         content.append('\\section{{NineML Component: {0}}}\n\n'.format(comp_name))
 
         # 1) Create parameters
@@ -974,7 +977,7 @@ class nineml_component_inspector:
             header_items = ['Name', 'Units', 'Notes']
             rows_items = []
             for param in parameters:
-                _name = param.name.replace('_', '\\_')
+                _name = self.correctName(param.name)
                 rows_items.append([_name, ' - ', ' '])
             content.append(latex_table(header_flags, header_items, rows_items))
             content.append('\n')
@@ -987,7 +990,7 @@ class nineml_component_inspector:
             header_items = ['Name', 'Units', 'Notes']
             rows_items = []
             for var in state_variables:
-                _name = var.name.replace('_', '\\_')
+                _name = self.correctName(var.name)
                 rows_items.append([_name, ' - ', ' '])
             content.append(latex_table(header_flags, header_items, rows_items))
             content.append('\n')
@@ -1014,7 +1017,7 @@ class nineml_component_inspector:
             header_items = ['Name', 'Type', 'Units', 'Notes']
             rows_items = []
             for port in analog_ports:
-                _name = port.name.replace('_', '\\_')
+                _name = self.correctName(port.name)
                 _type = port.mode
                 rows_items.append([_name, _type, ' - ', ' '])
             content.append(latex_table(header_flags, header_items, rows_items))
@@ -1028,7 +1031,7 @@ class nineml_component_inspector:
             header_items = ['Name', 'Type', 'Units', 'Notes']
             rows_items = []
             for port in event_ports:
-                _name = port.name.replace('_', '\\_')
+                _name = self.correctName(port.name)
                 _type = port.mode
                 rows_items.append([_name, _type, ' - ', ' '])
             content.append(latex_table(header_flags, header_items, rows_items))
@@ -1039,7 +1042,7 @@ class nineml_component_inspector:
             content.append('\\subsection*{Sub-nodes}\n\n')
             content.append(nineml_component_inspector.begin_itemize)
             for name, subcomponent in component.subnodes.items():
-                _name = name.replace('_', '\\_')
+                _name = self.correctName(name)
                 tex = nineml_component_inspector.item + _name + '\n'
                 content.append(tex)
             content.append(nineml_component_inspector.end_itemize)
@@ -1055,8 +1058,8 @@ class nineml_component_inspector:
             for port_connection in portconnections:
                 portFrom = '.'.join(port_connection[0].loctuple)
                 portTo   = '.'.join(port_connection[1].loctuple)
-                _fromname = portFrom.replace('_', '\\_')
-                _toname   = portTo.replace('_', '\\_')
+                _fromname = self.correctName(portFrom)
+                _toname   = self.correctName(portTo)
                 rows_items.append([_fromname, _toname])
             content.append(latex_table(header_flags, header_items, rows_items))
             content.append('\n')
@@ -1071,7 +1074,7 @@ class nineml_component_inspector:
                 header_items = ['ODEs', 'Transitions']
                 rows_items = []
 
-                _name = regime.name.replace('_', '\\_')
+                _name = self.correctName(regime.name)
                 _odes = []
                 _on_events = []
                 _on_conditions = []
@@ -1113,7 +1116,7 @@ class nineml_component_inspector:
 
             content.append('\\subsection*{Regimes}\n\n')
             for ir, regime in enumerate(regimes):
-                regimes_list.append(regime.name)
+                regimes_list.append(self.correctName(regime.name))
 
                 tex = ''
                 # 8a) Create time derivatives
@@ -1126,11 +1129,11 @@ class nineml_component_inspector:
 
                 # 8b) Create on_condition actions
                 for on_condition in regime.on_conditions:
-                    regimeFrom = regime.name
+                    regimeFrom = self.correctName(regime.name)
                     if on_condition.target_regime.name == '':
                         regimeTo = regimeFrom
                     else:
-                        regimeTo = on_condition.target_regime.name
+                        regimeTo = self.correctName(on_condition.target_regime.name)
                     condition  = parser.parse_to_latex(on_condition.trigger.rhs)
 
                     tex += ' \\\\ \\mbox{If } ' + condition + '\mbox{:}'
