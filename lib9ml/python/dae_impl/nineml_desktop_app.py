@@ -7,12 +7,10 @@ from time import localtime, strftime, time
 import nineml
 from nineml.abstraction_layer.testing_utils import RecordValue, TestableComponent
 from nineml.abstraction_layer import ComponentClass
-from daetools.pyDAE import *
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import Qt
 from nineml_component_inspector import nineml_component_inspector
-from nineml_daetools_bridge import *
-from nineml_daetools_simulation import *
+from nineml_tex_report import createLatexReport, createPDF
 
 def test_Izhikevich():
     nineml_component = TestableComponent('izhikevich')()
@@ -216,6 +214,10 @@ if __name__ == "__main__":
     
     if results:
         try:
+            from daetools.pyDAE import *
+            from nineml_daetools_bridge import *
+            from nineml_daetools_simulation import *
+            
             testName, testDescription, inputs = results
             simulation_data = daeSimulationInputData()
             simulation_data.timeHorizon              = inputs['timeHorizon']

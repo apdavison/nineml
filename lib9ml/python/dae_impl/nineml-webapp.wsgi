@@ -11,7 +11,7 @@ cgitb.enable()
 ___import_exception___ = None
 ___import_exception_traceback___ = None
 try:
-    baseFolder = '/home/ciroki/Data/daetools/trunk/python-files/nineml'
+    baseFolder = '/home/ciroki/Data/NineML/nineml-model-tree/lib9ml/python/'
     sys.path.append(baseFolder)
     os.environ['HOME'] = tempfile.gettempdir()
     #print(os.environ, file=sys.stderr)

@@ -1238,31 +1238,3 @@ if __name__ == "__main__":
                                         variables_to_report      = variables_to_report)
     isOK = inspector.showQtGUI()
     inspector.printCollectedData()
-
-    variables_to_report = {}
-    variables_to_report['iaf_1coba.iaf.tspike'] = True
-    inspector.updateData(variables_to_report = variables_to_report)
-    inspector.updateTrees()
-    print('New data')
-    inspector.printTreeDictionaries()
-    
-    #print(inspector.getComponentXMLSourceCode())
-    #print(inspector.generateHTMLForm())
-    #print(inspector.generateHTMLReport())
-    #print(inspector.generateLatexReport())
-    
-    import pickle
-
-    ins = pickle.dumps(inspector)
-
-    inspector = pickle.loads(ins)
-    inspector.inspect(nineml_component, timeHorizon              = timeHorizon,
-                                        reportingInterval        = reportingInterval,
-                                        parameters               = parameters,
-                                        initial_conditions       = initial_conditions,
-                                        active_regimes           = active_regimes,
-                                        analog_ports_expressions = analog_ports_expressions,
-                                        event_ports_expressions  = event_ports_expressions,
-                                        variables_to_report      = variables_to_report)
-    inspector.showQtGUI()
-    inspector.printCollectedData()
