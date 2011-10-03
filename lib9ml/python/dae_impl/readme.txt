@@ -37,12 +37,14 @@ Things that require testing/comments:
     Again, there is some additional info in the source code files and some tests; however it would be a good idea 
     to have it tested by more people.
     
-3.  NineML component tester
+3.  NineML component report generator
     It comes in two variants:
-        - Desktop application (http://nineml-webapp.incf.org)
-        - Web application (some working examples can be found in nineml_tester_gui_examples.py)
+        - Web application (http://nineml-app.incf.org)
+        - Desktop application (nineml_desktop_app.py in nineml-model-tree/lib9ml/python/dae_impl)
     What the applications do is:
         - take as an input a NineMl component (python abstraction layer component object)
+          in general it should accept User layer xml files; that will be added. right now it lists all components
+          that TestableComponent class can access.
         - analyse it
         - show the GUI to the user where the values of parameters, initial conditions, analog ports inputs, event ports inputs, 
           initially active regimes and a list of variables to be reported can be entered

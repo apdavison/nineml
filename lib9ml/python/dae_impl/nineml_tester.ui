@@ -117,6 +117,12 @@
          <attribute name="headerMinimumSectionSize">
           <number>100</number>
          </attribute>
+         <attribute name="headerDefaultSectionSize">
+          <number>300</number>
+         </attribute>
+         <attribute name="headerMinimumSectionSize">
+          <number>100</number>
+         </attribute>
          <column>
           <property name="text">
            <string>Name</string>
@@ -141,6 +147,12 @@
          <property name="alternatingRowColors">
           <bool>true</bool>
          </property>
+         <attribute name="headerDefaultSectionSize">
+          <number>300</number>
+         </attribute>
+         <attribute name="headerMinimumSectionSize">
+          <number>100</number>
+         </attribute>
          <attribute name="headerDefaultSectionSize">
           <number>300</number>
          </attribute>
@@ -174,6 +186,12 @@
          <property name="alternatingRowColors">
           <bool>true</bool>
          </property>
+         <attribute name="headerDefaultSectionSize">
+          <number>300</number>
+         </attribute>
+         <attribute name="headerMinimumSectionSize">
+          <number>100</number>
+         </attribute>
          <attribute name="headerDefaultSectionSize">
           <number>300</number>
          </attribute>
@@ -216,6 +234,12 @@
          <attribute name="headerMinimumSectionSize">
           <number>100</number>
          </attribute>
+         <attribute name="headerDefaultSectionSize">
+          <number>300</number>
+         </attribute>
+         <attribute name="headerMinimumSectionSize">
+          <number>100</number>
+         </attribute>
          <column>
           <property name="text">
            <string>Name</string>
@@ -243,6 +267,12 @@
          <property name="alternatingRowColors">
           <bool>true</bool>
          </property>
+         <attribute name="headerDefaultSectionSize">
+          <number>300</number>
+         </attribute>
+         <attribute name="headerMinimumSectionSize">
+          <number>100</number>
+         </attribute>
          <attribute name="headerDefaultSectionSize">
           <number>300</number>
          </attribute>
@@ -285,6 +315,15 @@
          <attribute name="headerMinimumSectionSize">
           <number>100</number>
          </attribute>
+         <attribute name="headerDefaultSectionSize">
+          <number>300</number>
+         </attribute>
+         <attribute name="headerVisible">
+          <bool>false</bool>
+         </attribute>
+         <attribute name="headerMinimumSectionSize">
+          <number>100</number>
+         </attribute>
          <column>
           <property name="text">
            <string>Name</string>
@@ -314,14 +353,14 @@
      <item>
       <widget class="QPushButton" name="buttonCancel">
        <property name="text">
-        <string>Cancel</string>
+        <string>Skip test</string>
        </property>
       </widget>
      </item>
      <item>
       <widget class="QPushButton" name="buttonOk">
        <property name="text">
-        <string>Ok</string>
+        <string>Run</string>
        </property>
        <property name="default">
         <bool>true</bool>

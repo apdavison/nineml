@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import print_function
-import os, sys, math, tempfile, json
+import os, sys, math, tempfile, json, traceback
 from time import localtime, strftime, time
 import nineml
 from nineml.abstraction_layer.testing_utils import RecordValue, TestableComponent
@@ -10,7 +10,7 @@ from nineml.abstraction_layer import ComponentClass
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import Qt
 from nineml_component_inspector import nineml_component_inspector
-from nineml_tex_report import createLatexReport, createPDF
+from nineml_tex_report import createLatexReport, createPDF, showPDF
 
 def test_Izhikevich():
     nineml_component = TestableComponent('izhikevich')()
@@ -273,14 +273,18 @@ if __name__ == "__main__":
             plots = datareporter.createReportData(tmpFolder)
             tests_data.append( (testName, testDescription, dictInputs, plots, log_output, tmpFolder) )
         
+        except ImportError as e:
+            print("Failed to load daetools modules; is it installed?")
+            print(str(e))
+        
         except Exception as e:
-            print('Component test failed:\n{0}'.format(str(e)))
+            print("Component test failed: ")
+            print(str(e))
+            exc_traceback = sys.exc_info()[2]
+            print('\n'.join(traceback.format_tb(exc_traceback)), file=sys.stderr)
             
     tex = inspector.ninemlComponent.name + '.tex'
     pdf = inspector.ninemlComponent.name + '.pdf'
     createLatexReport(inspector, tests_data, 'nineml-tex-template.tex', tex)
     res = createPDF(tex, tmpFolder)
-    if os.name == 'nt':
-        os.filestart(pdf)
-    elif os.name == 'posix':
-        os.system('/usr/bin/xdg-open ' + pdf)  
+    showPDF(pdf)

@@ -48,6 +48,12 @@ def createPDF(texFile, outdir = None):
         
     return res
 
+def showPDF(pdf):
+    if os.name == 'nt':
+        os.filestart(pdf)
+    elif os.name == 'posix':
+        os.system('/usr/bin/xdg-open ' + pdf)  
+    
 if __name__ == "__main__":
     component = 'hierachical_iaf_1coba'
     tex = component + '.tex'
@@ -57,8 +63,5 @@ if __name__ == "__main__":
     inspector.inspect(nineml_component)
     createLatexReport(inspector, [], 'nineml-tex-template.tex', tex)
     res = createPDF(tex)
-    if os.name == 'nt':
-        os.filestart(pdf)
-    elif os.name == 'posix':
-        os.system('/usr/bin/xdg-open ' + pdf)  
+    showPDF(pdf)  
 
