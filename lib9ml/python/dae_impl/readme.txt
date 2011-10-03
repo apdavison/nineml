@@ -42,16 +42,21 @@ Things that require testing/comments:
         - Web application (http://nineml-app.incf.org)
         - Desktop application (nineml_desktop_app.py in nineml-model-tree/lib9ml/python/dae_impl)
     What the applications do is:
-        - take as an input a NineMl component (python abstraction layer component object)
-          in general it should accept User layer xml files; that will be added. right now it lists all components
-          that TestableComponent class can access.
-        - analyse it
-        - show the GUI to the user where the values of parameters, initial conditions, analog ports inputs, event ports inputs, 
-          initially active regimes and a list of variables to be reported can be entered
-        - validate input data
-        - run the simulation
-        - prepare data necessary for the model report
-        - generate Latex model report and export it to pdf
+        - takes as an input a NineMl component (python abstraction layer component object);
+          In general it should accept User layer xml files; that will be added at some point. Right now it lists all components
+          that TestableComponent class can access. For some components there are input data that work (for instance
+          for hierachical_iaf_1coba, iaf, coba_synapse)
+        - analyses it
+        - shows the GUI to the user where the values of parameters, initial conditions, analog ports inputs, event ports inputs, 
+          initially active regimes and a list of variables to be reported can be entered. The test can be skipped if just the 
+          report is desired.
+        - validates input data
+        - runs the simulation
+        - prepares data necessary for the model report
+        - generates Latex model report and export it to pdf
+        - displays the pdf report
     
     Again the comments/suggestions/recommendations would be very useful.
     
+More info about DAE Tools can be found on daetools.sourceforge.net/w/index.php/Main_Page.
+The installation instructions are in http://daetools.sourceforge.net/w/index.php/Getting_DAE_Tools. 
