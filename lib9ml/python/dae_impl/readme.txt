@@ -60,3 +60,18 @@ Things that require testing/comments:
     
 More info about DAE Tools can be found on daetools.sourceforge.net/w/index.php/Main_Page.
 The installation instructions are in http://daetools.sourceforge.net/w/index.php/Getting_DAE_Tools. 
+Dependencies:
+    - python 2+
+    - texlive
+    - nineml 0.1
+    - python-ply
+    - python-lxml
+    - python-cheetah
+    - python-pyqt4
+    
+Dependencies for DAE Tools:
+    - boost libraries (at least: boost-python, boost-thread, boost-system)
+    - python-numpy
+    - python-scipy
+    - python-matplotlib
+    - python-pyqt4

@@ -288,6 +288,33 @@ def createResultPage(content):
     """
     return html.format(_css, content)
 
+def createDownloadResults(content, applicationID, enablePDF, enableZIP):
+    pdf = ''
+    zip = ''
+    if enablePDF:
+        pdf = '<input type="submit" name="__NINEML_WEBAPP_ACTION__" value="Download pdf report" />'
+    if enableZIP:
+        zip = '<input type="submit" name="__NINEML_WEBAPP_ACTION__" value="Download zip archive" />'
+    
+    html =  """
+    <html>
+        <head>
+            {0}
+        </head>
+        <body>
+            {1}
+            <br/>
+            <hr/>
+            <form action="nineml-webapp" method="post">
+            <input type="hidden" name="__NINEML_WEBAPP_ID__" value="{2}"/>
+            {3}
+            {4}
+            </form>
+        </body>
+    </html>
+    """
+    return html.format(_css, content, applicationID, pdf, zip)
+
 def createSetupDataPage(content):
     html =  """
     <html>

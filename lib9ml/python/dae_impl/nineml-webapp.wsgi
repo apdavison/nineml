@@ -26,7 +26,7 @@ try:
     from nineml_daetools_bridge import nineml_daetools_bridge
     from nineml_tex_report import createLatexReport, createPDF
     from nineml_daetools_simulation import daeSimulationInputData, nineml_daetools_simulation, ninemlTesterDataReporter
-    from nineml_webapp_common import createErrorPage, getSetupDataForm, createSetupDataPage, getInitialPage, createResultPage
+    from nineml_webapp_common import createErrorPage, getSetupDataForm, createSetupDataPage, getInitialPage, createResultPage, createDownloadResults
     
 except Exception as e:
     exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -242,27 +242,64 @@ class nineml_webapp:
             shutil.rmtree(tmpFolder)
             
         if success:
-            part1 = ''
-            part2 = ''
-            part3 = ''
-            boundary = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
-            part1 = '--{0}\r\nContent-Type: text/html\r\n\r\n{1}\n'.format(boundary, html)
+            enablePDF = False
+            enableZIP = False
             if pdf:
-                part2 = '--{0}\r\nContent-Disposition: attachment; filename=model-report.pdf\r\n\r\n{1}\n'.format(boundary, pdf)
+                enablePDF = True
             if zip:
-                part3 = '--{0}\r\nContent-Disposition: attachment; filename=report-data.zip\r\n\r\n{1}\n'.format(boundary, zip)
-            output = part1 + part2 + part3
+                enableZIP = True
+            output = createDownloadResults(html, applicationID, enablePDF, enableZIP)
             output_len = len(output)
-            start_response('200 OK', [('Content-type', 'multipart/mixed; boundary={0}'.format(boundary)),
+            start_response('200 OK', [('Content-type', 'text/html'),
                                     ('Content-Length', str(output_len))])
             return [output]
-
+            """
+            if success:
+                part1 = ''
+                part2 = ''
+                part3 = ''
+                boundary = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+                part1 = '--{0}\r\nContent-Type: text/html\r\n\r\n{1}\n'.format(boundary, html)
+                if pdf:
+                    part2 = '--{0}\r\nContent-Disposition: attachment; filename=model-report.pdf\r\n\r\n{1}\n'.format(boundary, pdf)
+                if zip:
+                    part3 = '--{0}\r\nContent-Disposition: attachment; filename=report-data.zip\r\n\r\n{1}\n'.format(boundary, zip)
+                output = part1 + part2 + part3
+                output_len = len(output)
+                start_response('200 OK', [('Content-type', 'multipart/mixed; boundary={0}'.format(boundary)),
+                                        ('Content-Length', str(output_len))])
+                return [output]
+            """
         else:
             output_len = len(html)
             start_response('200 OK', [('Content-type', 'text/html'),
                                     ('Content-Length', str(output_len))])
             return [html]
 
+    def downloadPDF(self, dictFormData, environ, start_response):
+        html = 'downloadPDF'
+        if not dictFormData.has_key('__NINEML_WEBAPP_ID__'):
+            raise RuntimeError('No application ID has been specified')
+
+        applicationID   = dictFormData['__NINEML_WEBAPP_ID__'][0]
+        if applicationID == '':
+            raise RuntimeError('No application ID has been specified')
+        
+        tmpFolder = os.path.join(tempfile.gettempdir(), applicationID)
+        
+        part1 = 'Content-Type: text/html\r\n\r\n{1}\n'.format(boundary, html)
+        output_len = len(html)
+        start_response('200 OK', [('Content-type', 'text/html'),
+                                ('Content-Length', str(output_len))])
+        return [html]
+    
+    def downloadZIP(self, dictFormData, environ, start_response):
+        html = 'downloadPDF'
+        output_len = len(html)
+        start_response('200 OK', [('Content-type', 'text/html'),
+                                ('Content-Length', str(output_len))])
+        return [html]
+    
     def do_tests(self, nineml_component, applicationID, tmpFolder, dictFormData):
         tests_data = []
         html       = ''
@@ -322,7 +359,7 @@ class nineml_webapp:
         return [html]
     
     def get_temp_folder(self):
-        tmpFolder       = tempfile.mkdtemp(prefix='nineml-webapp-', suffix='-tmp')
+        tmpFolder       = tempfile.mkdtemp(prefix='nineml-webapp-')
         applicationID   = os.path.split(tmpFolder)[1]
         os.chmod(tmpFolder, 0777)
         return tmpFolder, applicationID
@@ -512,6 +549,12 @@ class nineml_webapp:
 
                     elif action == 'Generate report with tests':
                         return self.generate_report_with_tests(dictFormData, environ, start_response)
+                    
+                    elif action == 'Download pdf report':
+                        return self.downloadPDF(dictFormData, environ, start_response)
+                    
+                    elif action == 'Download zip archive':
+                        return self.downloadZIP(dictFormData, environ, start_response)
                     
                     else:
                         raise RuntimeError('Invalid action argument specified: {0}'.format(action))
