@@ -40,7 +40,7 @@ class daeNineMLWebAppLog(daeLogs.daeBaseLog):
 
     def Message(self, message, severity):
         daeLogs.daeBaseLog.Message(self, message, severity)
-        print(self.IndentString + message, file=sys.stderr)
+        #print(self.IndentString + message, file=sys.stderr)
 
 class nineml_webapp:
     def __init__(self):
@@ -51,7 +51,7 @@ class nineml_webapp:
         html = getInitialPage(available_components)
         output_len = len(html)
         start_response('200 OK', [('Content-type', 'text/html'),
-                                ('Content-Length', str(output_len))])
+                                  ('Content-Length', str(output_len))])
         return [html]
         
     def create_nineml_component_and_display_gui(self, dictFormData, environ, start_response):
@@ -167,7 +167,7 @@ class nineml_webapp:
 
         output_len = len(html)
         start_response('200 OK', [('Content-type', 'text/html'),
-                                ('Content-Length', str(output_len))])
+                                  ('Content-Length', str(output_len))])
         return [html]
 
     def generate_report_with_no_tests(self, dictFormData, environ, start_response):
@@ -238,9 +238,6 @@ class nineml_webapp:
             
             _root_[key] = data
             transaction.commit()
-            
-            #for key, value in _root_.iteritems():
-            #    print('    {0} : {1}'.format(key, repr(value)), file=sys.stderr)
 
         finally:
             _connection_.close()
@@ -320,7 +317,7 @@ class nineml_webapp:
         else:
             output_len = len(html)
             start_response('200 OK', [('Content-type', 'text/html'),
-                                    ('Content-Length', str(output_len))])
+                                      ('Content-Length', str(output_len))])
             return [html]
 
     def downloadPDF(self, dictFormData, environ, start_response):
@@ -570,11 +567,10 @@ class nineml_webapp:
                     raw_arguments = raw_arguments.strip(' \'')
                     dictFormData  = urlparse.parse_qs(raw_arguments)
 
-                    if not dictFormData.has_key('__NINEML_WEBAPP_ACTION__'):
+                    if not '__NINEML_WEBAPP_ACTION__' in dictFormData:
                         raise RuntimeError('Phase argument must be specified')
 
                     action = dictFormData['__NINEML_WEBAPP_ACTION__'][0]
-                    print(action, file=sys.stderr)
                     if action == 'Add test':
                         return self.create_nineml_component_and_display_gui(dictFormData, environ, start_response)
 
@@ -602,7 +598,7 @@ class nineml_webapp:
 
         output_len = len(html)
         start_response('200 OK', [('Content-type', 'text/html'),
-                                ('Content-Length', str(output_len))])
+                                  ('Content-Length', str(output_len))])
         return [html]
 
 application = nineml_webapp()
