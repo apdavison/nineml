@@ -232,14 +232,14 @@ class nineml_webapp:
                 pdf = open(pdfReport, "rb").read()
             
             success = True
-            html = createResultPage(html_tests)
+            html = html_tests
 
         except Exception as e:
             return self.returnExceptionPage(str(e), environ, start_response)
 
         # Remove temporary directory
-        if os.path.isdir(tmpFolder):
-            shutil.rmtree(tmpFolder)
+        #if os.path.isdir(tmpFolder):
+        #    shutil.rmtree(tmpFolder)
             
         if success:
             enablePDF = False
@@ -251,7 +251,7 @@ class nineml_webapp:
             output = createDownloadResults(html, applicationID, enablePDF, enableZIP)
             output_len = len(output)
             start_response('200 OK', [('Content-type', 'text/html'),
-                                    ('Content-Length', str(output_len))])
+                                      ('Content-Length', str(output_len))])
             return [output]
             """
             if success:
@@ -277,7 +277,6 @@ class nineml_webapp:
             return [html]
 
     def downloadPDF(self, dictFormData, environ, start_response):
-        html = 'downloadPDF'
         if not dictFormData.has_key('__NINEML_WEBAPP_ID__'):
             raise RuntimeError('No application ID has been specified')
 
@@ -286,18 +285,39 @@ class nineml_webapp:
             raise RuntimeError('No application ID has been specified')
         
         tmpFolder = os.path.join(tempfile.gettempdir(), applicationID)
+        pdfReport = '{0}/{1}.pdf'.format(tmpFolder, applicationID) 
+        html = ''
+        if os.path.isfile(pdfReport):
+            pdf = open(pdfReport, "rb").read() #.encode("base64")
+            html = str(pdf)
         
-        part1 = 'Content-Type: text/html\r\n\r\n{1}\n'.format(boundary, html)
         output_len = len(html)
-        start_response('200 OK', [('Content-type', 'text/html'),
-                                ('Content-Length', str(output_len))])
+        start_response('200 OK', [('Content-type', 'application/pdf'),
+                                  #('Content-Transfer-Encoding', 'base64'),
+                                  ('Content-Disposition', 'attachment; filename=model-report.pdf'),
+                                  ('Content-Length', str(output_len))])
         return [html]
     
     def downloadZIP(self, dictFormData, environ, start_response):
-        html = 'downloadPDF'
+        if not dictFormData.has_key('__NINEML_WEBAPP_ID__'):
+            raise RuntimeError('No application ID has been specified')
+
+        applicationID   = dictFormData['__NINEML_WEBAPP_ID__'][0]
+        if applicationID == '':
+            raise RuntimeError('No application ID has been specified')
+        
+        tmpFolder = os.path.join(tempfile.gettempdir(), applicationID)
+        zipReport = '{0}/{1}.zip'.format(tmpFolder, applicationID) 
+        html = ''
+        if os.path.isfile(zipReport):
+            zip = open(zipReport, "rb").read() #.encode("base64")
+            html = str(zip)
+        
         output_len = len(html)
-        start_response('200 OK', [('Content-type', 'text/html'),
-                                ('Content-Length', str(output_len))])
+        start_response('200 OK', [('Content-type', 'application/zip'),
+                                  #('Content-Transfer-Encoding', 'base64'),
+                                  ('Content-Disposition', 'attachment; filename=model-report.zip'),
+                                  ('Content-Length', str(output_len))])
         return [html]
     
     def do_tests(self, nineml_component, applicationID, tmpFolder, dictFormData):
