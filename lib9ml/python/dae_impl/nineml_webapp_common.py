@@ -302,9 +302,9 @@ def createDownloadResults(content, applicationID, enablePDF, enableZIP):
             {0}
         </head>
         <body>
-            {1}
-            <br/>
-            <hr/>
+            <pre>{1}</pre>
+            <br/> <hr/>
+            
             <form action="nineml-webapp" method="post">
             <input type="hidden" name="__NINEML_WEBAPP_ID__" value="{2}"/>
             {3}

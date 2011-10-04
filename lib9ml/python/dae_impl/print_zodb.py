@@ -14,6 +14,6 @@ root = connection.root()
 ['environ']
 """
 
-for key in root:
-    print(' environ: {0}'.format(root[key]['environ']))
+for key, value in root.iteritems():
+    print('    {0} : {1}'.format(key, repr(value)))
 
