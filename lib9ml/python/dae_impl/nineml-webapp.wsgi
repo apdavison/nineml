@@ -152,7 +152,10 @@ class nineml_webapp:
             dictZODB = {}
             dictZODB['inspector']           = inspector
             dictZODB['nineml_component']    = nineml_component
-            dictZODB['environ']             = str(environ)
+            dict_environ = {}
+            for key, value in environ.iteritems():
+                dict_environ[key] = str(value)
+            dictZODB['environ']             = dict_environ
             dictZODB['name']                = nineml_component.name
             
             applicationID = self.generate_applicationID()
@@ -187,7 +190,10 @@ class nineml_webapp:
             dictZODB = {}
             dictZODB['inspector']           = inspector
             dictZODB['nineml_component']    = nineml_component
-            dictZODB['environ']             = str(environ)
+            dict_environ = {}
+            for key, value in environ.iteritems():
+                dict_environ[key] = str(value)
+            dictZODB['environ']             = dict_environ
             dictZODB['name']                = nineml_component.name
             
             applicationID = self.generate_applicationID()
