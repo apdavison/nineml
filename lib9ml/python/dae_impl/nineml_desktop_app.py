@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import print_function
-import os, sys, math, tempfile, json, traceback
+import os, sys, math, tempfile, json, traceback, shutil
 from time import localtime, strftime, time
 import nineml
 from nineml.abstraction_layer.testing_utils import RecordValue, TestableComponent
@@ -194,7 +194,7 @@ def test_other(component_name):
 
 if __name__ == "__main__":
     tests_data = []
-    tmpFolder = '.'
+    tmpFolder = tempfile.gettempdir()
     
     app = QtGui.QApplication(sys.argv)
     components = sorted(TestableComponent.list_available())
@@ -283,8 +283,12 @@ if __name__ == "__main__":
             exc_traceback = sys.exc_info()[2]
             print('\n'.join(traceback.format_tb(exc_traceback)), file=sys.stderr)
             
-    tex = inspector.ninemlComponent.name + '.tex'
-    pdf = inspector.ninemlComponent.name + '.pdf'
+    tex = os.path.join(tmpFolder, inspector.ninemlComponent.name + '.tex')
+    pdf = os.path.join(tmpFolder, inspector.ninemlComponent.name + '.pdf')
+    
+    cwd = sys.path[0]
+    shutil.copy2(os.path.join(cwd, 'logo.png'), os.path.join(tmpFolder, 'logo.png'))
+
     createLatexReport(inspector, tests_data, 'nineml-tex-template.tex', tex)
     res = createPDF(tex, tmpFolder)
     showPDF(pdf)

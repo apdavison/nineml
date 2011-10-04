@@ -231,6 +231,7 @@ class nineml_webapp:
             return _root_[key]
         
         finally:
+            transaction.abort()
             _connection_.close()
             _db_.close()
             _storage_.close()
@@ -246,6 +247,7 @@ class nineml_webapp:
             transaction.commit()
 
         finally:
+            transaction.abort()
             _connection_.close()
             _db_.close()
             _storage_.close()
