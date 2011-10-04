@@ -245,6 +245,9 @@ class nineml_webapp:
             
             _root_[key] = data
             transaction.commit()
+        
+        except Exception as e:
+            print(str(e), file=sys.stderr)
 
         finally:
             transaction.abort()
