@@ -7,6 +7,9 @@ import urlparse
 import zipfile
 import cgitb
 cgitb.enable()
+from ZODB.FileStorage import FileStorage
+from ZODB.DB import DB
+import transaction
 
 ___import_exception___ = None
 ___import_exception_traceback___ = None
@@ -27,7 +30,7 @@ try:
     from nineml_tex_report import createLatexReport, createPDF
     from nineml_daetools_simulation import daeSimulationInputData, nineml_daetools_simulation, ninemlTesterDataReporter
     from nineml_webapp_common import createErrorPage, getSetupDataForm, createSetupDataPage, getInitialPage, createResultPage, createDownloadResults
-    
+
 except Exception as e:
     exc_type, exc_value, exc_traceback = sys.exc_info()
     ___import_exception___           = str(e)
@@ -193,6 +196,43 @@ class nineml_webapp:
         except Exception as e:
             return self.returnExceptionPage(str(e), environ, start_response)
     
+    def readZODB(self, key):
+        try:
+            _storage_    = FileStorage(baseFolder + '/zodb/nineml-webapp.zodb')
+            _db_         = DB(_storage_)
+            _connection_ = _db_.open()
+            _root_       = _connection_.root()
+        
+            data = None
+            if key in _root_:
+                data  = _root_[key]
+                print(data, file=sys.stderr)
+        
+        finally:
+            _connection_.close()
+            _db_.close()
+            _storage_.close()
+        
+        return data            
+    
+    def writeZODB(self, key, data):
+        try:
+            _storage_    = FileStorage(baseFolder + '/zodb/nineml-webapp.zodb')
+            _db_         = DB(_storage_)
+            _connection_ = _db_.open()
+            _root_       = _connection_.root()
+            
+            _root_[key] = data
+            transaction.commit()
+            
+            for key, value in _root_.iteritems():
+                print('    {0} : {1}'.format(key, repr(value)), file=sys.stderr)
+
+        finally:
+            _connection_.close()
+            _db_.close()
+            _storage_.close()
+    
     def generate_report(self, dictFormData, tmpFolder, applicationID, inspector, nineml_component, doTests, environ, start_response):
         try:
             pdf = None
@@ -231,15 +271,25 @@ class nineml_webapp:
             if os.path.isfile(pdfReport):
                 pdf = open(pdfReport, "rb").read()
             
+            dictZODB = {}
+            dictZODB['pdfReport']           = pdf
+            dictZODB['zipReport']           = zip
+            dictZODB['tests_data']          = tests_data
+            dictZODB['inspector']           = inspector
+            dictZODB['nineml_component']    = nineml_component
+            dictZODB['environ']             = str(environ)
+            
+            self.writeZODB(applicationID, dictZODB)
+            
             success = True
             html = html_tests
 
         except Exception as e:
             return self.returnExceptionPage(str(e), environ, start_response)
-
+        
         # Remove temporary directory
-        #if os.path.isdir(tmpFolder):
-        #    shutil.rmtree(tmpFolder)
+        if os.path.isdir(tmpFolder):
+            shutil.rmtree(tmpFolder)
             
         if success:
             enablePDF = False
@@ -253,23 +303,6 @@ class nineml_webapp:
             start_response('200 OK', [('Content-type', 'text/html'),
                                       ('Content-Length', str(output_len))])
             return [output]
-            """
-            if success:
-                part1 = ''
-                part2 = ''
-                part3 = ''
-                boundary = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
-                part1 = '--{0}\r\nContent-Type: text/html\r\n\r\n{1}\n'.format(boundary, html)
-                if pdf:
-                    part2 = '--{0}\r\nContent-Disposition: attachment; filename=model-report.pdf\r\n\r\n{1}\n'.format(boundary, pdf)
-                if zip:
-                    part3 = '--{0}\r\nContent-Disposition: attachment; filename=report-data.zip\r\n\r\n{1}\n'.format(boundary, zip)
-                output = part1 + part2 + part3
-                output_len = len(output)
-                start_response('200 OK', [('Content-type', 'multipart/mixed; boundary={0}'.format(boundary)),
-                                        ('Content-Length', str(output_len))])
-                return [output]
-            """
         else:
             output_len = len(html)
             start_response('200 OK', [('Content-type', 'text/html'),
@@ -284,12 +317,13 @@ class nineml_webapp:
         if applicationID == '':
             raise RuntimeError('No application ID has been specified')
         
-        tmpFolder = os.path.join(tempfile.gettempdir(), applicationID)
-        pdfReport = '{0}/{1}.pdf'.format(tmpFolder, applicationID) 
-        html = ''
-        if os.path.isfile(pdfReport):
-            pdf = open(pdfReport, "rb").read() #.encode("base64")
-            html = str(pdf)
+        dictZODB = self.readZODB(applicationID)
+        if not dictZODB:
+            raise RuntimeError('Invalid application ID has been specified')
+        print(dictZODB, file=sys.stderr)
+        
+        pdf = dictZODB['pdfReport']
+        html = str(pdf)
         
         output_len = len(html)
         start_response('200 OK', [('Content-type', 'application/pdf'),
