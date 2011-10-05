@@ -151,11 +151,9 @@ class nineml_webapp:
 
             dictZODB = {}
             dictZODB['inspector']           = inspector
-            dictZODB['nineml_component']    = nineml_component
-            dict_environ = {}
-            for key, value in environ.iteritems():
-                dict_environ[key] = str(value)
-            dictZODB['environ']             = dict_environ
+            #dictZODB['nineml_component']    = nineml_component
+            dictZODB['REMOTE_ADDR']         = environ['REMOTE_ADDR']
+            dictZODB['HTTP_USER_AGENT']     = environ['HTTP_USER_AGENT']
             dictZODB['name']                = nineml_component.name
             
             applicationID = self.generate_applicationID()
@@ -189,11 +187,9 @@ class nineml_webapp:
 
             dictZODB = {}
             dictZODB['inspector']           = inspector
-            dictZODB['nineml_component']    = nineml_component
-            dict_environ = {}
-            for key, value in environ.iteritems():
-                dict_environ[key] = str(value)
-            dictZODB['environ']             = dict_environ
+            #dictZODB['nineml_component']    = nineml_component
+            dictZODB['REMOTE_ADDR']         = environ['REMOTE_ADDR']
+            dictZODB['HTTP_USER_AGENT']     = environ['HTTP_USER_AGENT']
             dictZODB['name']                = nineml_component.name
             
             applicationID = self.generate_applicationID()
@@ -212,7 +208,7 @@ class nineml_webapp:
                 raise RuntimeError('Invalid application ID has been specified') 
             
             inspector        = dictZODB['inspector']
-            nineml_component = dictZODB['nineml_component']
+            nineml_component = inspector.ninemlComponent #dictZODB['nineml_component']
             
             return self.generate_report(dictFormData, applicationID, inspector, nineml_component, True, environ, start_response)
        
