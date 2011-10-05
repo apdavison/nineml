@@ -240,7 +240,7 @@ def getInitialPage(available_components):
     "CobaSyn.spikeinput": "0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90"
   }, 
   "active_regimes": {
-    "CobaSyn": "cobadefaultregime", 
+    "CobaSyn": "cobadefaultregime"
   }, 
   "analog_ports_expressions": {
     "CobaSyn.V" : "-0.050"
