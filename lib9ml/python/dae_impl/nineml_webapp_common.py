@@ -226,7 +226,7 @@ def getInitialPage(available_components):
   "timeHorizon": 1.0, 
   "reportingInterval": 0.001, 
   "initial_conditions": {
-    "cobaExcit.g": 0.0
+    "CobaSyn.g": 0.0
   }, 
   "parameters": {
     "CobaSyn.vrev": 0.0, 
