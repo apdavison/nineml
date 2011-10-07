@@ -3,6 +3,7 @@
 
 from __future__ import print_function
 import nineml
+from nineml.user_layer import Model, Definition, Parameter, ParameterSet, SpikingNodeType, SynapseType, CurrentSourceType
 from nineml.abstraction_layer.testing_utils import RecordValue, TestableComponent
 from nineml.abstraction_layer import ComponentClass
 import os, sys, math, collections
@@ -631,6 +632,28 @@ class nineml_component_inspector:
         print('tree variables_to_report dictionary:')
         printDictionary(self.treeVariablesToReport.getDictionary())
 
+    def generateUserLayerComponent(self, component_type, filename):
+        definition   = Definition(self.ninemlComponent.name)
+        parameters   = []
+        for name, value in self.parameters.items():
+            print(name, value)
+            parameters.append(Parameter(name, value, 'mV'))
+        
+        param_set = ParameterSet(*parameters)
+        ul_component = None
+        if component_type == 'SpikingNodeType':
+            ul_component = SpikingNodeType(self.ninemlComponent.name, definition = definition, parameters = param_set)
+        elif component_type == 'SynapseType':
+            ul_component = SynapseType(self.ninemlComponent.name, definition = definition, parameters = param_set)
+        elif component_type == 'CurrentSourceType':
+            ul_component = CurrentSourceType(self.ninemlComponent.name, definition = definition, parameters = param_set)
+        else:
+            raise RuntimeError('Invalid component_type argument')
+        
+        model      = Model(self.ninemlComponent.name)
+        model.add_component(ul_component)
+        model.write(filename)
+        
     def updateData(self, **kwargs):
         _parameters               = kwargs.get('parameters',               {})
         _initial_conditions       = kwargs.get('initial_conditions',       {})
@@ -1241,3 +1264,4 @@ if __name__ == "__main__":
                                         variables_to_report      = variables_to_report)
     isOK = inspector.showQtGUI()
     inspector.printCollectedData()
+    inspector.generateUserLayerComponent('SynapseType', 'test.9ml')

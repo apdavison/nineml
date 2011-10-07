@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'nineml_tester.ui'
 #
-# Created: Mon Oct  3 15:29:10 2011
+# Created: Fri Oct  7 15:58:26 2011
 #      by: PyQt4 UI code generator 4.7.3
 #
 # WARNING! All changes made in this file will be lost!
