@@ -650,7 +650,7 @@ class base_unit(object):
         self.T          = float(kwargs.get('T',          0.0)) # time, s
         self.C          = float(kwargs.get('C',          0.0)) # luminous intensity, cd
         self.I          = float(kwargs.get('I',          0.0)) # el. current, A
-        self.O          = float(kwargs.get('K',          0.0)) # temperature, K
+        self.O          = float(kwargs.get('O',          0.0)) # temperature, K
         self.N          = float(kwargs.get('N',          0.0)) # amount of a substance, mol
         self.multiplier = float(kwargs.get('multiplier', 1.0))
 
@@ -1214,7 +1214,7 @@ class quantity(object):
                 other = quantity(other)
             else:
                 raise UnitsError('Invalid left argument type ({0}) for: {1} + {2}'.format(type(other), other, self))
-        return other.__mul__(self)
+        return other.__add__(self)
 
     def __sub__(self, other):
         if not isinstance(other, quantity):
@@ -1235,7 +1235,7 @@ class quantity(object):
                 other = quantity(other)
             else:
                 raise UnitsError('Invalid left argument type ({0}) for: {1} - {2}'.format(type(other), other, self))
-        return other.__add__(self)
+        return other.__sub__(self)
 
     def __mul__(self, other):
         if not isinstance(other, quantity):
