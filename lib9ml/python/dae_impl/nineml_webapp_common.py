@@ -1,3 +1,5 @@
+from __future__ import print_function
+from pprint import pformat
 import os, sys, traceback
 
 _css = """
@@ -257,6 +259,141 @@ def getInitialPage(available_components):
         _av_comps += '<option value="{0}">{0}</option>\n'.format(component)
     html = html.replace('CSS_STYLES',           _css)
     html = html.replace('AVAILABLE_COMPONENTS', _av_comps)
+    return html
+
+def getRepositoryInitialPage():
+    html = """
+    <html>
+        <head>
+            CSS_STYLES
+        </head>
+        <body>
+            <hr/>
+            <form action="nineml-model-repository" method="post">
+                <input type="submit" name="__NINEML_MODEL_REPOSITORY_ACTION__" value="Browse" />
+                <input type="submit" name="__NINEML_MODEL_REPOSITORY_ACTION__" value="Search" />
+                <input type="submit" name="__NINEML_MODEL_REPOSITORY_ACTION__" value="AdvancedSearch" />
+                <input type="submit" name="__NINEML_MODEL_REPOSITORY_ACTION__" value="AddNew" />
+            </form>
+        </body>
+        </html>
+    """
+    html = html.replace('CSS_STYLES', _css)
+    return html
+
+def addNewComponentPage():
+    html = """
+    <html>
+        <head>
+            CSS_STYLES
+        </head>
+        <body>
+            <form action="nineml-model-repository" enctype="multipart/form-data" method="post">
+                <fieldset>
+                    <legend>General</legend>
+                    <label for="name">Name</label>          <input type="text" name="name" value=""/> <br/>
+                    <label for="version">Version</label>    <input type="text" name="version" value=""/> <br/>
+                    <label for="author">Author</label>      <input type="text" name="author" value=""/> <br/>
+                    <label for="keywords">Keywords</label>  <input type="text" name="keywords" value=""/> <br/>
+                    <label for="category">Category</label>  <input type="text" name="category" value=""/> <br/>
+                    <label for="notes">Notes</label>        <textarea name="notes" rows="10" cols="80" style="width:100%"></textarea> <br/>
+                </fieldset>
+                <fieldset>
+                    <legend>Files</legend>
+                    <label for="nineml">NineML XML file</label> <input type="file" name="nineml"   ACCEPT="text/xml"> <br/>
+                    <label for="report">Model report</label>    <input type="file" name="report"   ACCEPT="application/pdf"> <br/>
+                    <label for="testdata">Test data</label>     <input type="file" name="testdata" ACCEPT="application/zip"> <br/>
+                </fieldset>
+                <hr/>
+                <input type="hidden" name="__NINEML_MODEL_REPOSITORY_ACTION__" value="AddNewExecute"/>
+                <input type="submit" value="Add" />
+            </form>
+        </body>
+        </html>
+    """
+    html = html.replace('CSS_STYLES', _css)
+    return html
+    
+def searchForComponentPage():
+    html = """
+    <html>
+        <head>
+            CSS_STYLES
+        </head>
+        <body>
+            <form action="nineml-model-repository" method="post">
+                <fieldset>
+                    <legend>Search in names</legend>
+                    <label for="name">Name</label> <input type="text" name="name" value=""/> <br/>
+                </fieldset>
+                <hr/>
+                <input type="hidden" name="__NINEML_MODEL_REPOSITORY_ACTION__" value="SearchResults"/>
+                <input type="submit" value="Search" />
+            </form>
+        </body>
+        </html>
+    """
+    html = html.replace('CSS_STYLES', _css)
+    return html
+
+def advancedSearchForComponentPage():
+    html = """
+    <html>
+        <head>
+            CSS_STYLES
+        </head>
+        <body>
+            <form action="nineml-model-repository" method="post">
+                <fieldset>
+                    <legend>Advanced search</legend>
+                    <label for="name">Name</label>          <input type="text" name="name" value=""/> <br/>
+                    <label for="notes">Notes</label>        <input type="text" name="notes" value=""/> <br/>
+                    <label for="version">Version</label>    <input type="text" name="version" value=""/> <br/>
+                    <label for="author">Author</label>      <input type="text" name="author" value=""/> <br/>
+                    <label for="keywords">Keywords</label>  <input type="text" name="keywords" value=""/> <br/>
+                    <label for="category">Category</label> <input type="text" name="category" value=""/> <br/>
+                </fieldset>
+                <hr/>
+                <input type="hidden" name="__NINEML_MODEL_REPOSITORY_ACTION__" value="AdvancedSearchResults"/>
+                <input type="submit" value="Search" />
+            </form>
+        </body>
+        </html>
+    """
+    html = html.replace('CSS_STYLES', _css)
+    return html
+    
+def formatComponent(component):
+    html = '<pre>'
+    html += 'name:     {0}\n'.format(component.name)
+    html += 'version:  {0}\n'.format(component.version)
+    html += 'author:   {0}\n'.format(component.author)
+    html += 'keywords: {0}\n'.format(component.keywords)
+    html += 'category: {0}\n'.format(component.category)
+    html += 'notes:    {0}\n'.format(component.notes)
+    #html += 'nineml:   {0}\n'.format(component.nineml)
+    #html += 'report:   {0}\n'.format(component.report)
+    #html += 'testdata: {0}\n'.format(component.testdata)
+    html += '</pre>'
+    return html
+
+def showComponents(components):
+    html = """
+    <html>
+        <head>
+            CSS_STYLES
+        </head>
+        <body>
+            CONTENT
+        </body>
+        </html>
+    """
+    content = ''
+    for component in components:
+        content += formatComponent(component)
+    
+    html = html.replace('CSS_STYLES', _css)
+    html = html.replace('CONTENT', content)
     return html
 
 def getSetupDataForm():
