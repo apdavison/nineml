@@ -66,6 +66,13 @@ class nineml_webapp:
         start_response('200 OK', [('Content-type', 'text/html'),
                                   ('Content-Length', str(output_len))])
         return [html]
+    
+    def getApplicationID(self, dictFormData, environ, start_response):
+        html = str(uuid.uuid1())
+        output_len = len(html)
+        start_response('200 OK', [('Content-type', 'text/html'),
+                                  ('Content-Length', str(output_len))])
+        return [html]
 
     def create_nineml_component_and_display_gui(self, dictFormData, environ, start_response):
         """
@@ -215,7 +222,7 @@ class nineml_webapp:
 
     def generate_report_with_tests(self, dictFormData, environ, start_response):
         try:
-            applicationID = self.getApplicationID(dictFormData)
+            applicationID = self.applicationIDFromDictionary(dictFormData)
             dictZODB = self.readZODB(applicationID)
             if not dictZODB:
                 raise RuntimeError('Invalid application ID has been specified') 
@@ -341,7 +348,7 @@ class nineml_webapp:
             return [html]
 
     def downloadPDF(self, dictFormData, environ, start_response):
-        applicationID = self.getApplicationID(dictFormData)
+        applicationID = self.applicationIDFromDictionary(dictFormData)
         dictZODB = self.readZODB(applicationID)
         pdf  = dictZODB['pdfReport']
         name = dictZODB['name']
@@ -354,7 +361,7 @@ class nineml_webapp:
         return [html]
     
     def downloadZIP(self, dictFormData, environ, start_response):
-        applicationID = self.getApplicationID(dictFormData)
+        applicationID = self.applicationIDFromDictionary(dictFormData)
         dictZODB = self.readZODB(applicationID)
         zip  = dictZODB['zipReport']
         name = dictZODB['name']
@@ -399,7 +406,7 @@ class nineml_webapp:
                                   ('Content-Length', str(output_len))])
         return [html]
     
-    def getApplicationID(self, dictFormData):
+    def applicationIDFromDictionary(self, dictFormData):
         if not dictFormData.has_key('__NINEML_WEBAPP_ID__'):
             raise RuntimeError('No application ID has been specified')
 
@@ -595,6 +602,9 @@ class nineml_webapp:
                     elif action == 'getAvailableALComponents':
                         return self.getAvailableALComponents(dictFormData, environ, start_response)
                         
+                    elif action == 'getApplicationID':
+                        return self.getApplicationID(dictFormData, environ, start_response)
+                    
                     elif action == 'generateReport':
                         #raise RuntimeError(str(action) + str(dictFormData))
                         return self.generate_report_with_no_tests(dictFormData, environ, start_response)

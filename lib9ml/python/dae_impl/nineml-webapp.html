@@ -3,52 +3,106 @@
 <head>
     <title>NineML WebApp</title>
     <meta content="text/html; charset=ISO-8859-1" http-equiv="content-type">
+    <link type="text/css" href="css/smoothness/jquery-ui.css" rel="stylesheet" />   
     <link rel="stylesheet" href="nineml-webapp.css" type="text/css" media="all" />
-    <script type="text/javascript" src="jquery-1.6.4.min.js"></script>
-    <script type="text/javascript" src="nineml-webapp.js"></script>
+    <script type="text/javascript" src="js/jquery-1.6.2.min.js"></script>
+    <script type="text/javascript" src="js/jquery-ui-1.8.16.custom.min.js"></script>
+<!--    <script type="text/javascript" src="nineml-webapp.js"></script>-->
     <script type="text/javascript">
         $(document).ready(function(){
-            var parameters = {'__NINEML_ACTION__' : 'getAvailableALComponents'};
-            $('#TestableComponent').load("nineml-webapp", parameters);
             
-            $('#buttonGenerateReport').click(function(){
+            var parameters = {"__NINEML_ACTION__" : "getAvailableALComponents"};
+            $("#listALComponent").load("nineml-webapp", parameters);
+            
+            $("#buttonGenerateReport").click(function(){
                 $("#inputAction").attr("value", "generateReport");
-                //alert($('#formReport').serialize());
-                var parameters = $('#formReport').serializeArray();
+                var parameters = $("#formReport").serializeArray();
 
-                $('#ninemlWebAppResults').text("Please wait ...");
-                $('#ninemlWebAppResults').load("nineml-webapp", parameters);
+                $("#ninemlWebAppResults").text("Please wait ...");
+                $("#ninemlWebAppResults").load("nineml-webapp", parameters);
+                $("#ninemlWebAppResults").dialog("open");
                 return false;
-                //$('#formReport').submit();
+                //$("#formReport").submit();
             });
             
-            $('#buttonAddTest').click(function(){
-                $("#inputAction").attr("value", "addTest");
-                //alert($('#formReport').serialize());
-                
-                $('#ninemlWebAppResults').text("Please wait add test...");
-                //$('#Tests').append("<p>{0} <button>Delete</button></p>".format('Uja'));
-                
-                $('#formReport').preventDefault();
-                return false;
-                //$('#formReport').submit();
+//             $("#buttonAddTest_").click(function(){
+//                 $("#inputAction").attr("value", "addTest");
+//                 alert($("#formReport").serialize());
+//                 
+//                 $("#ninemlWebAppResults").text("Please wait add test...");
+//                 addTest("Uja", "Uja atrr")
+//                 return false;
+//             });
+
+            $("#selectALComponent").dialog({
+                autoOpen: false,
+                buttons: {
+                    "Ok": function() { 
+                        var component  = $("#listALComponent").val();
+                        var parameters = {"__NINEML_ACTION__" : "getApplicationID"};
+                        $.post("nineml-webapp", parameters, function(data) {
+                            $("#ApplicationID").attr("value", data);
+                        });
+                        alert($("#ApplicationID").attr("value"));
+                        $("#TestableComponent").attr("value", component);
+                        $("#testableComponentName").html("<p>NineML component: {0}</p>".format(component));
+                        $(this).dialog("close"); 
+                    }, 
+                    "Cancel": function() { 
+                        $(this).dialog("close"); 
+                    } 
+                }
             });
+ 
+            $("#ninemlWebAppResults").dialog({
+                autoOpen: false,
+                buttons: {
+                    "Close": function() { 
+                        $(this).dialog("close"); 
+                    } 
+                }
+            });
+ 
+            // Dialog Link
+            $("#buttonSelectALComponent").click(function(){
+                $("#selectALComponent").dialog("open");
+                return false;
+            });
+    
+            
         });
         
         $(window).unload(function(){
-            //alert('Bye bye...');
+            //alert("Bye bye...");
         });
+        
+        String.prototype.format = function () {
+            var args = arguments;
+            return this.replace(/\{\{|\}\}|\{(\d+)\}/g, function (m, n) {
+                if (m == "{{") { return "{"; }
+                if (m == "}}") { return "}"; }
+                return args[n];
+            });
+        }
+
+        function addTest(name, data)
+        {
+            var html = "<p data=\"{0}\">{1}<button id=\"edit\">Edit</button> <button id=\"Delete\">Delete</button> </p>".format(data, name)
+            $("#Tests").append(html);
+        }
     </script>
 </head>
 
 <body>
 <form id="formReport" action="nineml-webapp" method="post">
-    <p> 
+<!--    <p> 
         <label for="TestableComponent" style="width: 200px;">NineML component:</label>
         <select id="TestableComponent" name="TestableComponent"></select> <br/>
     </p>
-    <div id="Tests"> 
-    </div>
+-->
+    <div id="testableComponentName"></div>
+    
+    <div id="Tests"></div>
     
     <!--
     <table style="text-align: left; width: 100%;" border="1" cellpadding="0" cellspacing="0">
@@ -64,11 +118,21 @@
     -->
     <br/>
     <input id="inputAction" type="hidden" name="__NINEML_ACTION__" value=""/>
-    <input id="buttonGenerateReport" value="Generate report" type="submit">
-    <input id="buttonAddTest" value="Add test" type="submit"> 
+    <input id="ApplicationID" type="hidden" name="__NINEML_WEBAPP_ID__" value=""/>
+    <input id="TestableComponent" type="hidden" name="TestableComponent" value=""/>
+    
+    <button id="buttonGenerateReport">Generate report</button>
+    <button id="buttonSelectALComponent">Select AL Component</button>
+<!--    <input id="buttonGenerateReport" value="Generate report" type="submit">
+    <input id="buttonAddTest" value="Add test" type="submit"> -->
 </form>
 
-  <hr/>
-  <div id="ninemlWebAppResults"></div>
+    <hr/>
+    <div id="ninemlWebAppResults" title="Results"></div>
+
+    <div id="selectALComponent" title="Select AL Component">
+        <label for="listALComponent" style="width: 200px;">NineML component:</label>
+        <select id="listALComponent"></select>
+    </div>
 </body>
 </html>
