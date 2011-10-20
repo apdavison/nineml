@@ -113,6 +113,30 @@ _css = """
         {
             margin-left: 153px; /* Width plus 3 (html space) */
         }
+        
+        .info, .success, .warning, .error, .validation {
+            border: 1px solid;
+            margin: 10px 0px;
+            padding:15px 15px 15px 15px;
+            background-repeat: no-repeat;
+            background-position: 10px center;
+        }
+        .info {
+            color: black;
+            background-color: white;
+        }
+        .success {
+            color: black; //white;
+            background-color: white; //DarkGreen;
+        }
+        .warning {
+            color: black; //white;
+            background-color: white; //Gold;
+        }
+        .error {
+            color: black; //white;
+            background-color: white; //DarkRed;
+        }    
     </style>
 """
 
@@ -134,8 +158,8 @@ def getInitialPage(available_components):
                     Initial values (in JSON format):<br/>
                     <textarea name="InitialValues" rows="10" cols="80" style="width:100%"></textarea>
                 </p>
-                <input type="submit" name="__NINEML_WEBAPP_ACTION__" value="Generate report" />
-                <input type="submit" name="__NINEML_WEBAPP_ACTION__" value="Add test" />
+                <input type="submit" name="__NINEML_ACTION__" value="Generate report" />
+                <input type="submit" name="__NINEML_ACTION__" value="Add test" />
             </form>
             <hr />
             <h3>Notes:</h3>
@@ -270,10 +294,10 @@ def getRepositoryInitialPage():
         <body>
             <hr/>
             <form action="nineml-model-repository" method="post">
-                <input type="submit" name="__NINEML_MODEL_REPOSITORY_ACTION__" value="Browse" />
-                <input type="submit" name="__NINEML_MODEL_REPOSITORY_ACTION__" value="Search" />
-                <input type="submit" name="__NINEML_MODEL_REPOSITORY_ACTION__" value="AdvancedSearch" />
-                <input type="submit" name="__NINEML_MODEL_REPOSITORY_ACTION__" value="AddNew" />
+                <input type="submit" name="__NINEML_ACTION__" value="Browse" />
+                <input type="submit" name="__NINEML_ACTION__" value="Search" />
+                <input type="submit" name="__NINEML_ACTION__" value="AdvancedSearch" />
+                <input type="submit" name="__NINEML_ACTION__" value="AddNew" />
             </form>
         </body>
         </html>
@@ -305,7 +329,7 @@ def addNewComponentPage():
                     <label for="testdata">Test data</label>     <input type="file" name="testdata" ACCEPT="application/zip"> <br/>
                 </fieldset>
                 <hr/>
-                <input type="hidden" name="__NINEML_MODEL_REPOSITORY_ACTION__" value="AddNewExecute"/>
+                <input type="hidden" name="__NINEML_ACTION__" value="AddNewExecute"/>
                 <input type="submit" value="Add" />
             </form>
         </body>
@@ -327,7 +351,7 @@ def searchForComponentPage():
                     <label for="name">Name</label> <input type="text" name="name" value=""/> <br/>
                 </fieldset>
                 <hr/>
-                <input type="hidden" name="__NINEML_MODEL_REPOSITORY_ACTION__" value="SearchResults"/>
+                <input type="hidden" name="__NINEML_ACTION__" value="SearchResults"/>
                 <input type="submit" value="Search" />
             </form>
         </body>
@@ -354,7 +378,7 @@ def advancedSearchForComponentPage():
                     <label for="category">Category</label> <input type="text" name="category" value=""/> <br/>
                 </fieldset>
                 <hr/>
-                <input type="hidden" name="__NINEML_MODEL_REPOSITORY_ACTION__" value="AdvancedSearchResults"/>
+                <input type="hidden" name="__NINEML_ACTION__" value="AdvancedSearchResults"/>
                 <input type="submit" value="Search" />
             </form>
         </body>
@@ -402,7 +426,7 @@ def getSetupDataForm():
         <h1>Test NineML component: {0}</h1>
         {1}
         <input type="hidden" name="__NINEML_WEBAPP_ID__" value="{2}"/>
-        <input type="hidden" name="__NINEML_WEBAPP_ACTION__" value="Generate report with tests" />
+        <input type="hidden" name="__NINEML_ACTION__" value="Generate report with tests" />
         <br/>
         
         <input type="submit" value="Generate report" />
@@ -429,28 +453,19 @@ def createDownloadResults(content, applicationID, enablePDF, enableZIP):
     pdf = ''
     zip = ''
     if enablePDF:
-        pdf = '<input type="submit" name="__NINEML_WEBAPP_ACTION__" value="Download pdf report" />'
+        pdf = '<input type="submit" name="__NINEML_ACTION__" value="Download pdf report" />'
     if enableZIP:
-        zip = '<input type="submit" name="__NINEML_WEBAPP_ACTION__" value="Download zip archive" />'
+        zip = '<input type="submit" name="__NINEML_ACTION__" value="Download zip archive" />'
     
     html =  """
-    <html>
-        <head>
-            {0}
-        </head>
-        <body>
-            <pre>{1}</pre>
-            <br/> <hr/>
-            
-            <form action="nineml-webapp" method="post">
-            <input type="hidden" name="__NINEML_WEBAPP_ID__" value="{2}"/>
-            {3}
-            {4}
-            </form>
-        </body>
-    </html>
+        <pre>{0}</pre>
+        <form action="nineml-webapp" method="post">
+        <input type="hidden" name="__NINEML_WEBAPP_ID__" value="{1}"/>
+        {2}
+        {3}
+        </form>
     """
-    return html.format(_css, content, applicationID, pdf, zip)
+    return html.format(content, applicationID, pdf, zip)
 
 def createSetupDataPage(content):
     html =  """
@@ -465,7 +480,7 @@ def createSetupDataPage(content):
     """
     return html.format(_css, content)
 
-def createErrorPage(error, trace_back, additional_data = ''):
+def createErrorPage(error, trace_back = None, additional_data = ''):
     html =  """
     <html>
         <head>
@@ -479,8 +494,26 @@ def createErrorPage(error, trace_back, additional_data = ''):
     </html>
     """
     errorDescription = ''
-    messages = traceback.format_tb(trace_back)
-    for msg in messages:
-        errorDescription += msg
+    if trace_back:
+        messages = traceback.format_tb(trace_back)
+        for msg in messages:
+            errorDescription += msg
         
     return html.format(_css, error, errorDescription, additional_data)
+
+def showResultsPage(msg_type, message, action, name, value):
+    html =  """
+    <html>
+        <head>
+            {0}
+        </head>
+        <body>
+            <form action="{1}" method="post">
+                <div class="{2}">{3}</div>
+                <input type="hidden" name="{4}" value="{5}"/>
+                <input type="submit" value="Close" />
+            </form>
+        </body>
+    </html>
+    """
+    return html.format(_css, action, msg_type, message, name, value)

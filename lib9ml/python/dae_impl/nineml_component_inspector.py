@@ -1264,4 +1264,4 @@ if __name__ == "__main__":
                                         variables_to_report      = variables_to_report)
     isOK = inspector.showQtGUI()
     inspector.printCollectedData()
-    inspector.generateUserLayerComponent('SynapseType', 'test.9ml')
+    inspector.generateUserLayerComponent('SynapseType', 'test.xml')

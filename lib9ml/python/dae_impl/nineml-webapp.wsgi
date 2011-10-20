@@ -9,6 +9,9 @@ from ZODB.FileStorage import FileStorage
 from ZODB.DB import DB
 import transaction
 
+__scriptName__ = 'nineml-webapp'
+__actionName__ = '__NINEML_ACTION__'
+
 ___import_exception___ = None
 ___import_exception_traceback___ = None
 try:
@@ -54,6 +57,16 @@ class nineml_webapp:
                                   ('Content-Length', str(output_len))])
         return [html]
         
+    def getAvailableALComponents(self, dictFormData, environ, start_response):
+        available_components = sorted(TestableComponent.list_available())
+        html = ''
+        for component in available_components:
+            html += '<option value="{0}">{0}</option>\n'.format(component)
+        output_len = len(html)
+        start_response('200 OK', [('Content-type', 'text/html'),
+                                  ('Content-Length', str(output_len))])
+        return [html]
+
     def create_nineml_component_and_display_gui(self, dictFormData, environ, start_response):
         """
         Inputs:
@@ -164,7 +177,7 @@ class nineml_webapp:
             html          = createSetupDataPage(content)
         
         except Exception as e:
-            return self.returnExceptionPage(str(e), environ, start_response)
+            return self.returnExceptionPage(str(e), dictFormData, environ, start_response)
 
         output_len = len(html)
         start_response('200 OK', [('Content-type', 'text/html'),
@@ -198,7 +211,7 @@ class nineml_webapp:
             return self.generate_report(dictFormData, applicationID, inspector, nineml_component, False, environ, start_response)
         
         except Exception as e:
-            return self.returnExceptionPage(str(e), environ, start_response)
+            return self.returnExceptionPage(str(e), dictFormData, environ, start_response)
 
     def generate_report_with_tests(self, dictFormData, environ, start_response):
         try:
@@ -213,7 +226,7 @@ class nineml_webapp:
             return self.generate_report(dictFormData, applicationID, inspector, nineml_component, True, environ, start_response)
        
         except Exception as e:
-            return self.returnExceptionPage(str(e), environ, start_response)
+            return self.returnExceptionPage(str(e), dictFormData, environ, start_response)
     
     def readZODB(self, key):
         try:
@@ -302,7 +315,7 @@ class nineml_webapp:
             html = html_tests
 
         except Exception as e:
-            return self.returnExceptionPage(str(e), environ, start_response)
+            return self.returnExceptionPage(str(e), dictFormData, environ, start_response)
         
         finally:
             # Remove temporary directory
@@ -375,10 +388,8 @@ class nineml_webapp:
         
         return html, tests_data, zip
 
-    def returnExceptionPage(self, strError, environ, start_response):
-        content = ''
-        #content = 'Application environment:\n' + pformat(environ) + '\n\n'
-        #content += 'Form arguments:\n  {0}\n\n'.format(raw_arguments)
+    def returnExceptionPage(self, strError, dictFormData, environ, start_response):
+        content = 'Form arguments:\n  {0}\n\n'.format(dictFormData)
 
         exc_traceback = sys.exc_info()[2]
         html = createErrorPage(strError, exc_traceback, content)
@@ -574,14 +585,18 @@ class nineml_webapp:
                     raw_arguments = raw_arguments.strip(' \'')
                     dictFormData  = urlparse.parse_qs(raw_arguments)
 
-                    if not '__NINEML_WEBAPP_ACTION__' in dictFormData:
+                    if not __actionName__ in dictFormData:
                         raise RuntimeError('Phase argument must be specified')
 
-                    action = dictFormData['__NINEML_WEBAPP_ACTION__'][0]
-                    if action == 'Add test':
+                    action = dictFormData[__actionName__][0]
+                    if action == 'addTest':
                         return self.create_nineml_component_and_display_gui(dictFormData, environ, start_response)
 
-                    elif action == 'Generate report':
+                    elif action == 'getAvailableALComponents':
+                        return self.getAvailableALComponents(dictFormData, environ, start_response)
+                        
+                    elif action == 'generateReport':
+                        #raise RuntimeError(str(action) + str(dictFormData))
                         return self.generate_report_with_no_tests(dictFormData, environ, start_response)
 
                     elif action == 'Generate report with tests':
@@ -599,7 +614,8 @@ class nineml_webapp:
                 html = 'Error occurred:\n{0}\n{1}'.format(___import_exception___, ___import_exception_traceback___)
 
         except Exception as e:
-            content = 'Application environment:\n' + pformat(environ) + '\n\n'
+            content = 'Form arguments:\n  {0}\n\n'.format(dictFormData)
+            content += 'Application environment:\n' + pformat(environ) + '\n\n'
             exc_type, exc_value, exc_traceback = sys.exc_info()
             html = createErrorPage(e, exc_traceback, content)
 

@@ -17,7 +17,10 @@ baseFolder = '/home/ciroki/Data/NineML/nineml-model-tree/lib9ml/python/dae_impl'
 sys.path.append(baseFolder)
 from nineml_webapp_common import createErrorPage, getRepositoryInitialPage, addNewComponentPage
 from nineml_webapp_common import searchForComponentPage, advancedSearchForComponentPage
-from nineml_webapp_common import showComponents
+from nineml_webapp_common import showComponents, showResultsPage
+
+__scriptName__ = 'nineml-model-repository'
+__actionName__ = '__NINEML_ACTION__'
 
 class storageComponent(Persistent):
     def __init__(self):
@@ -164,7 +167,7 @@ class nineml_model_repository:
         if components:
             for key, value in components.iteritems():
                 cat.index_doc(value)
-        print(str(cat), file=sys.stderr)
+        #print(str(cat), file=sys.stderr)
         return cat
 
     def add_new(self, fieldStorage, environ, start_response):
@@ -190,10 +193,13 @@ class nineml_model_repository:
         if fieldStorage['testdata'].file:
             comp.testdata = fieldStorage['testdata'].file.read()
 
-        if self.addComponentZODB(comp.name, comp):
-            html = '<pre>Component {0} successfully added to the model repository</pre>'.format(comp.name)
+       if self.addComponentZODB(comp.name, comp):
+            html = showResultsPage('info', 
+                                   'Component {0} successfully added to the model repository'.format(comp.name), 
+                                   __scriptName__, __actionName__, 'Home')
         else:
-            html = '<pre>Component {0} already exist or an error occurred</pre>'.format(comp.name)
+            html = showResultsPage('error', 'Component {0} already exist or an error occurred'.format(comp.name), 
+                                   __scriptName__, __actionName__, 'Home')
         
         output_len = len(html)
         start_response('200 OK', [('Content-type', 'text/html'),
@@ -275,10 +281,10 @@ class nineml_model_repository:
 
         else:
             fieldStorage = cgi.FieldStorage(fp=environ['wsgi.input'], environ=environ) 
-            if not '__NINEML_MODEL_REPOSITORY_ACTION__' in fieldStorage:
+            if not __actionName__ in fieldStorage:
                 raise RuntimeError('Phase argument must be specified')
 
-            action = fieldStorage['__NINEML_MODEL_REPOSITORY_ACTION__'].value
+            action = fieldStorage[__actionName__].value
             if action == 'AddNew':
                 return self.add_new(fieldStorage, environ, start_response)
 
@@ -305,6 +311,9 @@ class nineml_model_repository:
             
             elif action == 'AdvancedSearchResults':
                 return self.advanced_search_results(fieldStorage, environ, start_response)
+            
+            elif action == 'Home':
+                return self.initial_page(environ, start_response)
             
             else:
                 raise RuntimeError('Invalid action argument specified: {0}'.format(action))

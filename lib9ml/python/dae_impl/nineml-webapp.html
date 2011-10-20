@@ -1,0 +1,74 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+    <title>NineML WebApp</title>
+    <meta content="text/html; charset=ISO-8859-1" http-equiv="content-type">
+    <link rel="stylesheet" href="nineml-webapp.css" type="text/css" media="all" />
+    <script type="text/javascript" src="jquery-1.6.4.min.js"></script>
+    <script type="text/javascript" src="nineml-webapp.js"></script>
+    <script type="text/javascript">
+        $(document).ready(function(){
+            var parameters = {'__NINEML_ACTION__' : 'getAvailableALComponents'};
+            $('#TestableComponent').load("nineml-webapp", parameters);
+            
+            $('#buttonGenerateReport').click(function(){
+                $("#inputAction").attr("value", "generateReport");
+                //alert($('#formReport').serialize());
+                var parameters = $('#formReport').serializeArray();
+
+                $('#ninemlWebAppResults').text("Please wait ...");
+                $('#ninemlWebAppResults').load("nineml-webapp", parameters);
+                return false;
+                //$('#formReport').submit();
+            });
+            
+            $('#buttonAddTest').click(function(){
+                $("#inputAction").attr("value", "addTest");
+                //alert($('#formReport').serialize());
+                
+                $('#ninemlWebAppResults').text("Please wait add test...");
+                //$('#Tests').append("<p>{0} <button>Delete</button></p>".format('Uja'));
+                
+                $('#formReport').preventDefault();
+                return false;
+                //$('#formReport').submit();
+            });
+        });
+        
+        $(window).unload(function(){
+            //alert('Bye bye...');
+        });
+    </script>
+</head>
+
+<body>
+<form id="formReport" action="nineml-webapp" method="post">
+    <p> 
+        <label for="TestableComponent" style="width: 200px;">NineML component:</label>
+        <select id="TestableComponent" name="TestableComponent"></select> <br/>
+    </p>
+    <div id="Tests"> 
+    </div>
+    
+    <!--
+    <table style="text-align: left; width: 100%;" border="1" cellpadding="0" cellspacing="0">
+        <tbody>
+        <tr>
+            <td style="vertical-align: top;">Test name<br>
+            </td>
+            <td style="vertical-align: top;">Actions<br>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+    -->
+    <br/>
+    <input id="inputAction" type="hidden" name="__NINEML_ACTION__" value=""/>
+    <input id="buttonGenerateReport" value="Generate report" type="submit">
+    <input id="buttonAddTest" value="Add test" type="submit"> 
+</form>
+
+  <hr/>
+  <div id="ninemlWebAppResults"></div>
+</body>
+</html>
