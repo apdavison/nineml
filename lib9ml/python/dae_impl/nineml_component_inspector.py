@@ -6,7 +6,7 @@ import nineml
 from nineml.user_layer import Model, Definition, Parameter, ParameterSet, SpikingNodeType, SynapseType, CurrentSourceType
 from nineml.abstraction_layer.testing_utils import RecordValue, TestableComponent
 from nineml.abstraction_layer import ComponentClass
-import os, sys, math, collections
+import os, sys, math, collections, json
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import Qt
 from nineml_tester_ui import Ui_ninemlTester
@@ -585,6 +585,18 @@ class nineml_component_inspector:
         res.append('tree initial_conditions:')
         res.append(str(self.treeInitialConditions))
         return '\n'.join(res)
+
+    def jsonData(self):
+        data = {}
+        data['timeHorizon']               = self.timeHorizon
+        data['reportingInterval']         = self.reportingInterval
+        data['parameters']                = self.parameters
+        data['initial_conditions']        = self.initial_conditions
+        data['analog_ports_expressions']  = self.analog_ports_expressions
+        data['event_ports_expressions']    = self.event_ports_expressions
+        data['active_regimes']            = self.active_regimes
+        data['variables_to_report']       = self.variables_to_report
+        return json.dumps(data, indent = 2)
 
     def printCollectedData(self):
         print('timeHorizon: ' + str(self.timeHorizon))

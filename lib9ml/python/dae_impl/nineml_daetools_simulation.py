@@ -23,8 +23,8 @@ class daeSimulationInputData:
         self.parameters         = {}
         self.initial_conditions = {}
         # Dictionaries: 'canonical/relative name' : 'expression'
-        self.analog_port_expressions = {}
-        self.event_port_expressions  = {}
+        self.analog_ports_expressions = {}
+        self.event_ports_expressions  = {}
         # Dictionary: 'canonical/relative name' : string
         self.active_regimes      = {}
         # Dictionary: 'canonical/relative name' : boolean
@@ -44,8 +44,8 @@ class daeSimulationInputData:
         data['reportingInterval']         = self.reportingInterval
         data['parameters']                = self.parameters
         data['initial_conditions']        = self.initial_conditions
-        data['analog_port_expressions']   = self.analog_port_expressions
-        data['event_port_expressions']    = self.event_port_expressions
+        data['analog_ports_expressions']  = self.analog_ports_expressions
+        data['event_ports_expressions']   = self.event_ports_expressions
         data['active_regimes']            = self.active_regimes
         data['variables_to_report']       = self.variables_to_report
 
@@ -99,8 +99,8 @@ class daeSimulationInputData:
         data['reportingInterval']         = self.reportingInterval
         data['parameters']                = self.parameters
         data['initial_conditions']        = self.initial_conditions
-        data['analog_port_expressions']   = self.analog_port_expressions
-        data['event_port_expressions']    = self.event_port_expressions
+        data['analog_ports_expressions']   = self.analog_ports_expressions
+        data['event_ports_expressions']    = self.event_ports_expressions
         data['active_regimes']            = self.active_regimes
         data['variables_to_report']       = self.variables_to_report
         return str(data)

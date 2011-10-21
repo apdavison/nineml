@@ -74,7 +74,51 @@ class nineml_webapp:
                                   ('Content-Length', str(output_len))])
         return [html]
 
-    def create_nineml_component_and_display_gui(self, dictFormData, environ, start_response):
+    def uploadULComponent(self, dictFormData, environ, start_response):
+        html = str("Success")
+        output_len = len(html)
+        start_response('200 OK', [('Content-type', 'text/html'),
+                                  ('Content-Length', str(output_len))])
+        return [html]
+    
+    def set_AL_component(self, dictFormData, environ, start_response):
+        try:
+            html = ''
+
+            if not dictFormData.has_key('TestableComponent'):
+                raise RuntimeError('No input NineML component has been specified')
+
+            compName = dictFormData['TestableComponent'][0]
+            nineml_component = TestableComponent(compName)()
+            if not nineml_component:
+                raise RuntimeError('The specified component: {0} could not be loaded'.format(compName))
+            
+            applicationID = self.applicationIDFromDictionary(dictFormData)
+            print('applicationID = ' + applicationID, file=sys.stderr)
+            
+            dictZODB = {}
+            dictZODB['name']                = nineml_component.name
+            dictZODB['nineml_component']    = nineml_component
+            dictZODB['REMOTE_ADDR']         = environ['REMOTE_ADDR']
+            dictZODB['HTTP_USER_AGENT']     = environ['HTTP_USER_AGENT']
+            dictZODB['tests']               = []
+            
+            print(dictZODB, file=sys.stderr)
+            self.writeZODB(applicationID, dictZODB)
+            
+            print('wrote ZODB', file=sys.stderr)
+        
+            html = 'Success'
+            
+        except Exception as e:
+            return self.returnExceptionPage(str(e), dictFormData, environ, start_response)
+
+        output_len = len(html)
+        start_response('200 OK', [('Content-type', 'text/html'),
+                                  ('Content-Length', str(output_len))])
+        return [html]
+    
+    def display_gui(self, dictFormData, environ, start_response):
         """
         Inputs:
             - Testable component name
@@ -98,14 +142,9 @@ class nineml_webapp:
             active_regimes = {}
             variables_to_report = {}
 
-            if not dictFormData.has_key('TestableComponent'):
-                raise RuntimeError('No input NineML component has been specified')
-
-            compName = dictFormData['TestableComponent'][0]
-            nineml_component = TestableComponent(compName)()
-            if not nineml_component:
-                raise RuntimeError('The specified component: {0} could not be loaded'.format(compName))
-
+            applicationID = self.applicationIDFromDictionary(dictFormData)
+            print('applicationID = ' + applicationID, file=sys.stderr)
+            
             if dictFormData.has_key('InitialValues'):
                 try:
                     data = json.loads(dictFormData['InitialValues'][0])
@@ -159,6 +198,12 @@ class nineml_webapp:
                     else:
                         raise RuntimeError('variables_to_report argument must be a dictionary')
 
+            dictZODB = self.readZODB(applicationID)
+            if not dictZODB:
+                raise RuntimeError('Invalid application ID has been specified') 
+            
+            nineml_component = dictZODB['nineml_component']
+            
             inspector = nineml_component_inspector()
             inspector.inspect(nineml_component, timeHorizon              = timeHorizon,
                                                 reportingInterval        = reportingInterval,
@@ -169,14 +214,11 @@ class nineml_webapp:
                                                 event_ports_expressions  = event_ports_expressions,
                                                 variables_to_report      = variables_to_report)
 
-            dictZODB = {}
-            dictZODB['inspector']           = inspector
-            #dictZODB['nineml_component']    = nineml_component
-            dictZODB['REMOTE_ADDR']         = environ['REMOTE_ADDR']
-            dictZODB['HTTP_USER_AGENT']     = environ['HTTP_USER_AGENT']
-            dictZODB['name']                = nineml_component.name
+            tests = dictZODB['tests'];
+            tests.append(inspector.jsonData())
+            print(inspector.jsonData(), file=sys.stderr)
             
-            applicationID = self.generate_applicationID()
+            dictZODB['tests'] = tests;
             self.writeZODB(applicationID, dictZODB)
             
             formTemplate  = getSetupDataForm()
@@ -596,6 +638,7 @@ class nineml_webapp:
                         raise RuntimeError('Phase argument must be specified')
 
                     action = dictFormData[__actionName__][0]
+                    
                     if action == 'addTest':
                         return self.create_nineml_component_and_display_gui(dictFormData, environ, start_response)
 
@@ -605,8 +648,16 @@ class nineml_webapp:
                     elif action == 'getApplicationID':
                         return self.getApplicationID(dictFormData, environ, start_response)
                     
+                    elif action == 'uploadULComponent':
+                        return self.uploadULComponent(dictFormData, environ, start_response)
+                    
+                    elif action == 'setALComponent':
+                        return self.set_AL_component(dictFormData, environ, start_response)
+                    
+                    elif action == 'displayGUI':
+                        return self.display_gui(dictFormData, environ, start_response)
+                    
                     elif action == 'generateReport':
-                        #raise RuntimeError(str(action) + str(dictFormData))
                         return self.generate_report_with_no_tests(dictFormData, environ, start_response)
 
                     elif action == 'Generate report with tests':

@@ -158,7 +158,7 @@ def getInitialPage(available_components):
                     Initial values (in JSON format):<br/>
                     <textarea name="InitialValues" rows="10" cols="80" style="width:100%"></textarea>
                 </p>
-                <input type="submit" name="__NINEML_ACTION__" value="Generate report" />
+                <input type="submit" name="__NINEML_ACTION__" value="generateReport" />
                 <input type="submit" name="__NINEML_ACTION__" value="Add test" />
             </form>
             <hr />
@@ -423,7 +423,7 @@ def showComponents(components):
 def getSetupDataForm():
     html = """
     <form action="nineml-webapp" method="post">
-        <h1>Test NineML component: {0}</h1>
+        <h2>NineML AL Component: {0}</h2>
         {1}
         <input type="hidden" name="__NINEML_WEBAPP_ID__" value="{2}"/>
         <input type="hidden" name="__NINEML_ACTION__" value="Generate report with tests" />

@@ -5,71 +5,170 @@
     <meta content="text/html; charset=ISO-8859-1" http-equiv="content-type">
     <link type="text/css" href="css/smoothness/jquery-ui.css" rel="stylesheet" />   
     <link rel="stylesheet" href="nineml-webapp.css" type="text/css" media="all" />
+    <noscript>          
+        <p>Please enable JavaScript.</p>
+    </noscript>         
     <script type="text/javascript" src="js/jquery-1.6.2.min.js"></script>
     <script type="text/javascript" src="js/jquery-ui-1.8.16.custom.min.js"></script>
-<!--    <script type="text/javascript" src="nineml-webapp.js"></script>-->
+    <script type="text/javascript" src="jquery.form.js"></script>
+    
     <script type="text/javascript">
         $(document).ready(function(){
             
-            var parameters = {"__NINEML_ACTION__" : "getAvailableALComponents"};
-            $("#listALComponent").load("nineml-webapp", parameters);
-            
-            $("#buttonGenerateReport").click(function(){
-                $("#inputAction").attr("value", "generateReport");
-                var parameters = $("#formReport").serializeArray();
-
-                $("#ninemlWebAppResults").text("Please wait ...");
-                $("#ninemlWebAppResults").load("nineml-webapp", parameters);
-                $("#ninemlWebAppResults").dialog("open");
-                return false;
-                //$("#formReport").submit();
+            $("#dialogInitialPage").dialog({
+                autoOpen: true,
+                modal : true,
+                width : 700,
+                height : 500,
+                buttons: {
+                    "Generate AL report": function() { 
+                        $(this).dialog("close"); 
+                        
+                        // Get App IOD from the server which is needed to store the input data for activity
+                        var parameters = {"__NINEML_ACTION__" : "getApplicationID"};
+                        $("#applicationID").load("nineml-webapp", parameters);
+                        
+                        $("#dialogGenerateALReport").dialog("open");
+                    },
+                    
+                    "Simulate Network": function() { 
+                        //$(this).dialog("close"); 
+                    },
+                }
             });
             
-//             $("#buttonAddTest_").click(function(){
-//                 $("#inputAction").attr("value", "addTest");
-//                 alert($("#formReport").serialize());
-//                 
-//                 $("#ninemlWebAppResults").text("Please wait add test...");
-//                 addTest("Uja", "Uja atrr")
-//                 return false;
-//             });
-
-            $("#selectALComponent").dialog({
+            $("#dialogGenerateALReport").dialog({
                 autoOpen: false,
+                modal : true,
+                width : 700,
+                height : 500,
+                buttons: {
+                    "Generate": function() { 
+                            $(this).dialog("close"); 
+                        }, 
+                    "Abort": function() { 
+                            $(this).dialog("close"); 
+                        } 
+                    },
+                create: function(event, ui) {
+                        $("#testableComponent").text("");
+                        $("#selectedALComponentName").text("");
+                    },
+                close: function(event, ui) { 
+                        $("#dialogInitialPage").dialog("open"); 
+                    }
+            });
+            
+            $("#dialogSelectALComponent").dialog({
+                autoOpen: false,
+                modal : true,
                 buttons: {
                     "Ok": function() { 
                         var component  = $("#listALComponent").val();
-                        var parameters = {"__NINEML_ACTION__" : "getApplicationID"};
-                        $.post("nineml-webapp", parameters, function(data) {
-                            $("#ApplicationID").attr("value", data);
-                        });
-                        alert($("#ApplicationID").attr("value"));
-                        $("#TestableComponent").attr("value", component);
-                        $("#testableComponentName").html("<p>NineML component: {0}</p>".format(component));
+                        var appID      = $("#applicationID").html();
+                        $("#testableComponent").text(component);
+                        $("#selectedALComponentName").text(component);  
+                        var parameters = {"__NINEML_ACTION__"    : "setALComponent",
+                                          "__NINEML_WEBAPP_ID__" : appID,
+                                          "TestableComponent" : component};
+                        $("#postResults").load("nineml-webapp", parameters);
                         $(this).dialog("close"); 
                     }, 
                     "Cancel": function() { 
-                        $(this).dialog("close"); 
+                        $(this).dialog("close");                         
                     } 
-                }
+                },
             });
- 
-            $("#ninemlWebAppResults").dialog({
+
+            $("#dialogUploadALComponent").dialog({
                 autoOpen: false,
+                modal : true,
                 buttons: {
-                    "Close": function() { 
+/*                    "Upload": function() { 
+                        $("#applicationID").attr("applicationID", $("applicationID").text())
+                        //alert('Handler for .submit() called.');
+                        
+                        $("#formUploadXMLFile").submit();
+                        //$("#testableComponent").text(component);
+                        //$("#selectedALComponentName").text(component);                        
+                        //$("#formUploadXMLFile").load("nineml-webapp", parameters);
                         $(this).dialog("close"); 
+                    }, */
+                    "Close": function() { 
+                        $(this).dialog("close");                         
+                    } 
+                },
+            });
+
+            $("#dialogAddTest").dialog({
+                autoOpen: false,
+                modal : true,
+                width : 800,
+                height : 600,
+                buttons: {
+                    "Ok": function() { 
+                        $(this).dialog("close");                         
+                    },
+                    "Close": function() { 
+                        $(this).dialog("close");                         
                     } 
                 }
             });
- 
-            // Dialog Link
-            $("#buttonSelectALComponent").click(function(){
-                $("#selectALComponent").dialog("open");
-                return false;
+
+            $("#dialogAddPredefinedInputData").dialog({
+                autoOpen: false,
+                modal : true,
+                buttons: {
+                    "Continue": function() { 
+                        $(this).dialog("close");                         
+                    }
+                },
+                close: function(event, ui) { 
+                        var inputData = $("#textareaInputData").val();
+                        var appID      = $("#applicationID").html();
+                        var parameters = {"__NINEML_ACTION__"    : "displayGUI",
+                                          "__NINEML_WEBAPP_ID__" : appID,
+                                          "InitialValues"        : inputData};
+                        $("#dialogAddTest").load("nineml-webapp", parameters);
+                        $("#dialogAddTest").dialog("open");
+                    }
             });
-    
+
+            $('#formUploadXMLFile').ajaxForm({                 
+                beforeSubmit: ShowRequest,
+                success: SubmitSuccesful,
+                error: AjaxError                               
+            });                                    
+
+            function ShowRequest(formData, jqForm, options) {
+                //$("#applicationID").attr("applicationID", "UJA")
+                var queryString = $.param(formData);
+                alert('BeforeSend method: \n\nAbout to submit: \n\n' + queryString);
+                return true;
+            }
+
+            function AjaxError() {
+                alert("An AJAX error occured.");
+            }
+
+            function SubmitSuccesful(responseText, statusText) {        
+                alert("SuccesMethod:\n\n" + responseText);
+            }    
             
+            $("#buttonSelectALComponent").button().click(function(){
+                var parameters = {"__NINEML_ACTION__" : "getAvailableALComponents"};
+                $("#listALComponent").load("nineml-webapp", parameters);
+                $("#dialogSelectALComponent").dialog("open"); 
+            });
+            
+            $("#buttonUploadALComponent").button().click(function(){
+                $("#dialogUploadALComponent").dialog("open"); 
+            });
+            
+            $("#buttonAddTest").button().click(function(){
+                $("#dialogAddPredefinedInputData").dialog("open");
+            });
+
         });
         
         $(window).unload(function(){
@@ -94,45 +193,88 @@
 </head>
 
 <body>
-<form id="formReport" action="nineml-webapp" method="post">
-<!--    <p> 
-        <label for="TestableComponent" style="width: 200px;">NineML component:</label>
-        <select id="TestableComponent" name="TestableComponent"></select> <br/>
-    </p>
--->
+<div id="dialogInitialPage" style="display:none;">
+    <h1>NineML Tester</h1>
+    <p>Welcome to nowhere!</p>
+</div>
+
+<div id="dialogGenerateALReport" style="display:none;" title="Generate component report">
+    <div id="users-contain" class="ui-widget">
+        <ol>
+            <li>Choose AL component: </br>
+                <button id="buttonSelectALComponent">Select predefined Component</button>
+                <button id="buttonUploadALComponent">Upload component</button> </br>
+                Selected AL component name: <b id="selectedALComponentName"></b>
+            </li>
+            <br/>
+            <li>Add some tests (optional): </br>
+                <table id="tests" class="ui-widget ui-widget-content">
+                    <thead>
+                        <tr class="ui-widget-header ">
+                            <th>Name</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyDefinedTests">
+                        <tr>
+                            <td>John Doe</td>
+                            <td>john.doe@example.com</td>
+                        </tr>
+
+                    </tbody>
+                </table> </br>
+                <button id="buttonAddTest">Add new test</button>
+            </li>
+        </ol>
+        
+    </div>
+
+    </div>
+    
+    <div id="testableComponent" style="display:none;"></div>
+</div>
+
+<div id="applicationID" style="display:block;"></div>
+<div id="postResults" style="display:block;"></div>
+
+<div id="dialogSelectALComponent" title="Select AL Component">
+    <label for="listALComponent" style="width: 200px;">NineML component:</label>
+    <select id="listALComponent"></select>
+</div>
+
+<div id="dialogUploadALComponent" title="Upload AL Component">
+    <form id="formUploadXMLFile" action="nineml-webapp" enctype="multipart/form-data" method="post">
+<!--        <input id="applicationID" type="hidden" name="applicationID" value=""/>-->
+        <input type="hidden" name="__NINEML_ACTION__" value="uploadULComponent"/>
+        <label for="file">NineML User Layer XML file:</label> 
+        <input id="fileXML" type="file" name="file" accept="text/xml">
+        <input type="submit" value="Upload" />
+    </form>
+</div>
+
+<div id="dialogAddPredefinedInputData" title="Predefined input data">
+    <form id="formPredefinedInputData">
+        Predefined input data (in JSON format):<br/>
+        <textarea id="textareaInputData" rows="10" cols="80" style="width:100%"></textarea>
+    </form>
+</div>
+
+<div id="dialogAddTest" title="Edit components parameters">
+<div>
+
+<!--<form id="formReport" action="nineml-webapp" method="post">
     <div id="testableComponentName"></div>
-    
     <div id="Tests"></div>
-    
-    <!--
-    <table style="text-align: left; width: 100%;" border="1" cellpadding="0" cellspacing="0">
-        <tbody>
-        <tr>
-            <td style="vertical-align: top;">Test name<br>
-            </td>
-            <td style="vertical-align: top;">Actions<br>
-            </td>
-        </tr>
-        </tbody>
-    </table>
-    -->
     <br/>
     <input id="inputAction" type="hidden" name="__NINEML_ACTION__" value=""/>
-    <input id="ApplicationID" type="hidden" name="__NINEML_WEBAPP_ID__" value=""/>
+    <input id="ApplicationID" type="hidden" name="applicationID" value=""/>
     <input id="TestableComponent" type="hidden" name="TestableComponent" value=""/>
     
     <button id="buttonGenerateReport">Generate report</button>
     <button id="buttonSelectALComponent">Select AL Component</button>
-<!--    <input id="buttonGenerateReport" value="Generate report" type="submit">
-    <input id="buttonAddTest" value="Add test" type="submit"> -->
+    <input id="buttonAddTest" value="Add test" type="submit">
 </form>
+-->
 
-    <hr/>
-    <div id="ninemlWebAppResults" title="Results"></div>
-
-    <div id="selectALComponent" title="Select AL Component">
-        <label for="listALComponent" style="width: 200px;">NineML component:</label>
-        <select id="listALComponent"></select>
-    </div>
 </body>
 </html>

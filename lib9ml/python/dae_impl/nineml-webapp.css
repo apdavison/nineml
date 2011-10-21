@@ -20,6 +20,7 @@ fieldset
     border:none;
     border-top:1px solid #ccc;
 }
+/*
 textarea
 {
     border: 1px solid LightGray;
@@ -40,10 +41,12 @@ textarea:hover
 }
 select
 {
-/*    color: #202020; 
-    background-color: White;*/
+    color: #202020; 
+    background-color: White;
     width: 200px;
 }
+*/
+
 /*
 input:focus,textarea:focus 
 {
@@ -107,27 +110,3 @@ form fieldset fieldset label
 {
     margin-left: 153px; /* Width plus 3 (html space) */
 }
-
-.info, .success, .warning, .error, .validation {
-    border: 1px solid;
-    margin: 10px 0px;
-    padding:15px 15px 15px 15px;
-    background-repeat: no-repeat;
-    background-position: 10px center;
-}
-.info {
-    color: black;
-    background-color: white;
-}
-.success {
-    color: black; /*white*/
-    background-color: white; /*DarkGreen*/
-}
-.warning {
-    color: black; /*white*/
-    background-color: white; /*Gold*/
-}
-.error {
-    color: black; /*white*/
-    background-color: white; /*DarkRed*/
-}    
