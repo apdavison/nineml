@@ -427,9 +427,6 @@ def getSetupDataForm():
         {1}
         <input type="hidden" name="__NINEML_WEBAPP_ID__" value="{2}"/>
         <input type="hidden" name="__NINEML_ACTION__" value="Generate report with tests" />
-        <br/>
-        
-        <input type="submit" value="Generate report" />
     </form>
     """
     return html

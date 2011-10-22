@@ -4,7 +4,7 @@
     <title>NineML WebApp</title>
     <meta content="text/html; charset=ISO-8859-1" http-equiv="content-type">
     <link type="text/css" href="css/smoothness/jquery-ui.css" rel="stylesheet" />   
-    <link rel="stylesheet" href="nineml-webapp.css" type="text/css" media="all" />
+    <link type="text/css" href="nineml-webapp.css"            rel="stylesheet" media="all" />
     <noscript>          
         <p>Please enable JavaScript.</p>
     </noscript>         
@@ -22,13 +22,24 @@
                 height : 500,
                 buttons: {
                     "Generate AL report": function() { 
-                        $(this).dialog("close"); 
-                        
                         // Get App IOD from the server which is needed to store the input data for activity
                         var parameters = {"__NINEML_ACTION__" : "getApplicationID"};
-                        $("#applicationID").load("nineml-webapp", parameters);
-                        
-                        $("#dialogGenerateALReport").dialog("open");
+                        $.post("nineml-webapp", parameters, function(data) {
+                            var results = JSON.parse(data);
+                            var success = results["success"];
+                            var error   = results["error"];
+                            var uuid    = results["content"];
+                            if(success == true)
+                            {
+                                $("#applicationID").text(uuid);
+                                $("#dialogInitialPage").dialog("close"); 
+                                $("#dialogGenerateALReport").dialog("open");
+                            }
+                            else
+                            {
+                                alert(error);
+                            }
+                        });
                     },
                     
                     "Simulate Network": function() { 
@@ -50,7 +61,7 @@
                             $(this).dialog("close"); 
                         } 
                     },
-                create: function(event, ui) {
+                open: function(event, ui) {
                         $("#testableComponent").text("");
                         $("#selectedALComponentName").text("");
                     },
@@ -66,13 +77,27 @@
                     "Ok": function() { 
                         var component  = $("#listALComponent").val();
                         var appID      = $("#applicationID").html();
-                        $("#testableComponent").text(component);
-                        $("#selectedALComponentName").text(component);  
                         var parameters = {"__NINEML_ACTION__"    : "setALComponent",
                                           "__NINEML_WEBAPP_ID__" : appID,
                                           "TestableComponent" : component};
-                        $("#postResults").load("nineml-webapp", parameters);
-                        $(this).dialog("close"); 
+                        $.post("nineml-webapp", parameters, function(data) {
+                            var results = JSON.parse(data);
+                            var success = results["success"];
+                            var error   = results["error"];
+                            var name    = results["content"];
+                            if(success == true)
+                            {
+                                $("#testableComponent").text(component);
+                                $("#selectedALComponentName").text(component);  
+                                $("#postResults").html(component);
+                                $("#dialogSelectALComponent").dialog("close"); 
+                            }
+                            else
+                            {
+                                alert(error);
+                                $("#dialogSelectALComponent").dialog("close"); 
+                            }
+                        });
                     }, 
                     "Cancel": function() { 
                         $(this).dialog("close");                         
@@ -107,9 +132,31 @@
                 height : 600,
                 buttons: {
                     "Ok": function() { 
-                        $(this).dialog("close");                         
+                        var formData   = $("#formAddTest").serialize();
+                        var appID      = $("#applicationID").html();
+                        var parameters = {"__NINEML_ACTION__"    : "addTest",
+                                          "__NINEML_WEBAPP_ID__" : appID};
+                        parameters = $.param(parameters) + "&" + formData;
+                        //$.extend(parameters, formData);
+                        //alert(parameters);
+                        $.post("nineml-webapp", parameters, function(data) {
+                            var results = JSON.parse(data);
+                            var success = results["success"];
+                            var error   = results["error"];
+                            var html    = results["content"];
+                            if(success == true)
+                            {
+                                //alert(JSON.stringify(html));
+                                $("#dialogAddTest").dialog("close");                         
+                            }
+                            else
+                            {
+                                alert(error);
+                                $("#dialogAddTest").dialog("close");                         
+                            }
+                        });
                     },
-                    "Close": function() { 
+                    "Cancel": function() { 
                         $(this).dialog("close");                         
                     } 
                 }
@@ -129,12 +176,25 @@
                         var parameters = {"__NINEML_ACTION__"    : "displayGUI",
                                           "__NINEML_WEBAPP_ID__" : appID,
                                           "InitialValues"        : inputData};
-                        $("#dialogAddTest").load("nineml-webapp", parameters);
-                        $("#dialogAddTest").dialog("open");
+                        $.post("nineml-webapp", parameters, function(data) {
+                            var results = JSON.parse(data);
+                            var success = results["success"];
+                            var error   = results["error"];
+                            var html    = results["content"];
+                            if(success == true)
+                            {
+                                $("#formAddTest").html(html);
+                                $("#dialogAddTest").dialog("open");
+                            }
+                            else
+                            {
+                                alert(error);
+                            }
+                        });
                     }
             });
 
-            $('#formUploadXMLFile').ajaxForm({                 
+            $("#formUploadXMLFile").ajaxForm({                 
                 beforeSubmit: ShowRequest,
                 success: SubmitSuccesful,
                 error: AjaxError                               
@@ -157,8 +217,21 @@
             
             $("#buttonSelectALComponent").button().click(function(){
                 var parameters = {"__NINEML_ACTION__" : "getAvailableALComponents"};
-                $("#listALComponent").load("nineml-webapp", parameters);
-                $("#dialogSelectALComponent").dialog("open"); 
+                $.post("nineml-webapp", parameters, function(data) {
+                    var results = JSON.parse(data);
+                    var success = results["success"];
+                    var error   = results["error"];
+                    var html    = results["content"];
+                    if(success == true)
+                    {
+                        $("#listALComponent").html(html);
+                        $("#dialogSelectALComponent").dialog("open");
+                    }
+                    else
+                    {
+                        alert(error);
+                    }
+                })
             });
             
             $("#buttonUploadALComponent").button().click(function(){
@@ -198,7 +271,7 @@
     <p>Welcome to nowhere!</p>
 </div>
 
-<div id="dialogGenerateALReport" style="display:none;" title="Generate component report">
+<div id="dialogGenerateALReport" style="display:none;" title="Generate Abstraction Layer component report">
     <div id="users-contain" class="ui-widget">
         <ol>
             <li>Choose AL component: </br>
@@ -260,6 +333,8 @@
 </div>
 
 <div id="dialogAddTest" title="Edit components parameters">
+    <form id="formAddTest" action="nineml-webapp" method="post">
+    </form>
 <div>
 
 <!--<form id="formReport" action="nineml-webapp" method="post">

@@ -56,19 +56,46 @@ class nineml_webapp:
         start_response('200 OK', [('Content-type', 'text/html'),
                                   ('Content-Length', str(output_len))])
         return [html]
-        
+
+    def log(self, function, uuid, message):
+        print('{0} [{1}]:'.format(function, uuid), file=sys.stderr)
+        print('  {0}'.format(message), file=sys.stderr)
+    
+    def error(self, e, trace_back = None):
+        if not trace_back:
+            trace_back = sys.exc_info()[2]
+        strTraceBack = '\n'.join(traceback.format_tb(trace_back))
+        results = {}
+        results["success"]   = False
+        results["error"]     = str(e)
+        results['content']   = ''
+        results['traceback'] = strTraceBack 
+        html = json.dumps(results, indent = 2)
+
     def getAvailableALComponents(self, dictFormData, environ, start_response):
         available_components = sorted(TestableComponent.list_available())
-        html = ''
+        content = ''
         for component in available_components:
-            html += '<option value="{0}">{0}</option>\n'.format(component)
+            content += '<option value="{0}">{0}</option>\n'.format(component)
+        
+        results = {}
+        results['success'] = True
+        results['error']   = ''
+        results['content'] = content
+        html = json.dumps(results, indent = 2)
+        
         output_len = len(html)
         start_response('200 OK', [('Content-type', 'text/html'),
                                   ('Content-Length', str(output_len))])
         return [html]
     
     def getApplicationID(self, dictFormData, environ, start_response):
-        html = str(uuid.uuid1())
+        results = {}
+        results['success'] = True
+        results['error']   = ''
+        results['content'] = str(uuid.uuid1())
+        html = json.dumps(results, indent = 2)
+
         output_len = len(html)
         start_response('200 OK', [('Content-type', 'text/html'),
                                   ('Content-Length', str(output_len))])
@@ -82,157 +109,175 @@ class nineml_webapp:
         return [html]
     
     def set_AL_component(self, dictFormData, environ, start_response):
-        try:
-            html = ''
+        if not dictFormData.has_key('TestableComponent'):
+            raise RuntimeError('No input NineML component has been specified')
 
-            if not dictFormData.has_key('TestableComponent'):
-                raise RuntimeError('No input NineML component has been specified')
-
-            compName = dictFormData['TestableComponent'][0]
-            nineml_component = TestableComponent(compName)()
-            if not nineml_component:
-                raise RuntimeError('The specified component: {0} could not be loaded'.format(compName))
-            
-            applicationID = self.applicationIDFromDictionary(dictFormData)
-            print('applicationID = ' + applicationID, file=sys.stderr)
-            
-            dictZODB = {}
-            dictZODB['name']                = nineml_component.name
-            dictZODB['nineml_component']    = nineml_component
-            dictZODB['REMOTE_ADDR']         = environ['REMOTE_ADDR']
-            dictZODB['HTTP_USER_AGENT']     = environ['HTTP_USER_AGENT']
-            dictZODB['tests']               = []
-            
-            print(dictZODB, file=sys.stderr)
-            self.writeZODB(applicationID, dictZODB)
-            
-            print('wrote ZODB', file=sys.stderr)
+        compName = dictFormData['TestableComponent'][0]
+        nineml_component = TestableComponent(compName)()
+        if not nineml_component:
+            raise RuntimeError('The specified component: {0} could not be loaded'.format(compName))
         
-            html = 'Success'
-            
-        except Exception as e:
-            return self.returnExceptionPage(str(e), dictFormData, environ, start_response)
-
+        applicationID = self.applicationIDFromDictionary(dictFormData)
+        print('applicationID = ' + applicationID, file=sys.stderr)
+        
+        dictZODB = {}
+        dictZODB['name']                = nineml_component.name
+        dictZODB['nineml_component']    = nineml_component
+        dictZODB['REMOTE_ADDR']         = environ['REMOTE_ADDR']
+        dictZODB['HTTP_USER_AGENT']     = environ['HTTP_USER_AGENT']
+        dictZODB['tests']               = []
+        
+        print(dictZODB, file=sys.stderr)
+        self.writeZODB(applicationID, dictZODB)
+        
+        print('wrote ZODB', file=sys.stderr)
+    
+        results = {}
+        results['success'] = True
+        results['error']   = ''
+        results['content'] = nineml_component.name
+        html = json.dumps(results, indent = 2)
+        
         output_len = len(html)
         start_response('200 OK', [('Content-type', 'text/html'),
                                   ('Content-Length', str(output_len))])
         return [html]
     
     def display_gui(self, dictFormData, environ, start_response):
-        """
-        Inputs:
-            - Testable component name
-            - Initial values
-        Results:
-            - Creates a nineml component from the testable component name
-            - Creates a temporary folder and application ID
-            - Saves inspector object into the temp folder for later use
-            - Generates input form with the generated application ID
-        """
-        try:
-            html = ''
-            content = ''
-            raw_arguments = ''
-            timeHorizon = 0.0
-            reportingInterval = 0.0
-            parameters = {}
-            initial_conditions = {}
-            analog_ports_expressions = {}
-            event_ports_expressions = {}
-            active_regimes = {}
-            variables_to_report = {}
+        html = ''
+        content = ''
+        raw_arguments = ''
+        timeHorizon = 0.0
+        reportingInterval = 0.0
+        parameters = {}
+        initial_conditions = {}
+        analog_ports_expressions = {}
+        event_ports_expressions = {}
+        active_regimes = {}
+        variables_to_report = {}
 
-            applicationID = self.applicationIDFromDictionary(dictFormData)
-            print('applicationID = ' + applicationID, file=sys.stderr)
-            
-            if dictFormData.has_key('InitialValues'):
-                try:
-                    data = json.loads(dictFormData['InitialValues'][0])
-                except Exception as e:
-                    data = {}
-
-                if data.has_key('timeHorizon'):
-                    timeHorizon = float(data['timeHorizon'])
-                if data.has_key('reportingInterval'):
-                    reportingInterval = float(data['reportingInterval'])
-
-                if data.has_key('parameters'):
-                    temp = data['parameters']
-                    if isinstance(temp, dict):
-                        parameters = temp
-                    else:
-                        raise RuntimeError('parameters argument must be a dictionary')
-
-                if data.has_key('initial_conditions'):
-                    temp = data['initial_conditions']
-                    if isinstance(temp, dict):
-                        initial_conditions = temp
-                    else:
-                        raise RuntimeError('initial_conditions argument must be a dictionary')
-
-                if data.has_key('analog_ports_expressions'):
-                    temp = data['analog_ports_expressions']
-                    if isinstance(temp, dict):
-                        analog_ports_expressions = temp
-                    else:
-                        raise RuntimeError('analog_ports_expressions argument must be a dictionary')
-
-                if data.has_key('event_ports_expressions'):
-                    temp = data['event_ports_expressions']
-                    if isinstance(temp, dict):
-                        event_ports_expressions = temp
-                    else:
-                        raise RuntimeError('event_ports_expressions argument must be a dictionary')
-
-                if data.has_key('active_regimes'):
-                    temp = data['active_regimes']
-                    if isinstance(temp, dict):
-                        active_regimes = temp
-                    else:
-                        raise RuntimeError('active_regimes argument must be a dictionary')
-
-                if data.has_key('variables_to_report'):
-                    temp = data['variables_to_report']
-                    if isinstance(temp, dict):
-                        variables_to_report = temp
-                    else:
-                        raise RuntimeError('variables_to_report argument must be a dictionary')
-
-            dictZODB = self.readZODB(applicationID)
-            if not dictZODB:
-                raise RuntimeError('Invalid application ID has been specified') 
-            
-            nineml_component = dictZODB['nineml_component']
-            
-            inspector = nineml_component_inspector()
-            inspector.inspect(nineml_component, timeHorizon              = timeHorizon,
-                                                reportingInterval        = reportingInterval,
-                                                parameters               = parameters,
-                                                initial_conditions       = initial_conditions,
-                                                active_regimes           = active_regimes,
-                                                analog_ports_expressions = analog_ports_expressions,
-                                                event_ports_expressions  = event_ports_expressions,
-                                                variables_to_report      = variables_to_report)
-
-            tests = dictZODB['tests'];
-            tests.append(inspector.jsonData())
-            print(inspector.jsonData(), file=sys.stderr)
-            
-            dictZODB['tests'] = tests;
-            self.writeZODB(applicationID, dictZODB)
-            
-            formTemplate  = getSetupDataForm()
-            content      += formTemplate.format(nineml_component.name, inspector.generateHTMLForm(), applicationID)
-            html          = createSetupDataPage(content)
+        applicationID = self.applicationIDFromDictionary(dictFormData)
+        print('applicationID = ' + applicationID, file=sys.stderr)
         
-        except Exception as e:
-            return self.returnExceptionPage(str(e), dictFormData, environ, start_response)
+        if dictFormData.has_key('InitialValues'):
+            try:
+                data = json.loads(dictFormData['InitialValues'][0])
+            except Exception as e:
+                data = {}
 
+            if data.has_key('timeHorizon'):
+                timeHorizon = float(data['timeHorizon'])
+            if data.has_key('reportingInterval'):
+                reportingInterval = float(data['reportingInterval'])
+
+            if data.has_key('parameters'):
+                temp = data['parameters']
+                if isinstance(temp, dict):
+                    parameters = temp
+                else:
+                    raise RuntimeError('parameters argument must be a dictionary')
+
+            if data.has_key('initial_conditions'):
+                temp = data['initial_conditions']
+                if isinstance(temp, dict):
+                    initial_conditions = temp
+                else:
+                    raise RuntimeError('initial_conditions argument must be a dictionary')
+
+            if data.has_key('analog_ports_expressions'):
+                temp = data['analog_ports_expressions']
+                if isinstance(temp, dict):
+                    analog_ports_expressions = temp
+                else:
+                    raise RuntimeError('analog_ports_expressions argument must be a dictionary')
+
+            if data.has_key('event_ports_expressions'):
+                temp = data['event_ports_expressions']
+                if isinstance(temp, dict):
+                    event_ports_expressions = temp
+                else:
+                    raise RuntimeError('event_ports_expressions argument must be a dictionary')
+
+            if data.has_key('active_regimes'):
+                temp = data['active_regimes']
+                if isinstance(temp, dict):
+                    active_regimes = temp
+                else:
+                    raise RuntimeError('active_regimes argument must be a dictionary')
+
+            if data.has_key('variables_to_report'):
+                temp = data['variables_to_report']
+                if isinstance(temp, dict):
+                    variables_to_report = temp
+                else:
+                    raise RuntimeError('variables_to_report argument must be a dictionary')
+
+        dictZODB = self.readZODB(applicationID)
+        if not dictZODB:
+            raise RuntimeError('Invalid application ID has been specified') 
+        
+        nineml_component = dictZODB['nineml_component']
+        
+        inspector = nineml_component_inspector()
+        inspector.inspect(nineml_component, timeHorizon              = timeHorizon,
+                                            reportingInterval        = reportingInterval,
+                                            parameters               = parameters,
+                                            initial_conditions       = initial_conditions,
+                                            active_regimes           = active_regimes,
+                                            analog_ports_expressions = analog_ports_expressions,
+                                            event_ports_expressions  = event_ports_expressions,
+                                            variables_to_report      = variables_to_report)
+
+        results = {}
+        results['success'] = True
+        results['error']   = ''
+        results['content'] = inspector.generateHTMLForm()
+        html = json.dumps(results, indent = 2)
+        
         output_len = len(html)
         start_response('200 OK', [('Content-type', 'text/html'),
                                   ('Content-Length', str(output_len))])
         return [html]
 
+    def add_test(self, dictFormData, environ, start_response):
+        applicationID = self.applicationIDFromDictionary(dictFormData)
+
+        dictZODB = self.readZODB(applicationID)
+        if not dictZODB:
+            raise RuntimeError('Invalid application ID has been specified') 
+        
+        testData = dictFormData
+        print("add_test:", file=sys.stderr)
+        print(testData, file=sys.stderr)
+        
+        tests = dictZODB['tests'];
+        tests.append(testData)            
+        dictZODB['tests'] = tests;
+        self.writeZODB(applicationID, dictZODB)
+        
+        results = {}
+        results['success'] = True
+        results['error']   = ''
+        results['content'] = testData
+        html = json.dumps(results, indent = 2)
+            
+        output_len = len(html)
+        start_response('200 OK', [('Content-type', 'text/html'),
+                                  ('Content-Length', str(output_len))])
+        return [html]
+
+    def generate_report(self, dictFormData, environ, start_response):
+        results = {}
+        results['success'] = True
+        results['error']   = ''
+        results['content'] = str(dictFormData)
+        html = json.dumps(results, indent = 2)
+        
+        output_len = len(html)
+        start_response('200 OK', [('Content-type', 'text/html'),
+                                  ('Content-Length', str(output_len))])
+        return [html]
+        
     def generate_report_with_no_tests(self, dictFormData, environ, start_response):
         try:
             if not dictFormData.has_key('TestableComponent'):
@@ -639,10 +684,7 @@ class nineml_webapp:
 
                     action = dictFormData[__actionName__][0]
                     
-                    if action == 'addTest':
-                        return self.create_nineml_component_and_display_gui(dictFormData, environ, start_response)
-
-                    elif action == 'getAvailableALComponents':
+                    if action == 'getAvailableALComponents':
                         return self.getAvailableALComponents(dictFormData, environ, start_response)
                         
                     elif action == 'getApplicationID':
@@ -657,8 +699,12 @@ class nineml_webapp:
                     elif action == 'displayGUI':
                         return self.display_gui(dictFormData, environ, start_response)
                     
+                    elif action == 'addTest':
+                        return self.add_test(dictFormData, environ, start_response)
+                    
                     elif action == 'generateReport':
-                        return self.generate_report_with_no_tests(dictFormData, environ, start_response)
+                        return self.generate_report(dictFormData, environ, start_response)
+                        #return self.generate_report_with_no_tests(dictFormData, environ, start_response)
 
                     elif action == 'Generate report with tests':
                         return self.generate_report_with_tests(dictFormData, environ, start_response)
@@ -672,13 +718,10 @@ class nineml_webapp:
                     else:
                         raise RuntimeError('Invalid action argument specified: {0}'.format(action))
             else:
-                html = 'Error occurred:\n{0}\n{1}'.format(___import_exception___, ___import_exception_traceback___)
+                html = self.error(___import_exception___, ___import_exception_traceback___)
 
         except Exception as e:
-            content = 'Form arguments:\n  {0}\n\n'.format(dictFormData)
-            content += 'Application environment:\n' + pformat(environ) + '\n\n'
-            exc_type, exc_value, exc_traceback = sys.exc_info()
-            html = createErrorPage(e, exc_traceback, content)
+            html = self.error(e)
 
         output_len = len(html)
         start_response('200 OK', [('Content-type', 'text/html'),
