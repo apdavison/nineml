@@ -728,9 +728,9 @@ class nineml_component_inspector:
         content += '<fieldset>'
         content += '<legend>General</legend>'
         content += '<label for="testName">Test name</label>'
-        content += '<input type="text" name="testName" value="Dummy test"/><br/>'
+        content += '<input id="id_testName" type="text" name="testName" value="Dummy test"/><br/>'
         content += '<label for="testDescription">Test description</label>'
-        content += '<textarea name="testDescription" rows="2" cols="50">Dummy test description</textarea><br/>'
+        content += '<textarea id="id_testDescription" name="testDescription" rows="2" cols="50">Dummy test description</textarea><br/>'
         content += '</fieldset>\n'
 
         content += '<fieldset>'

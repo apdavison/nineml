@@ -3,17 +3,22 @@
 <head>
     <title>NineML WebApp</title>
     <meta content="text/html; charset=ISO-8859-1" http-equiv="content-type">
-    <link type="text/css" href="css/smoothness/jquery-ui.css" rel="stylesheet" />   
+<!--    <link type="text/css" href="script/css/smoothness/jquery-ui.css" rel="stylesheet" />   -->
+    <link type="text/css" href="script/css/redmond/jquery-ui-1.8.16.custom.css" rel="stylesheet" />   
     <link type="text/css" href="nineml-webapp.css"            rel="stylesheet" media="all" />
+    <script type="text/javascript" src="script/js/jquery-1.6.2.min.js"></script>
+    <script type="text/javascript" src="script/js/jquery-ui-1.8.16.custom.min.js"></script>
+    <script type="text/javascript" src="script/jquery.form.js"></script>
     <noscript>          
-        <p>Please enable JavaScript.</p>
+        <style type="text/css">
+            div {display:none;}
+        </style>
+        <p>You don't have javascript enabled.</p>
     </noscript>         
-    <script type="text/javascript" src="js/jquery-1.6.2.min.js"></script>
-    <script type="text/javascript" src="js/jquery-ui-1.8.16.custom.min.js"></script>
-    <script type="text/javascript" src="jquery.form.js"></script>
-    
     <script type="text/javascript">
         $(document).ready(function(){
+            
+            $("#mainContent").css("display", "inline");
             
             $("#dialogInitialPage").dialog({
                 autoOpen: true,
@@ -23,6 +28,7 @@
                 buttons: {
                     "Generate AL report": function() { 
                         // Get App IOD from the server which is needed to store the input data for activity
+                        $("#dialogInitialPage").dialog("disable"); 
                         var parameters = {"__NINEML_ACTION__" : "getApplicationID"};
                         $.post("nineml-webapp", parameters, function(data) {
                             var results = JSON.parse(data);
@@ -39,6 +45,7 @@
                             {
                                 alert(error);
                             }
+                            $("#dialogInitialPage").dialog("enable"); 
                         });
                     },
                     
@@ -75,6 +82,7 @@
                 modal : true,
                 buttons: {
                     "Ok": function() { 
+                        $("#dialogSelectALComponent").dialog("disable");
                         var component  = $("#listALComponent").val();
                         var appID      = $("#applicationID").html();
                         var parameters = {"__NINEML_ACTION__"    : "setALComponent",
@@ -90,13 +98,13 @@
                                 $("#testableComponent").text(component);
                                 $("#selectedALComponentName").text(component);  
                                 $("#postResults").html(component);
-                                $("#dialogSelectALComponent").dialog("close"); 
                             }
                             else
                             {
                                 alert(error);
-                                $("#dialogSelectALComponent").dialog("close"); 
                             }
+                            $("#dialogSelectALComponent").dialog("enable");
+                            $("#dialogSelectALComponent").dialog("close"); 
                         });
                     }, 
                     "Cancel": function() { 
@@ -125,6 +133,47 @@
                 },
             });
 
+            $("#dialog-message").dialog({
+                autoOpen: false,
+                modal: true,
+                buttons: {
+                    Ok: function() {
+                        $( this ).dialog( "close" );
+                    }
+                }
+            });
+            
+            function showErrorMessage(message)
+            {
+                $("#dialog-message-content").html(message);
+                $("#dialog-message").dialog("open");
+            }
+            
+            function checkRegexp(name, regexp)
+            {
+                if ( !( regexp.test(name) ) ) 
+                {
+                    return false;
+                } 
+                else 
+                {
+                    return true;
+                }
+            }
+            
+            function checkIfUnique(name)
+            {
+                var unique = true;
+                $("#testsList").children().each(function () {
+                    var child = $(this).text();
+                    if(name == child) 
+                    {
+                        unique = false;
+                    } 
+                });
+                return unique;
+            }
+
             $("#dialogAddTest").dialog({
                 autoOpen: false,
                 modal : true,
@@ -132,28 +181,48 @@
                 height : 600,
                 buttons: {
                     "Ok": function() { 
+                        var testName        = $("#id_testName").val();
+                        var testDescription = $("#id_testDescription").val();
+                        if(checkRegexp(testName, /^[a-z]([0-9a-z_])+$/i) == false)
+                        {
+                            showErrorMessage("Test name may consist of a-z, 0-9, underscores, begin with a letter.");
+                            return;
+                        }
+                        if(checkIfUnique(testName) == false)
+                        {
+                            alert("Test name already exists.");
+                            return;
+                        }
+                            
+                        $("#dialogAddTest").dialog("disable");                         
+                        
                         var formData   = $("#formAddTest").serialize();
                         var appID      = $("#applicationID").html();
                         var parameters = {"__NINEML_ACTION__"    : "addTest",
                                           "__NINEML_WEBAPP_ID__" : appID};
                         parameters = $.param(parameters) + "&" + formData;
-                        //$.extend(parameters, formData);
-                        //alert(parameters);
                         $.post("nineml-webapp", parameters, function(data) {
                             var results = JSON.parse(data);
                             var success = results["success"];
                             var error   = results["error"];
-                            var html    = results["content"];
+                            var json    = results["content"];
                             if(success == true)
                             {
-                                //alert(JSON.stringify(html));
-                                $("#dialogAddTest").dialog("close");                         
+                                var testName        = $("#id_testName").val();
+                                var testDescription = $("#id_testDescription").val();
+                                var length = $("#testsList").children().length;
+                                var id = "__test_" + length;
+                                var li = "<li id=\"{0}\">{1}</li>".format(id, testName);
+                                $("#" + id).data("testName", testName);
+                                $("#" + id).data("testDescription", testDescription);
+                                $("#testsList").append(li);
                             }
                             else
                             {
                                 alert(error);
-                                $("#dialogAddTest").dialog("close");                         
                             }
+                            $("#dialogAddTest").dialog("enable");                         
+                            $("#dialogAddTest").dialog("close");                         
                         });
                     },
                     "Cancel": function() { 
@@ -203,7 +272,7 @@
             function ShowRequest(formData, jqForm, options) {
                 //$("#applicationID").attr("applicationID", "UJA")
                 var queryString = $.param(formData);
-                alert('BeforeSend method: \n\nAbout to submit: \n\n' + queryString);
+                alert("BeforeSend method: \n\nAbout to submit: \n\n" + queryString);
                 return true;
             }
 
@@ -256,18 +325,11 @@
                 return args[n];
             });
         }
-
-        function addTest(name, data)
-        {
-            var html = "<p data=\"{0}\">{1}<button id=\"edit\">Edit</button> <button id=\"Delete\">Delete</button> </p>".format(data, name)
-            $("#Tests").append(html);
-        }
     </script>
 </head>
 
 <body>
-<div id="dialogInitialPage" style="display:none;">
-    <h1>NineML Tester</h1>
+<div id="dialogInitialPage" style="display:none;" title="NineML Web Application">
     <p>Welcome to nowhere!</p>
 </div>
 
@@ -276,12 +338,16 @@
         <ol>
             <li>Choose AL component: </br>
                 <button id="buttonSelectALComponent">Select predefined Component</button>
-                <button id="buttonUploadALComponent">Upload component</button> </br>
+                or
+                <button id="buttonUploadALComponent">Upload component</button> </br> </br>
                 Selected AL component name: <b id="selectedALComponentName"></b>
             </li>
             <br/>
             <li>Add some tests (optional): </br>
-                <table id="tests" class="ui-widget ui-widget-content">
+                <ul id="testsList">
+                </ul>
+                </br>
+<!--                <table id="tests" class="ui-widget ui-widget-content">
                     <thead>
                         <tr class="ui-widget-header ">
                             <th>Name</th>
@@ -295,7 +361,7 @@
                         </tr>
 
                     </tbody>
-                </table> </br>
+                </table> </br>-->
                 <button id="buttonAddTest">Add new test</button>
             </li>
         </ol>
@@ -336,6 +402,11 @@
     <form id="formAddTest" action="nineml-webapp" method="post">
     </form>
 <div>
+
+<div id="dialog-message" title="Information">
+    <p id="dialog-message-content">
+    </p>
+</div>
 
 <!--<form id="formReport" action="nineml-webapp" method="post">
     <div id="testableComponentName"></div>

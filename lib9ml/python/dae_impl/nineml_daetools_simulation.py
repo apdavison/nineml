@@ -38,7 +38,7 @@ class daeSimulationInputData:
         #self.log          = daePythonStdOutLog()
         #self.dataReporter = daeTCPIPDataReporter()
 
-    def dumpJSON(self, sort = True, indent = 2):
+    def asDictionary(self):
         data = {}
         data['timeHorizon']               = self.timeHorizon
         data['reportingInterval']         = self.reportingInterval
@@ -48,61 +48,58 @@ class daeSimulationInputData:
         data['event_ports_expressions']   = self.event_ports_expressions
         data['active_regimes']            = self.active_regimes
         data['variables_to_report']       = self.variables_to_report
-
+        return data
+        
+    def asJSON(self, sort = True, indent = 2):
+        data = self.asDictionary()
         return json.dumps(data, sort_keys = sort, indent = indent)
 
-    def loadJSON(self, jsonContent):
-        data = json.loads(jsonContent)
+    def loadDictionary(self, dictData):
+        if 'timeHorizon' in dictData:
+            self.timeHorizon = float(dictData['timeHorizon'])
 
-        if 'timeHorizon' in data:
-            self.timeHorizon = float(data['timeHorizon'])
+        if 'reportingInterval' in dictData:
+            self.reportingInterval = float(dictData['reportingInterval'])
 
-        if 'reportingInterval' in data:
-            self.reportingInterval = float(data['reportingInterval'])
-
-        if 'parameters' in data:
-            temp = data['parameters']
+        if 'parameters' in dictData:
+            temp = dictData['parameters']
             if isinstance(temp, dict):
                 self.parameters = temp
 
-        if 'initial_conditions' in data:
-            temp = data['initial_conditions']
+        if 'initial_conditions' in dictData:
+            temp = dictData['initial_conditions']
             if isinstance(temp, dict):
                 self.initial_conditions = temp
 
-        if 'analog_ports_expressions' in data:
-            temp = data['analog_ports_expressions']
+        if 'analog_ports_expressions' in dictData:
+            temp = dictData['analog_ports_expressions']
             if isinstance(temp, dict):
                 self.analog_ports_expressions = temp
 
-        if 'event_ports_expressions' in data:
-            temp = data['event_ports_expressions']
+        if 'event_ports_expressions' in dictData:
+            temp = dictData['event_ports_expressions']
             if isinstance(temp, dict):
                 self.event_ports_expressions = temp
 
-        if 'active_regimes' in data:
-            temp = data['active_regimes']
+        if 'active_regimes' in dictData:
+            temp = dictData['active_regimes']
             if isinstance(temp, list):
                 self.active_regimes = temp
 
-        if 'variables_to_report' in data:
-            temp = data['variables_to_report']
-            if isinstance(temp, list):
+        if 'variables_to_report' in dictData:
+            temp = dictData['variables_to_report']
+            if isinstance(temp, dict):
                 self.variables_to_report = temp
-
+        
+    def loadJSON(self, jsonContent):
+        dictData = json.loads(jsonContent)
+        self.loadFromDictionary(dictData)
+       
     def __repr__(self):
         return self.__str__()
 
     def __str__(self):
-        data = {}
-        data['timeHorizon']               = self.timeHorizon
-        data['reportingInterval']         = self.reportingInterval
-        data['parameters']                = self.parameters
-        data['initial_conditions']        = self.initial_conditions
-        data['analog_ports_expressions']   = self.analog_ports_expressions
-        data['event_ports_expressions']    = self.event_ports_expressions
-        data['active_regimes']            = self.active_regimes
-        data['variables_to_report']       = self.variables_to_report
+        data = self.asDictionary()
         return str(data)
 
 class ninemlTesterDataReporter(daeDataReporterLocal):

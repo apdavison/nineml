@@ -125,7 +125,7 @@ class nineml_webapp:
         dictZODB['nineml_component']    = nineml_component
         dictZODB['REMOTE_ADDR']         = environ['REMOTE_ADDR']
         dictZODB['HTTP_USER_AGENT']     = environ['HTTP_USER_AGENT']
-        dictZODB['tests']               = []
+        dictZODB['tests']               = {}
         
         print(dictZODB, file=sys.stderr)
         self.writeZODB(applicationID, dictZODB)
@@ -159,59 +159,16 @@ class nineml_webapp:
         applicationID = self.applicationIDFromDictionary(dictFormData)
         print('applicationID = ' + applicationID, file=sys.stderr)
         
+        data = {}
         if dictFormData.has_key('InitialValues'):
             try:
                 data = json.loads(dictFormData['InitialValues'][0])
             except Exception as e:
-                data = {}
+                pass
 
-            if data.has_key('timeHorizon'):
-                timeHorizon = float(data['timeHorizon'])
-            if data.has_key('reportingInterval'):
-                reportingInterval = float(data['reportingInterval'])
-
-            if data.has_key('parameters'):
-                temp = data['parameters']
-                if isinstance(temp, dict):
-                    parameters = temp
-                else:
-                    raise RuntimeError('parameters argument must be a dictionary')
-
-            if data.has_key('initial_conditions'):
-                temp = data['initial_conditions']
-                if isinstance(temp, dict):
-                    initial_conditions = temp
-                else:
-                    raise RuntimeError('initial_conditions argument must be a dictionary')
-
-            if data.has_key('analog_ports_expressions'):
-                temp = data['analog_ports_expressions']
-                if isinstance(temp, dict):
-                    analog_ports_expressions = temp
-                else:
-                    raise RuntimeError('analog_ports_expressions argument must be a dictionary')
-
-            if data.has_key('event_ports_expressions'):
-                temp = data['event_ports_expressions']
-                if isinstance(temp, dict):
-                    event_ports_expressions = temp
-                else:
-                    raise RuntimeError('event_ports_expressions argument must be a dictionary')
-
-            if data.has_key('active_regimes'):
-                temp = data['active_regimes']
-                if isinstance(temp, dict):
-                    active_regimes = temp
-                else:
-                    raise RuntimeError('active_regimes argument must be a dictionary')
-
-            if data.has_key('variables_to_report'):
-                temp = data['variables_to_report']
-                if isinstance(temp, dict):
-                    variables_to_report = temp
-                else:
-                    raise RuntimeError('variables_to_report argument must be a dictionary')
-
+        simulation_data = daeSimulationInputData()
+        simulation_data.loadDictionary(data)
+        
         dictZODB = self.readZODB(applicationID)
         if not dictZODB:
             raise RuntimeError('Invalid application ID has been specified') 
@@ -219,14 +176,14 @@ class nineml_webapp:
         nineml_component = dictZODB['nineml_component']
         
         inspector = nineml_component_inspector()
-        inspector.inspect(nineml_component, timeHorizon              = timeHorizon,
-                                            reportingInterval        = reportingInterval,
-                                            parameters               = parameters,
-                                            initial_conditions       = initial_conditions,
-                                            active_regimes           = active_regimes,
-                                            analog_ports_expressions = analog_ports_expressions,
-                                            event_ports_expressions  = event_ports_expressions,
-                                            variables_to_report      = variables_to_report)
+        inspector.inspect(nineml_component, timeHorizon              = simulation_data.timeHorizon,
+                                            reportingInterval        = simulation_data.reportingInterval,
+                                            parameters               = simulation_data.parameters,
+                                            initial_conditions       = simulation_data.initial_conditions,
+                                            active_regimes           = simulation_data.active_regimes,
+                                            analog_ports_expressions = simulation_data.analog_ports_expressions,
+                                            event_ports_expressions  = simulation_data.event_ports_expressions,
+                                            variables_to_report      = simulation_data.variables_to_report)
 
         results = {}
         results['success'] = True
@@ -246,19 +203,19 @@ class nineml_webapp:
         if not dictZODB:
             raise RuntimeError('Invalid application ID has been specified') 
         
-        testData = dictFormData
+        testName, testDescription, simulation_data = self.getSimulationData(dictFormData)
         print("add_test:", file=sys.stderr)
-        print(testData, file=sys.stderr)
+        print(simulation_data, file=sys.stderr)
         
         tests = dictZODB['tests'];
-        tests.append(testData)            
+        tests[testName] = (testDescription, simulation_data)          
         dictZODB['tests'] = tests;
         self.writeZODB(applicationID, dictZODB)
         
         results = {}
         results['success'] = True
         results['error']   = ''
-        results['content'] = testData
+        results['content'] = simulation_data.asJSON()
         html = json.dumps(results, indent = 2)
             
         output_len = len(html)
@@ -266,6 +223,63 @@ class nineml_webapp:
                                   ('Content-Length', str(output_len))])
         return [html]
 
+    def getSimulationData(self, dictFormData):
+        testName = ''
+        testDescription = ''
+        timeHorizon = 0.0
+        reportingInterval = 0.0
+        parameters = {}
+        initial_conditions = {}
+        analog_ports_expressions = {}
+        event_ports_expressions = {}
+        active_regimes = {}
+        variables_to_report = {}
+        
+        if dictFormData.has_key('testName'):
+            testName = str(dictFormData['testName'][0])
+        if dictFormData.has_key('testDescription'):
+            testDescription = str(dictFormData['testDescription'][0])
+        if dictFormData.has_key('timeHorizon'):
+            timeHorizon = float(dictFormData['timeHorizon'][0])
+        if dictFormData.has_key('reportingInterval'):
+            reportingInterval = float(dictFormData['reportingInterval'][0])
+
+        for key, values in dictFormData.items():
+            names = key.split('.')
+            if len(names) > 0:
+                canonicalName = '.'.join(names[1:])
+
+                if names[0] == nineml_component_inspector.categoryParameters:
+                    parameters[canonicalName] = float(values[0])
+
+                elif names[0] == nineml_component_inspector.categoryInitialConditions:
+                    initial_conditions[canonicalName] = float(values[0])
+
+                elif names[0] == nineml_component_inspector.categoryActiveStates:
+                    active_regimes[canonicalName] = values[0]
+
+                elif names[0] == nineml_component_inspector.categoryAnalogPortsExpressions:
+                    analog_ports_expressions[canonicalName] = values[0]
+
+                elif names[0] == nineml_component_inspector.categoryEventPortsExpressions:
+                    event_ports_expressions[canonicalName] = values[0]
+
+                elif names[0] == nineml_component_inspector.categoryVariablesToReport:
+                    if values[0] == 'on':
+                        variables_to_report[canonicalName] = True
+
+        simulation_data = daeSimulationInputData()
+        simulation_data.timeHorizon              = timeHorizon
+        simulation_data.reportingInterval        = reportingInterval
+        simulation_data.parameters               = parameters
+        simulation_data.initial_conditions       = initial_conditions
+        simulation_data.analog_ports_expressions = analog_ports_expressions
+        simulation_data.event_ports_expressions  = event_ports_expressions
+        simulation_data.active_regimes           = active_regimes
+        simulation_data.variables_to_report      = variables_to_report
+        
+        return testName, testDescription, simulation_data
+        
     def generate_report(self, dictFormData, environ, start_response):
         results = {}
         results['success'] = True
