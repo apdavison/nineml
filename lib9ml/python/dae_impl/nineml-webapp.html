@@ -9,6 +9,8 @@
     <script type="text/javascript" src="script/js/jquery-1.6.2.min.js"></script>
     <script type="text/javascript" src="script/js/jquery-ui-1.8.16.custom.min.js"></script>
     <script type="text/javascript" src="script/jquery.form.js"></script>
+    <script type="text/javascript" src="script/jquery.validate.js"></script>
+    <script type="text/javascript" src="script/download.jQuery.js"></script>
     <noscript>          
         <style type="text/css">
             div {display:none;}
@@ -55,6 +57,40 @@
                 }
             });
             
+            $("#dialogDownloadReport").dialog({
+                autoOpen: false,
+                modal : true,
+                width : 450,
+                height : 200,
+                buttons: {
+                    "Download PDF": function() { 
+                        if($("#pdfAvailable").text() != "true")
+                        {
+                            alert("PDF report is not available");
+                            return;
+                        }
+                        var appID      = $("#applicationID").html();
+                        var parameters = {"__NINEML_ACTION__"    : "downloadPDF",
+                                          "__NINEML_WEBAPP_ID__" : appID};
+                        $.download("nineml-webapp", $.param(parameters));
+                    }, 
+                    "Download ZIP": function() { 
+                        if($("#zipAvailable").text() != "true")
+                        {
+                            alert("ZIP archive with the test data is not available");
+                            return;
+                        }
+                        var appID      = $("#applicationID").html();
+                        var parameters = {"__NINEML_ACTION__"    : "downloadZIP",
+                                          "__NINEML_WEBAPP_ID__" : appID};
+                        $.download("nineml-webapp", $.param(parameters));
+                    }, 
+                    "Close": function() { 
+                        $(this).dialog("close");                         
+                    } 
+                },
+            });
+
             $("#dialogGenerateALReport").dialog({
                 autoOpen: false,
                 modal : true,
@@ -62,21 +98,56 @@
                 height : 500,
                 buttons: {
                     "Generate": function() { 
+                        $("#dialogGenerateALReport").dialog("disable");
+                        
+                        var appID      = $("#applicationID").html();
+                        var parameters = {"__NINEML_ACTION__"    : "generateReport",
+                                          "__NINEML_WEBAPP_ID__" : appID};
+                        $.post("nineml-webapp", parameters, function(data) {
+                            var results = JSON.parse(data);
+                            var success = results["success"];
+                            var error   = results["error"];
+                            var html    = results["content"];
+                            if(success == true)
+                            {
+                                if(results["pdfAvailable"] == true)
+                                {
+                                    $("#pdfAvailable").text("true");
+                                }
+                                if(results["zipAvailable"] == true)
+                                {
+                                    $("#zipAvailable").text("true");
+                                }
+                                $("#downloadReportMessage").text("Report generation is successsful");
+                                $("#dialogDownloadReport").dialog("open");
+                            }
+                            else
+                            {
+                                var traceback = results["traceback"];
+                                alert(error);
+                                alert(traceback);
+                            }
+                            
+                            $("#dialogGenerateALReport").dialog("enable");
+                            //$("#dialogGenerateALReport").dialog("close"); 
+                        });
+                    }, 
+                    "Cancel": function() { 
                             $(this).dialog("close"); 
-                        }, 
-                    "Abort": function() { 
-                            $(this).dialog("close"); 
-                        } 
-                    },
+                    } 
+                },
                 open: function(event, ui) {
                         $("#testableComponent").text("");
                         $("#selectedALComponentName").text("");
                     },
                 close: function(event, ui) { 
+                        $("#testableComponent").text("");
+                        $("#selectedALComponentName").text("");  
+                        $("#applicationID").text("");
                         $("#dialogInitialPage").dialog("open"); 
                     }
             });
-            
+
             $("#dialogSelectALComponent").dialog({
                 autoOpen: false,
                 modal : true,
@@ -161,6 +232,28 @@
                 }
             }
             
+            function validateForm()
+            {
+                $(".class_Float").each(function () {
+                    var value = $(this).val();
+                    if(value == "") 
+                    {
+                        return {"success" : false,
+                                "error" : "Input field {0} cannot be empty".format($(this))};
+                    } 
+                    else if(isNumber(value) == false) 
+                    {
+                        return {"success" : false,
+                                "error" : "Input field {0} must be a number".format($(this))};
+                    } 
+                });
+                return {"success" : true};
+            }
+            
+            function isNumber(n) {
+                return !isNaN(parseFloat(n)) && isFinite(n);
+            }
+            
             function checkIfUnique(name)
             {
                 var unique = true;
@@ -181,53 +274,58 @@
                 height : 600,
                 buttons: {
                     "Ok": function() { 
-                        var testName        = $("#id_testName").val();
-                        var testDescription = $("#id_testDescription").val();
-                        if(checkRegexp(testName, /^[a-z]([0-9a-z_])+$/i) == false)
-                        {
-                            showErrorMessage("Test name may consist of a-z, 0-9, underscores, begin with a letter.");
-                            return;
-                        }
-                        if(checkIfUnique(testName) == false)
-                        {
-                            alert("Test name already exists.");
-                            return;
-                        }
-                            
-                        $("#dialogAddTest").dialog("disable");                         
-                        
-                        var formData   = $("#formAddTest").serialize();
-                        var appID      = $("#applicationID").html();
-                        var parameters = {"__NINEML_ACTION__"    : "addTest",
-                                          "__NINEML_WEBAPP_ID__" : appID};
-                        parameters = $.param(parameters) + "&" + formData;
-                        $.post("nineml-webapp", parameters, function(data) {
-                            var results = JSON.parse(data);
-                            var success = results["success"];
-                            var error   = results["error"];
-                            var json    = results["content"];
-                            if(success == true)
-                            {
-                                var testName        = $("#id_testName").val();
-                                var testDescription = $("#id_testDescription").val();
-                                var length = $("#testsList").children().length;
-                                var id = "__test_" + length;
-                                var li = "<li id=\"{0}\">{1}</li>".format(id, testName);
-                                $("#" + id).data("testName", testName);
-                                $("#" + id).data("testDescription", testDescription);
-                                $("#testsList").append(li);
-                            }
-                            else
-                            {
-                                alert(error);
-                            }
-                            $("#dialogAddTest").dialog("enable");                         
-                            $("#dialogAddTest").dialog("close");                         
-                        });
+                        $("#formAddTest").submit();
                     },
                     "Cancel": function() { 
                         $(this).dialog("close");                         
                     } 
+                },
+                open : function(event, ui) {
+                        $("#listAddTest").css("visibility", "hidden");
+                        
+                        $("#formAddTest").validate({submitHandler: function() { 
+                            var testName        = $("#id_testName").val();
+                            var testDescription = $("#id_testDescription").val();
+                            if(checkIfUnique(testName) == false)
+                            {
+                                alert("Test with that name already exists.");
+                                return;
+                            }
+                            
+                            $("#dialogAddTest").dialog("disable");                         
+                            
+                            var formData   = $("#formAddTest").serialize();
+                            var appID      = $("#applicationID").html();
+                            var parameters = {"__NINEML_ACTION__"    : "addTest",
+                                            "__NINEML_WEBAPP_ID__" : appID};
+                            parameters = $.param(parameters) + "&" + formData;
+                            $.post("nineml-webapp", parameters, function(data) {
+                                var results = JSON.parse(data);
+                                var success = results["success"];
+                                var error   = results["error"];
+                                var json    = results["content"];
+                                if(success == true)
+                                {
+                                    var testName        = $("#id_testName").val();
+                                    var testDescription = $("#id_testDescription").val();
+                                    var length = $("#testsList").children().length;
+                                    var id = "__test_" + length;
+                                    var li = "<li id=\"{0}\">{1}</li>".format(id, testName);
+                                    $("#" + id).data("testName", testName);
+                                    $("#" + id).data("testDescription", testDescription);
+                                    $("#testsList").append(li);
+                                    
+                                    $("#listAddTest").css("visibility", "visible");
+                                }
+                                else
+                                {
+                                    alert(error);
+                                }
+                                $("#dialogAddTest").dialog("enable");                         
+                                $("#dialogAddTest").dialog("close");                         
+                            });
+                        } 
+                    });
                 }
             });
 
@@ -308,6 +406,11 @@
             });
             
             $("#buttonAddTest").button().click(function(){
+                if($("#selectedALComponentName").text() == "")
+                {
+                    alert("First select/upload a component");
+                    return;
+                }
                 $("#dialogAddPredefinedInputData").dialog("open");
             });
 
@@ -343,7 +446,7 @@
                 Selected AL component name: <b id="selectedALComponentName"></b>
             </li>
             <br/>
-            <li>Add some tests (optional): </br>
+            <li id="listAddTest">Add some tests (optional): </br>
                 <ul id="testsList">
                 </ul>
                 </br>
@@ -362,7 +465,7 @@
 
                     </tbody>
                 </table> </br>-->
-                <button id="buttonAddTest">Add new test</button>
+                <button id="buttonAddTest">Add test</button>
             </li>
         </ol>
         
@@ -373,8 +476,8 @@
     <div id="testableComponent" style="display:none;"></div>
 </div>
 
-<div id="applicationID" style="display:block;"></div>
-<div id="postResults" style="display:block;"></div>
+<div id="applicationID" style="display:none;"></div>
+<div id="postResults" style="display:none;"></div>
 
 <div id="dialogSelectALComponent" title="Select AL Component">
     <label for="listALComponent" style="width: 200px;">NineML component:</label>
@@ -394,12 +497,44 @@
 <div id="dialogAddPredefinedInputData" title="Predefined input data">
     <form id="formPredefinedInputData">
         Predefined input data (in JSON format):<br/>
-        <textarea id="textareaInputData" rows="10" cols="80" style="width:100%"></textarea>
+        <textarea id="textareaInputData" rows="10" cols="80" style="width:100%">{
+  "timeHorizon": 1.0, 
+  "reportingInterval": 0.001, 
+  "initial_conditions": {
+    "iaf_1coba.iaf.tspike": -10000000000, 
+    "iaf_1coba.iaf.V": -0.06, 
+    "iaf_1coba.cobaExcit.g": 0.0
+  }, 
+  "parameters": {
+    "iaf_1coba.iaf.gl": 50.0, 
+    "iaf_1coba.cobaExcit.vrev": 0.0, 
+    "iaf_1coba.cobaExcit.q": 3.0, 
+    "iaf_1coba.iaf.vreset": -0.06, 
+    "iaf_1coba.cobaExcit.tau": 5.0, 
+    "iaf_1coba.iaf.taurefrac": 0.008, 
+    "iaf_1coba.iaf.vthresh": -0.04, 
+    "iaf_1coba.iaf.vrest": -0.06, 
+    "iaf_1coba.iaf.cm": 1.0
+  }, 
+  "variables_to_report": {
+    "iaf_1coba.cobaExcit.I": true, 
+    "iaf_1coba.iaf.V": true
+  }, 
+  "event_ports_expressions": {
+    "iaf_1coba.cobaExcit.spikeinput": "0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90"
+  }, 
+  "active_regimes": {
+    "iaf_1coba.cobaExcit": "cobadefaultregime", 
+    "iaf_1coba.iaf": "subthresholdregime"
+  }, 
+  "analog_ports_expressions": {}
+}</textarea>
     </form>
 </div>
 
 <div id="dialogAddTest" title="Edit components parameters">
-    <form id="formAddTest" action="nineml-webapp" method="post">
+    <ul id="dialogAddTestMessageBox"></ul>
+    <form class="cmxform" id="formAddTest" action="nineml-webapp" method="post">
     </form>
 <div>
 
@@ -408,19 +543,11 @@
     </p>
 </div>
 
-<!--<form id="formReport" action="nineml-webapp" method="post">
-    <div id="testableComponentName"></div>
-    <div id="Tests"></div>
-    <br/>
-    <input id="inputAction" type="hidden" name="__NINEML_ACTION__" value=""/>
-    <input id="ApplicationID" type="hidden" name="applicationID" value=""/>
-    <input id="TestableComponent" type="hidden" name="TestableComponent" value=""/>
-    
-    <button id="buttonGenerateReport">Generate report</button>
-    <button id="buttonSelectALComponent">Select AL Component</button>
-    <input id="buttonAddTest" value="Add test" type="submit">
-</form>
--->
+<div id="dialogDownloadReport" title="Report generation results">
+    <p id="downloadReportMessage"></p>
+    <div id="pdfAvailable" style="display:none;"></div>
+    <div id="zipAvailable" style="display:none;"></div>
+</div>
 
 </body>
 </html>

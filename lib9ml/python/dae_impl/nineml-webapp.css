@@ -1,14 +1,18 @@
-/*body 
+body 
 {
-    padding:0;
+    font:14px sans-serif Tahoma;
+/*    padding:0;
     margin:20px;
     color:#333;
     background: white;
-    font:14px sans-serif Tahoma;
     margin-left: auto; 
     margin-right: auto; 
-    width: 700px;
-}*/
+    width: 700px;*/
+}
+.error
+{
+    color: red;
+}
 form 
 {
     margin:0;

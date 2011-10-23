@@ -71,6 +71,7 @@ class nineml_webapp:
         results['content']   = ''
         results['traceback'] = strTraceBack 
         html = json.dumps(results, indent = 2)
+        return html
 
     def getAvailableALComponents(self, dictFormData, environ, start_response):
         available_components = sorted(TestableComponent.list_available())
@@ -108,7 +109,7 @@ class nineml_webapp:
                                   ('Content-Length', str(output_len))])
         return [html]
     
-    def set_AL_component(self, dictFormData, environ, start_response):
+    def setALComponent(self, dictFormData, environ, start_response):
         if not dictFormData.has_key('TestableComponent'):
             raise RuntimeError('No input NineML component has been specified')
 
@@ -118,7 +119,7 @@ class nineml_webapp:
             raise RuntimeError('The specified component: {0} could not be loaded'.format(compName))
         
         applicationID = self.applicationIDFromDictionary(dictFormData)
-        print('applicationID = ' + applicationID, file=sys.stderr)
+        #print('applicationID = ' + applicationID, file=sys.stderr)
         
         dictZODB = {}
         dictZODB['name']                = nineml_component.name
@@ -127,7 +128,7 @@ class nineml_webapp:
         dictZODB['HTTP_USER_AGENT']     = environ['HTTP_USER_AGENT']
         dictZODB['tests']               = {}
         
-        print(dictZODB, file=sys.stderr)
+        #print(dictZODB, file=sys.stderr)
         self.writeZODB(applicationID, dictZODB)
         
         print('wrote ZODB', file=sys.stderr)
@@ -143,28 +144,19 @@ class nineml_webapp:
                                   ('Content-Length', str(output_len))])
         return [html]
     
-    def display_gui(self, dictFormData, environ, start_response):
+    def displayGUI(self, dictFormData, environ, start_response):
         html = ''
-        content = ''
-        raw_arguments = ''
-        timeHorizon = 0.0
-        reportingInterval = 0.0
-        parameters = {}
-        initial_conditions = {}
-        analog_ports_expressions = {}
-        event_ports_expressions = {}
-        active_regimes = {}
-        variables_to_report = {}
+        data = {}
 
         applicationID = self.applicationIDFromDictionary(dictFormData)
-        print('applicationID = ' + applicationID, file=sys.stderr)
+        #print('applicationID = ' + applicationID, file=sys.stderr)
         
-        data = {}
         if dictFormData.has_key('InitialValues'):
-            try:
-                data = json.loads(dictFormData['InitialValues'][0])
-            except Exception as e:
-                pass
+            data = json.loads(dictFormData['InitialValues'][0])
+            #try:
+            #    data = json.loads(dictFormData['InitialValues'][0])
+            #except Exception as e:
+            #    pass
 
         simulation_data = daeSimulationInputData()
         simulation_data.loadDictionary(data)
@@ -196,7 +188,7 @@ class nineml_webapp:
                                   ('Content-Length', str(output_len))])
         return [html]
 
-    def add_test(self, dictFormData, environ, start_response):
+    def addTest(self, dictFormData, environ, start_response):
         applicationID = self.applicationIDFromDictionary(dictFormData)
 
         dictZODB = self.readZODB(applicationID)
@@ -204,9 +196,7 @@ class nineml_webapp:
             raise RuntimeError('Invalid application ID has been specified') 
         
         testName, testDescription, simulation_data = self.getSimulationData(dictFormData)
-        print("add_test:", file=sys.stderr)
-        print(simulation_data, file=sys.stderr)
-        
+
         tests = dictZODB['tests'];
         tests[testName] = (testDescription, simulation_data)          
         dictZODB['tests'] = tests;
@@ -280,62 +270,6 @@ class nineml_webapp:
         
         return testName, testDescription, simulation_data
         
-    def generate_report(self, dictFormData, environ, start_response):
-        results = {}
-        results['success'] = True
-        results['error']   = ''
-        results['content'] = str(dictFormData)
-        html = json.dumps(results, indent = 2)
-        
-        output_len = len(html)
-        start_response('200 OK', [('Content-type', 'text/html'),
-                                  ('Content-Length', str(output_len))])
-        return [html]
-        
-    def generate_report_with_no_tests(self, dictFormData, environ, start_response):
-        try:
-            if not dictFormData.has_key('TestableComponent'):
-                raise RuntimeError('No input NineML component has been specified')
-
-            compName = dictFormData['TestableComponent'][0]
-            nineml_component = TestableComponent(compName)()
-            if not nineml_component:
-                raise RuntimeError('The specified component: {0} could not be loaded'.format(compName))
-
-            inspector = nineml_component_inspector()
-            inspector.inspect(nineml_component)
-            applicationID = self.generate_applicationID()
-
-            dictZODB = {}
-            dictZODB['inspector']           = inspector
-            #dictZODB['nineml_component']    = nineml_component
-            dictZODB['REMOTE_ADDR']         = environ['REMOTE_ADDR']
-            dictZODB['HTTP_USER_AGENT']     = environ['HTTP_USER_AGENT']
-            dictZODB['name']                = nineml_component.name
-            
-            applicationID = self.generate_applicationID()
-            self.writeZODB(applicationID, dictZODB)
-            
-            return self.generate_report(dictFormData, applicationID, inspector, nineml_component, False, environ, start_response)
-        
-        except Exception as e:
-            return self.returnExceptionPage(str(e), dictFormData, environ, start_response)
-
-    def generate_report_with_tests(self, dictFormData, environ, start_response):
-        try:
-            applicationID = self.applicationIDFromDictionary(dictFormData)
-            dictZODB = self.readZODB(applicationID)
-            if not dictZODB:
-                raise RuntimeError('Invalid application ID has been specified') 
-            
-            inspector        = dictZODB['inspector']
-            nineml_component = inspector.ninemlComponent #dictZODB['nineml_component']
-            
-            return self.generate_report(dictFormData, applicationID, inspector, nineml_component, True, environ, start_response)
-       
-        except Exception as e:
-            return self.returnExceptionPage(str(e), dictFormData, environ, start_response)
-    
     def readZODB(self, key):
         try:
             _storage_    = FileStorage(baseFolder + '/zodb/nineml-webapp.zodb')
@@ -372,22 +306,32 @@ class nineml_webapp:
             _db_.close()
             _storage_.close()
     
-    def generate_report(self, dictFormData, applicationID, inspector, nineml_component, doTests, environ, start_response):
+    def generateReport(self, dictFormData, environ, start_response):
         try:
             pdf = None
             zip = None
             html = ''
-            html_tests = ''
+            test_reports = ''
+            tests_data = []
             texReport = ''
             pdfReport = ''
             zipReport = ''
-            tests_data = []
+            tmpFolder = ''
             
-            success = False
+            applicationID = self.applicationIDFromDictionary(dictFormData)
+            dictZODB = self.readZODB(applicationID)
+            if not dictZODB:
+                raise RuntimeError('Invalid application ID has been specified') 
+            
+            tests            = dictZODB['tests']
+            nineml_component = dictZODB['nineml_component']
+            inspector = nineml_component_inspector()
+            inspector.inspect(nineml_component)
+            
             tmpFolder = self.create_temp_folder()
             
-            if doTests:
-                html_tests, tests_data, zip = self.do_tests(nineml_component, applicationID, tmpFolder, dictFormData)
+            if len(tests) > 0:
+                test_reports, tests_data, zip = self.do_tests(nineml_component, tmpFolder, applicationID, tests)
                 
             texReport = '{0}/{1}.tex'.format(tmpFolder, applicationID)
             pdfReport = '{0}/{1}.pdf'.format(tmpFolder, applicationID)
@@ -415,42 +359,39 @@ class nineml_webapp:
             dictZODB = self.readZODB(applicationID)
             dictZODB['pdfReport']   = pdf
             dictZODB['zipReport']   = zip
-            dictZODB['tests_data']  = tests_data
-            
             self.writeZODB(applicationID, dictZODB)
-            
-            success = True
-            html = html_tests
-
-        except Exception as e:
-            return self.returnExceptionPage(str(e), dictFormData, environ, start_response)
         
         finally:
             # Remove temporary directory
-            if os.path.isdir(tmpFolder):
-                shutil.rmtree(tmpFolder)
-            
-        if success:
-            enablePDF = False
-            enableZIP = False
-            if pdf:
-                enablePDF = True
-            if zip:
-                enableZIP = True
-            output = createDownloadResults(html, applicationID, enablePDF, enableZIP)
-            output_len = len(output)
-            start_response('200 OK', [('Content-type', 'text/html'),
-                                      ('Content-Length', str(output_len))])
-            return [output]
-        else:
-            output_len = len(html)
-            start_response('200 OK', [('Content-type', 'text/html'),
-                                      ('Content-Length', str(output_len))])
-            return [html]
+            #if os.path.isdir(tmpFolder):
+            #    shutil.rmtree(tmpFolder)
+            pass
+        
+        enablePDF = False
+        enableZIP = False
+        if pdf:
+            enablePDF = True
+        if zip:
+            enableZIP = True
+        
+        results = {}
+        results['success']      = True
+        results['error']        = ''
+        results['content']      = test_reports
+        results['pdfAvailable'] = enablePDF
+        results['zipAvailable'] = enableZIP
+        html = json.dumps(results, indent = 2)
+        
+        output_len = len(html)
+        start_response('200 OK', [('Content-type', 'text/html'),
+                                  ('Content-Length', str(output_len))])
+        return [html]
 
     def downloadPDF(self, dictFormData, environ, start_response):
         applicationID = self.applicationIDFromDictionary(dictFormData)
         dictZODB = self.readZODB(applicationID)
+        if not dictZODB:
+            raise RuntimeError('Invalid application ID has been specified') 
         pdf  = dictZODB['pdfReport']
         name = dictZODB['name']
         html = str(pdf)        
@@ -459,11 +400,14 @@ class nineml_webapp:
                                   #('Content-Transfer-Encoding', 'base64'),
                                   ('Content-Disposition', 'attachment; filename={0}.pdf'.format(name)),
                                   ('Content-Length', str(output_len))])
+        print('downloadPDF = ' + applicationID, file=sys.stderr)
         return [html]
     
     def downloadZIP(self, dictFormData, environ, start_response):
         applicationID = self.applicationIDFromDictionary(dictFormData)
         dictZODB = self.readZODB(applicationID)
+        if not dictZODB:
+            raise RuntimeError('Invalid application ID has been specified') 
         zip  = dictZODB['zipReport']
         name = dictZODB['name']
         html = str(zip)        
@@ -474,39 +418,34 @@ class nineml_webapp:
                                   ('Content-Length', str(output_len))])
         return [html]
     
-    def do_tests(self, nineml_component, applicationID, tmpFolder, dictFormData):
-        tests_data = []
+    def do_tests(self, nineml_component, tmpFolder, applicationID, tests):
         html       = ''
         zip        = None
+        tests_data = []
+        test_reports = ''
         
-        isOK, results = self.run_test(nineml_component, dictFormData, tmpFolder)
+        zipReport = '{0}/{1}.zip'.format(tmpFolder, applicationID)
         
-        if isOK:
-            testName, testDescription, dictInputs, plots, log_output = results
-            tests_data.append( (testName, testDescription, dictInputs, plots, log_output, tmpFolder) )
-            zipReport = '{0}/{1}.zip'.format(tmpFolder, applicationID)
-            self.pack_tests_data(zipReport, tests_data)
-            html += 'Test status: {0} [SUCCEEDED]'.format(testName)
-            if os.path.isfile(zipReport):
-                zip = open(zipReport, "rb").read()
-        else:
-            testName, testDescription, dictInputs, plots, log_output, error = results
-            html += 'Test status: {0} [FAILED]\n'.format(testName)
-            html += error
+        for testName, test in tests.items():
+            tmp = self.create_temp_folder(tmpFolder)
+            testDescription, simulation_data = test
+            isOK, results = self.run_test(nineml_component, simulation_data, tmp, testName, testDescription)
         
-        return html, tests_data, zip
+            if isOK:
+                testName, testDescription, dictInputs, plots, log_output = results
+                tests_data.append( (testName, testDescription, dictInputs, plots, log_output, tmp) )
+                test_reports += 'Test status: {0} [SUCCEEDED]'.format(testName)
+            else:
+                testName, testDescription, dictInputs, plots, log_output, error = results
+                test_reports += 'Test status: {0} [FAILED]\n'.format(testName)
+                test_reports += error
+        
+        self.pack_tests_data(zipReport, tests_data)
+        if os.path.isfile(zipReport):
+            zip = open(zipReport, "rb").read()
+        
+        return test_reports, tests_data, zip
 
-    def returnExceptionPage(self, strError, dictFormData, environ, start_response):
-        content = 'Form arguments:\n  {0}\n\n'.format(dictFormData)
-
-        exc_traceback = sys.exc_info()[2]
-        html = createErrorPage(strError, exc_traceback, content)
-
-        output_len = len(html)
-        start_response('200 OK', [('Content-type', 'text/html'),
-                                  ('Content-Length', str(output_len))])
-        return [html]
-    
     def applicationIDFromDictionary(self, dictFormData):
         if not dictFormData.has_key('__NINEML_WEBAPP_ID__'):
             raise RuntimeError('No application ID has been specified')
@@ -519,118 +458,60 @@ class nineml_webapp:
     def generate_applicationID(self):
         return str(uuid.uuid1())
     
-    def create_temp_folder(self):
-        tmpFolder = tempfile.mkdtemp(prefix='nineml-webapp-')
+    def create_temp_folder(self, dir = None):
+        tmpFolder = tempfile.mkdtemp(prefix='nineml-webapp-', dir = dir)
         os.chmod(tmpFolder, 0777)
         return tmpFolder
 
     def pack_tests_data(self, zipReport, tests_data):
-        try:
-            if len(tests_data) == 0:
-                return
-                
-            zip = zipfile.ZipFile(zipReport, "w")
+        if len(tests_data) == 0:
+            return
             
-            for i, test_data in enumerate(tests_data):
-                testName, testDescription, dictInputs, plots, log_output, tmpFolder = test_data
-                testFolder = 'test-no.{0}/'.format(i+1, testName) 
-                
-                # Write log file contents
-                logName = '__log_output__.txt'
-                f = open(tmpFolder + '/' + logName, "w")
-                f.write(log_output)
-                f.close()
-                zip.write(tmpFolder + '/' + logName, testFolder + logName)
+        zip = zipfile.ZipFile(zipReport, "w")
+        
+        for i, test_data in enumerate(tests_data):
+            testName, testDescription, dictInputs, plots, log_output, tmpFolder = test_data
+            testFolder = 'test-no.{0}/'.format(i+1, testName) 
+            
+            # Write log file contents
+            logName = '__log_output__.txt'
+            f = open(tmpFolder + '/' + logName, "w")
+            f.write(log_output)
+            f.close()
+            zip.write(tmpFolder + '/' + logName, testFolder + logName)
 
-                # Write JSON input file
-                jsonName = '__json_simulation_input__.txt'
-                f = open(tmpFolder + '/' + jsonName, "w")
-                json.dump(dictInputs, f, indent = 2)
-                f.close()
-                zip.write(tmpFolder + '/' + jsonName, testFolder + jsonName)
+            # Write JSON input file
+            jsonName = '__json_simulation_input__.txt'
+            f = open(tmpFolder + '/' + jsonName, "w")
+            json.dump(dictInputs, f, indent = 2)
+            f.close()
+            zip.write(tmpFolder + '/' + jsonName, testFolder + jsonName)
 
-                # Write .png and .csv files
-                for plot in plots:
-                    varName, xPoints, yPoints, pngName, csvName = plot
-                    zip.write(tmpFolder + '/' + pngName, testFolder + pngName)
-                    zip.write(tmpFolder + '/' + csvName, testFolder + csvName)
-            
-            zip.close()
-            
-        except Exception as e:
-            exc_traceback = sys.exc_info()[2]
-            print(str(e), '\n'.join(traceback.format_tb(exc_traceback)), file=sys.stderr)
+            # Write .png and .csv files
+            for plot in plots:
+                varName, xPoints, yPoints, pngName, csvName = plot
+                zip.write(tmpFolder + '/' + pngName, testFolder + pngName)
+                zip.write(tmpFolder + '/' + csvName, testFolder + csvName)
+        
+        zip.close()
     
-    def run_test(self, nineml_component, dictFormData, tmpFolder):
+    def run_test(self, nineml_component, simulation_data, tmpFolder, testName, testDescription):
         try:
-            testName = 'Test name'
-            testDescription = 'Test description'
-            timeHorizon = 0.0
-            reportingInterval = 0.0
-            parameters = {}
-            initial_conditions = {}
-            analog_ports_expressions = {}
-            event_ports_expressions = {}
-            active_regimes = {}
-            variables_to_report = {}
-            log_output = ''
+            log_output  = ''
             log          = None
             daesolver    = None
             datareporter = None
             model        = None
             simulation   = None
             dictInputs = {}
-
-            if dictFormData.has_key('testName'):
-                testName = str(dictFormData['testName'][0])
-            if dictFormData.has_key('testDescription'):
-                testDescription = str(dictFormData['testDescription'][0])
-            if dictFormData.has_key('timeHorizon'):
-                timeHorizon = float(dictFormData['timeHorizon'][0])
-            if dictFormData.has_key('reportingInterval'):
-                reportingInterval = float(dictFormData['reportingInterval'][0])
-
-            for key, values in dictFormData.items():
-                names = key.split('.')
-                if len(names) > 0:
-                    canonicalName = '.'.join(names[1:])
-
-                    if names[0] == nineml_component_inspector.categoryParameters:
-                        parameters[canonicalName] = float(values[0])
-
-                    elif names[0] == nineml_component_inspector.categoryInitialConditions:
-                        initial_conditions[canonicalName] = float(values[0])
-
-                    elif names[0] == nineml_component_inspector.categoryActiveStates:
-                        active_regimes[canonicalName] = values[0]
-
-                    elif names[0] == nineml_component_inspector.categoryAnalogPortsExpressions:
-                        analog_ports_expressions[canonicalName] = values[0]
-
-                    elif names[0] == nineml_component_inspector.categoryEventPortsExpressions:
-                        event_ports_expressions[canonicalName] = values[0]
-
-                    elif names[0] == nineml_component_inspector.categoryVariablesToReport:
-                        if values[0] == 'on':
-                            variables_to_report[canonicalName] = True
-
-            simulation_data = daeSimulationInputData()
-            simulation_data.timeHorizon              = timeHorizon
-            simulation_data.reportingInterval        = reportingInterval
-            simulation_data.parameters               = parameters
-            simulation_data.initial_conditions       = initial_conditions
-            simulation_data.analog_ports_expressions = analog_ports_expressions
-            simulation_data.event_ports_expressions  = event_ports_expressions
-            simulation_data.active_regimes           = active_regimes
-            simulation_data.variables_to_report      = variables_to_report
-
+            
             # Create Log, DAESolver, DataReporter and Simulation object
             log          = daeNineMLWebAppLog()
             daesolver    = pyIDAS.daeIDAS()
             datareporter = ninemlTesterDataReporter()
             model        = nineml_daetools_bridge(nineml_component.name, nineml_component)
-            simulation   = nineml_daetools_simulation(model, timeHorizon              = timeHorizon,
-                                                             reportingInterval        = reportingInterval,
+            simulation   = nineml_daetools_simulation(model, timeHorizon              = simulation_data.timeHorizon,
+                                                             reportingInterval        = simulation_data.reportingInterval,
                                                              parameters               = simulation_data.parameters,
                                                              initial_conditions       = simulation_data.initial_conditions,
                                                              active_regimes           = simulation_data.active_regimes,
@@ -662,16 +543,8 @@ class nineml_webapp:
             simulation.Finalize()
 
             log_output = log.JoinMessages('\n')
-            
-            dictInputs['parameters']                = parameters
-            dictInputs['initial_conditions']        = initial_conditions
-            dictInputs['analog_ports_expressions']  = analog_ports_expressions
-            dictInputs['event_ports_expressions']   = event_ports_expressions
-            dictInputs['active_regimes']            = active_regimes
-            dictInputs['variables_to_report']       = variables_to_report
-            dictInputs['timeHorizon']               = timeHorizon
-            dictInputs['reportingInterval']         = reportingInterval
-            plots = datareporter.createReportData(tmpFolder)
+            dictInputs = simulation_data.asDictionary()
+            plots      = datareporter.createReportData(tmpFolder)
 
             return True, (testName, testDescription, dictInputs, plots, log_output)
             
@@ -684,53 +557,49 @@ class nineml_webapp:
         try:
             html = ''
             if not ___import_exception___:
-                if environ['REQUEST_METHOD'] == 'GET':
-                    return self.initial_page(environ, start_response)
+                content_length = int(environ['CONTENT_LENGTH'])
+                raw_arguments  = pformat(environ['wsgi.input'].read(content_length))
+                raw_arguments  = raw_arguments.strip(' \'')
+                dictFormData   = urlparse.parse_qs(raw_arguments)
 
+                if not __actionName__ in dictFormData:
+                    raise RuntimeError('Phase argument must be specified')
+
+                action = dictFormData[__actionName__][0]
+                
+                if action == 'getAvailableALComponents':
+                    return self.getAvailableALComponents(dictFormData, environ, start_response)
+                    
+                elif action == 'getApplicationID':
+                    return self.getApplicationID(dictFormData, environ, start_response)
+                
+                elif action == 'uploadULComponent':
+                    return self.uploadULComponent(dictFormData, environ, start_response)
+                
+                elif action == 'setALComponent':
+                    return self.setALComponent(dictFormData, environ, start_response)
+                
+                elif action == 'displayGUI':
+                    return self.displayGUI(dictFormData, environ, start_response)
+                
+                elif action == 'addTest':
+                    return self.addTest(dictFormData, environ, start_response)
+                
+                elif action == 'generateReport':
+                    return self.generateReport(dictFormData, environ, start_response)
+                    #return self.generate_report_with_no_tests(dictFormData, environ, start_response)
+
+                elif action == 'Generate report with tests':
+                    return self.generate_report_with_tests(dictFormData, environ, start_response)
+                
+                elif action == 'downloadPDF':
+                    return self.downloadPDF(dictFormData, environ, start_response)
+                
+                elif action == 'downloadZIP':
+                    return self.downloadZIP(dictFormData, environ, start_response)
+                
                 else:
-                    content_length = int(environ['CONTENT_LENGTH'])
-                    raw_arguments = pformat(environ['wsgi.input'].read(content_length))
-                    raw_arguments = raw_arguments.strip(' \'')
-                    dictFormData  = urlparse.parse_qs(raw_arguments)
-
-                    if not __actionName__ in dictFormData:
-                        raise RuntimeError('Phase argument must be specified')
-
-                    action = dictFormData[__actionName__][0]
-                    
-                    if action == 'getAvailableALComponents':
-                        return self.getAvailableALComponents(dictFormData, environ, start_response)
-                        
-                    elif action == 'getApplicationID':
-                        return self.getApplicationID(dictFormData, environ, start_response)
-                    
-                    elif action == 'uploadULComponent':
-                        return self.uploadULComponent(dictFormData, environ, start_response)
-                    
-                    elif action == 'setALComponent':
-                        return self.set_AL_component(dictFormData, environ, start_response)
-                    
-                    elif action == 'displayGUI':
-                        return self.display_gui(dictFormData, environ, start_response)
-                    
-                    elif action == 'addTest':
-                        return self.add_test(dictFormData, environ, start_response)
-                    
-                    elif action == 'generateReport':
-                        return self.generate_report(dictFormData, environ, start_response)
-                        #return self.generate_report_with_no_tests(dictFormData, environ, start_response)
-
-                    elif action == 'Generate report with tests':
-                        return self.generate_report_with_tests(dictFormData, environ, start_response)
-                    
-                    elif action == 'Download pdf report':
-                        return self.downloadPDF(dictFormData, environ, start_response)
-                    
-                    elif action == 'Download zip archive':
-                        return self.downloadZIP(dictFormData, environ, start_response)
-                    
-                    else:
-                        raise RuntimeError('Invalid action argument specified: {0}'.format(action))
+                    raise RuntimeError('Invalid action argument specified: {0}'.format(action))
             else:
                 html = self.error(___import_exception___, ___import_exception_traceback___)
 

@@ -728,17 +728,17 @@ class nineml_component_inspector:
         content += '<fieldset>'
         content += '<legend>General</legend>'
         content += '<label for="testName">Test name</label>'
-        content += '<input id="id_testName" type="text" name="testName" value="Dummy test"/><br/>'
+        content += '<input class="required" id="id_testName" type="text" name="testName" value=""/><br/>'
         content += '<label for="testDescription">Test description</label>'
-        content += '<textarea id="id_testDescription" name="testDescription" rows="2" cols="50">Dummy test description</textarea><br/>'
+        content += '<textarea id="id_testDescription" name="testDescription" rows="2" cols="40"></textarea><br/>'
         content += '</fieldset>\n'
 
         content += '<fieldset>'
         content += '<legend>Simulation</legend>'
         content += '<label for="timeHorizon">Time horizon</label>'
-        content += '<input type="text" name="timeHorizon" value="{0}"/><br/>'.format(self.timeHorizon)
+        content += '<input class="required number" id="id_timeHorizon" type="text" name="timeHorizon" value="{0}"/><br/>'.format(self.timeHorizon)
         content += '<label for="reportingInterval">Reporting interval</label>'
-        content += '<input type="text" name="reportingInterval" value="{0}"/><br/>'.format(self.reportingInterval)
+        content += '<input class="required number" id="id_reportingInterval" type="text" name="reportingInterval" value="{0}"/><br/>'.format(self.reportingInterval)
         content += '</fieldset>\n'
 
         if len(self.parameters) > 0:
@@ -762,7 +762,7 @@ class nineml_component_inspector:
         if len(self.analog_ports_expressions) > 0:
             content += '<fieldset>'
             content += '<legend>Analog-ports inputs</legend>\n'
-            content += self._generateHTMLFormTree(self.treeAnalogPorts, nineml_component_inspector.categoryAnalogPortsExpressions) + '\n'
+            content += self._generateHTMLFormTree(self.treeAnalogPorts, nineml_component_inspector.categoryAnalogPortsExpressions, True) + '\n'
             content += '</fieldset>\n'
 
         if len(self.event_ports_expressions) > 0:
@@ -779,7 +779,7 @@ class nineml_component_inspector:
 
         return content
 
-    def _generateHTMLFormTree(self, item, category = ''):
+    def _generateHTMLFormTree(self, item, category = '', required = False):
         if category == '':
             inputName = item.canonicalName
         else:
@@ -787,13 +787,16 @@ class nineml_component_inspector:
 
         content = '<ul>'
         if item.itemType == treeItem.typeFloat:
-            content += '<li><label for="{1}">{0}</label><input type="text" name="{1}" value="{2}"/></li>'.format(item.name, inputName, item.value)
+            content += '<li><label for="{1}">{0}</label><input class="required number" type="text" name="{1}" value="{2}"/></li>'.format(item.name, inputName, item.value)
 
         elif item.itemType == treeItem.typeInteger:
-            content += '<li><label for="{1}">{0}</label><input type="text" name="{1}" value="{2}"/></li>'.format(item.name, inputName, item.value)
+            content += '<li><label for="{1}">{0}</label><input class="required digits" type="text" name="{1}" value="{2}"/></li>'.format(item.name, inputName, item.value)
 
         elif item.itemType == treeItem.typeString:
-            content += '<li><label for="{1}">{0}</label><input type="text" name="{1}" value="{2}"/></li>'.format(item.name, inputName, item.value)
+            if required:
+                content += '<li><label for="{1}">{0}</label><input class="required" type="text" name="{1}" value="{2}"/></li>'.format(item.name, inputName, item.value)
+            else:
+                content += '<li><label for="{1}">{0}</label><input type="text" name="{1}" value="{2}"/></li>'.format(item.name, inputName, item.value)
 
         elif item.itemType == treeItem.typeBoolean:
             if item.value:
@@ -817,7 +820,7 @@ class nineml_component_inspector:
             content += '<li>{0}</li>'.format(item.name)
 
         for child in item.children:
-            content += self._generateHTMLFormTree(child, category)
+            content += self._generateHTMLFormTree(child, category, required)
 
         content += '</ul>'
         return content
@@ -920,9 +923,6 @@ class nineml_component_inspector:
             return None
 
     def generateLatexReport(self, tests = []):
-        """
-        'tests' argument is an array of tuples: (varName, xPoints, yPoints, plotFileName)
-        """
         if not self.ninemlComponent or not isinstance(self.ninemlComponent, nineml.abstraction_layer.ComponentClass):
             raise RuntimeError('Invalid input NineML component')
 
