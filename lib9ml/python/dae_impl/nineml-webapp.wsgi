@@ -363,10 +363,9 @@ class nineml_webapp:
         
         finally:
             # Remove temporary directory
-            #if os.path.isdir(tmpFolder):
-            #    shutil.rmtree(tmpFolder)
-            pass
-        
+            if os.path.isdir(tmpFolder):
+                shutil.rmtree(tmpFolder)
+            
         enablePDF = False
         enableZIP = False
         if pdf:
