@@ -132,18 +132,21 @@
                             //$("#dialogGenerateALReport").dialog("close"); 
                         });
                     }, 
-                    "Cancel": function() { 
+                    "Close": function() { 
                             $(this).dialog("close"); 
                     } 
                 },
                 open: function(event, ui) {
-                        $("#testableComponent").text("");
-                        $("#selectedALComponentName").text("");
+                        $("#testableComponent").empty();
+                        $("#selectedALComponentName").empty();
+                        $("#testsList").empty();
                     },
                 close: function(event, ui) { 
-                        $("#testableComponent").text("");
-                        $("#selectedALComponentName").text("");  
-                        $("#applicationID").text("");
+                        $("#testableComponent").empty();
+                        $("#selectedALComponentName").empty();
+                        $("#testsList").empty();
+                        $("#applicationID").empty();
+                        
                         $("#dialogInitialPage").dialog("open"); 
                     }
             });
@@ -402,6 +405,8 @@
             });
             
             $("#buttonUploadALComponent").button().click(function(){
+                alert("Not implemented yet");
+                return;
                 $("#dialogUploadALComponent").dialog("open"); 
             });
             
@@ -450,21 +455,6 @@
                 <ul id="testsList">
                 </ul>
                 </br>
-<!--                <table id="tests" class="ui-widget ui-widget-content">
-                    <thead>
-                        <tr class="ui-widget-header ">
-                            <th>Name</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tbodyDefinedTests">
-                        <tr>
-                            <td>John Doe</td>
-                            <td>john.doe@example.com</td>
-                        </tr>
-
-                    </tbody>
-                </table> </br>-->
                 <button id="buttonAddTest">Add test</button>
             </li>
         </ol>
@@ -473,11 +463,11 @@
 
     </div>
     
-    <div id="testableComponent" style="display:none;"></div>
 </div>
 
 <div id="applicationID" style="display:none;"></div>
 <div id="postResults" style="display:none;"></div>
+<div id="testableComponent" style="display:none;"></div>
 
 <div id="dialogSelectALComponent" title="Select AL Component">
     <label for="listALComponent" style="width: 200px;">NineML component:</label>
@@ -497,38 +487,7 @@
 <div id="dialogAddPredefinedInputData" title="Predefined input data">
     <form id="formPredefinedInputData">
         Predefined input data (in JSON format):<br/>
-        <textarea id="textareaInputData" rows="10" cols="80" style="width:100%">{
-  "timeHorizon": 1.0, 
-  "reportingInterval": 0.001, 
-  "initial_conditions": {
-    "iaf_1coba.iaf.tspike": -10000000000, 
-    "iaf_1coba.iaf.V": -0.06, 
-    "iaf_1coba.cobaExcit.g": 0.0
-  }, 
-  "parameters": {
-    "iaf_1coba.iaf.gl": 50.0, 
-    "iaf_1coba.cobaExcit.vrev": 0.0, 
-    "iaf_1coba.cobaExcit.q": 3.0, 
-    "iaf_1coba.iaf.vreset": -0.06, 
-    "iaf_1coba.cobaExcit.tau": 5.0, 
-    "iaf_1coba.iaf.taurefrac": 0.008, 
-    "iaf_1coba.iaf.vthresh": -0.04, 
-    "iaf_1coba.iaf.vrest": -0.06, 
-    "iaf_1coba.iaf.cm": 1.0
-  }, 
-  "variables_to_report": {
-    "iaf_1coba.cobaExcit.I": true, 
-    "iaf_1coba.iaf.V": true
-  }, 
-  "event_ports_expressions": {
-    "iaf_1coba.cobaExcit.spikeinput": "0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90"
-  }, 
-  "active_regimes": {
-    "iaf_1coba.cobaExcit": "cobadefaultregime", 
-    "iaf_1coba.iaf": "subthresholdregime"
-  }, 
-  "analog_ports_expressions": {}
-}</textarea>
+        <textarea id="textareaInputData" rows="10" cols="80" style="width:100%"></textarea>
     </form>
 </div>
 
