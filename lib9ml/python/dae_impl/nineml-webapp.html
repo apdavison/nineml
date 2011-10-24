@@ -302,10 +302,13 @@
                 return unique;
             }
 
+            jQuery.validator.messages.required = "&nbsp; [required]";
+            jQuery.validator.messages.digits   = "&nbsp; [invalid]";
+            jQuery.validator.messages.number   = "&nbsp; [invalid]";
             $("#dialogAddTest").dialog({
                 autoOpen: false,
                 modal : true,
-                width : 800,
+                width : 500,
                 height : 600,
                 buttons: {
                     "Ok": function() { 
@@ -316,67 +319,79 @@
                     } 
                 },
                 open : function(event, ui) {
-                        $("#listAddTest").css("visibility", "hidden");
+                        $("#errorContainer_dialogAddTest").empty();
+                        $("#errorLabelContainer_dialogAddTest").empty();
                         
-                        $("#formAddTest").validate({submitHandler: function() { 
-                            var testName        = $("#id_testName").val();
-                            var testDescription = $("#id_testDescription").val();
-                            if(checkIfUnique(testName) == false)
-                            {
-                                alert("Test with that name already exists.");
-                                return;
-                            }
-                            
-                            $("#dialogAddTest").dialog("disable");                         
-                            
-                            var formData   = $("#formAddTest").serialize();
-                            var appID      = $("#applicationID").html();
-                            var parameters = {"__NINEML_ACTION__"    : "addTest",
-                                            "__NINEML_WEBAPP_ID__" : appID};
-                            parameters = $.param(parameters) + "&" + formData;
-                            $.post("nineml-webapp", parameters, function(data) {
-                                var results = JSON.parse(data);
-                                var success = results["success"];
-                                var error   = results["error"];
-                                var json    = results["content"];
-                                if(success == true)
+                        $("#formAddTest").validate(
+                        {
+                            errorClass: "invalid",
+                            //errorContainer: "#errorContainer_dialogAddTest, #errorLabelContainer_dialogAddTest",
+                            /*showErrors: function(errorMap, errorList) {
+                                var message = "<b>There are " + this.numberOfInvalids() + " errors on the form.";
+                                message += "<br/>Please check the fields marked in red.</b>";
+                                $("#errorLabelContainer_dialogAddTest").html(message);
+                                this.defaultShowErrors();
+                            },*/
+                            submitHandler: function() { 
+                                var testName        = $("#id_testName").val();
+                                var testDescription = $("#id_testDescription").val();
+                                if(checkIfUnique(testName) == false)
                                 {
-                                    var testName        = $("#id_testName").val();
-                                    var testDescription = $("#id_testDescription").val();
-                                    var length = $("#testsList").children().length;
-                                    var id = "__test_" + length;
-                                    var li = "<li id=\"{0}\">{1}</li>".format(id, testName);
-                                    $("#" + id).data("testName", testName);
-                                    $("#" + id).data("testDescription", testDescription);
-                                    $("#testsList").append(li);
-                                    
-                                    $("#listAddTest").css("visibility", "visible");
+                                    alert("Test with that name already exists.");
+                                    return;
                                 }
-                                else
-                                {
-                                    alert(error);
-                                }
-                                $("#dialogAddTest").dialog("enable");                         
-                                $("#dialogAddTest").dialog("close");                         
-                            });
-                        } 
-                    });
-                }
-            });
+                                
+                                $("#dialogAddTest").dialog("disable");                         
+                                
+                                var formData   = $("#formAddTest").serialize();
+                                var appID      = $("#applicationID").html();
+                                var parameters = {"__NINEML_ACTION__"    : "addTest",
+                                                "__NINEML_WEBAPP_ID__" : appID};
+                                parameters = $.param(parameters) + "&" + formData;
+                                $.post("nineml-webapp", parameters, function(data) {
+                                    var results = JSON.parse(data);
+                                    var success = results["success"];
+                                    var error   = results["error"];
+                                    var json    = results["content"];
+                                    if(success == true)
+                                    {
+                                        var testName        = $("#id_testName").val();
+                                        var testDescription = $("#id_testDescription").val();
+                                        var length = $("#testsList").children().length;
+                                        var id = "__test_" + length;
+                                        var li = "<li id=\"{0}\">{1}</li>".format(id, testName);
+                                        $("#" + id).data("testName", testName);
+                                        $("#" + id).data("testDescription", testDescription);
+                                        $("#testsList").append(li);
+                                    }
+                                    else
+                                    {
+                                        alert(error);
+                                    }
+                                    $("#dialogAddTest").dialog("enable");                         
+                                    $("#dialogAddTest").dialog("close");                         
+                                });
+                            } 
+                        });
+                    }
+                });
 
             $("#dialogAddPredefinedInputData").dialog({
                 autoOpen: false,
                 modal : true,
+                width : 600,
+                height : 500,
                 buttons: {
                     "Help": function() { 
                         $("#dialogPredefinedValuesHelp").dialog("open");
                     },
+                    "Cancel": function() { 
+                        $(this).dialog("close");                         
+                    },
                     "Continue": function() { 
                         $(this).dialog("close");                         
-                    }
-                },
-                close: function(event, ui) { 
-                        var inputData = $("#textareaInputData").val();
+                        
+                        var inputData = $("#textareaInputData").text();
                         var appID      = $("#applicationID").html();
                         var parameters = {"__NINEML_ACTION__"    : "displayGUI",
                                           "__NINEML_WEBAPP_ID__" : appID,
@@ -397,6 +412,7 @@
                             }
                         });
                     }
+                }
             });
 
             $("#formUploadXMLFile").ajaxForm({                 
@@ -492,17 +508,17 @@
 <div id="dialogGenerateALReport" style="display:none;" title="Generate Abstraction Layer component report">
     <div id="users-contain" class="ui-widget">
         <ol>
-            <li>Choose AL component: </br>
+            <li>Choose AL component: <br/>
                 <button id="buttonSelectALComponent">Select predefined Component</button>
                 or
-                <button id="buttonUploadALComponent">Upload component</button> </br> </br>
+                <button id="buttonUploadALComponent">Upload component</button> <br/> <br/>
                 Selected AL component name: <b id="selectedALComponentName"></b>
             </li>
             <br/>
-            <li id="listAddTest">Add some tests (optional): </br>
+            <li id="listAddTest">Add some tests (optional): <br/>
                 <ul id="testsList">
                 </ul>
-                </br>
+                <br/>
                 <button id="buttonAddTest">Add test</button>
             </li>
         </ol>
@@ -535,12 +551,13 @@
 <div id="dialogAddPredefinedInputData" title="Predefined input data">
     <form id="formPredefinedInputData">
         Predefined input data (in JSON format):<br/>
-        <textarea id="textareaInputData" rows="10" cols="80" style="width:100%"></textarea>
+        <textarea id="textareaInputData" rows="30" cols="80" style="height:100%; width:100%; white-space:normal;"></textarea>
     </form>
 </div>
 
 <div id="dialogAddTest" title="Edit components parameters">
-    <ul id="dialogAddTestMessageBox"></ul>
+    <p id="errorLabelContainer_dialogAddTest" style="color:red;"></p>
+    <ul id="errorContainer_dialogAddTest"></ul>
     <form class="cmxform" id="formAddTest" action="nineml-webapp" method="post">
     </form>
 <div>
@@ -567,7 +584,7 @@
   "timeHorizon": 1.0, 
   "reportingInterval": 0.001, 
   "initial_conditions": {
-    "iaf_1coba.iaf.tspike": -1e+99, 
+    "iaf_1coba.iaf.tspike": -10000000000, 
     "iaf_1coba.iaf.V": -0.06, 
     "iaf_1coba.cobaExcit.g": 0.0
   }, 
@@ -587,8 +604,7 @@
     "iaf_1coba.iaf.V": true
   }, 
   "event_ports_expressions": {
-    "iaf_1coba.cobaExcit.spikeinput": "0.05, 0.10, 0.20, 0.30, 0.40, 
-                                       0.50, 0.60, 0.70, 0.80, 0.90"
+    "iaf_1coba.cobaExcit.spikeinput": "0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90"
   }, 
   "active_regimes": {
     "iaf_1coba.cobaExcit": "cobadefaultregime", 
@@ -605,7 +621,7 @@
   "timeHorizon": 1.0, 
   "reportingInterval": 0.001, 
   "initial_conditions": {
-    "iaf.tspike": -1e+99, 
+    "iaf.tspike": -10000000000, 
     "iaf.V": -0.06
   }, 
   "parameters": {
@@ -647,8 +663,7 @@
     "CobaSyn.I": true 
   }, 
   "event_ports_expressions": {
-    "CobaSyn.spikeinput": "0.05, 0.10, 0.20, 0.30, 0.40, 
-                           0.50, 0.60, 0.70, 0.80, 0.90"
+    "CobaSyn.spikeinput": "0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90"
   }, 
   "active_regimes": {
     "CobaSyn": "cobadefaultregime"

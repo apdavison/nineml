@@ -1,13 +1,6 @@
 body 
 {
-    font:14px sans-serif Tahoma;
-/*    padding:0;
-    margin:20px;
-    color:#333;
-    background: white;
-    margin-left: auto; 
-    margin-right: auto; 
-    width: 700px;*/
+    font: 0.9em sans-serif;
 }
 .error
 {
@@ -71,8 +64,8 @@ form legend
 form label 
 {
     display: inline-block;
-    line-height: 1.8;
-    vertical-align: top;
+    line-height: 2;
+    vertical-align: middle;
 }
 form fieldset ol 
 {
@@ -108,9 +101,67 @@ form em
 }
 form label 
 {
-    width: 150px; /* Width of labels */
+   /* min-width: 10em;*/ /* Width of labels */
 }
 form fieldset fieldset label 
 {
-    margin-left: 153px; /* Width plus 3 (html space) */
+    margin-left: 17em; /* Width plus 2 (html space) */
 }
+
+.ninemlBoolean
+{
+    width: 10em; /* Width of input fields */
+    float: right;
+    clear: both;
+}
+
+.ninemlFloat
+{
+    width: 10em; /* Width of input fields */
+    float: right;
+    clear: both;
+    vertical-align: middle;
+}
+
+.ninemlString
+{
+    width: 10em; /* Width of input fields */
+    float: right;
+    clear: both;
+    vertical-align: middle;
+}
+
+.ninemlMultilineString
+{
+    width: 10em; /* Width of input fields */
+    float: right;
+    white-space:normal;
+    clear: both;
+    vertical-align: middle;
+}
+
+.ninemlComboBox
+{
+    width: 10em; /* Width of input fields */
+    float: right;
+    clear: both;
+}
+
+.ninemlCheckBox
+{
+    float: right;
+    clear: both;
+    vertical-align: middle;
+}
+
+input.invalid 
+{
+    color : red;
+    border: 2px solid red;
+}
+
+label.invalid 
+{
+    color : red;
+}
+

@@ -152,11 +152,19 @@ class nineml_webapp:
         #print('applicationID = ' + applicationID, file=sys.stderr)
         
         if dictFormData.has_key('InitialValues'):
-            data = json.loads(dictFormData['InitialValues'][0])
-            #try:
-            #    data = json.loads(dictFormData['InitialValues'][0])
-            #except Exception as e:
-            #    pass
+            #data = json.loads(dictFormData['InitialValues'][0])
+            try:
+                strJSON = str(dictFormData['InitialValues'][0])
+                strJSON = strJSON.replace('\r', '')
+                strJSON = strJSON.replace('\n', '')
+                strJSON = strJSON.replace('\t', '')
+                data = json.loads(strJSON)
+            except Exception as e:
+                html = self.error(str(e) + '\n' + strJSON)
+                output_len = len(html)
+                start_response('200 OK', [('Content-type', 'text/html'),
+                                        ('Content-Length', str(output_len))])
+                return [html]
 
         simulation_data = daeSimulationInputData()
         simulation_data.loadDictionary(data)

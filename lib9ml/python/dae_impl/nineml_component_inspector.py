@@ -728,17 +728,17 @@ class nineml_component_inspector:
         content += '<fieldset>'
         content += '<legend>General</legend>'
         content += '<label for="testName">Test name</label>'
-        content += '<input class="required" id="id_testName" type="text" name="testName" value=""/><br/>'
+        content += '<input class="ninemlString required" id="id_testName" type="text" name="testName" value=""/><br/>'
         content += '<label for="testDescription">Test description</label>'
-        content += '<textarea id="id_testDescription" name="testDescription" rows="2" cols="40"></textarea><br/>'
+        content += '<textarea class="ninemlMultilineString" id="id_testDescription" name="testDescription" rows="2" cols="2"></textarea><br/>'
         content += '</fieldset>\n'
 
         content += '<fieldset>'
         content += '<legend>Simulation</legend>'
         content += '<label for="timeHorizon">Time horizon</label>'
-        content += '<input class="required number" id="id_timeHorizon" type="text" name="timeHorizon" value="{0}"/><br/>'.format(self.timeHorizon)
+        content += '<input class="ninemlFloat required number" id="id_timeHorizon" type="text" name="timeHorizon" value="{0}"/><br/>'.format(self.timeHorizon)
         content += '<label for="reportingInterval">Reporting interval</label>'
-        content += '<input class="required number" id="id_reportingInterval" type="text" name="reportingInterval" value="{0}"/><br/>'.format(self.reportingInterval)
+        content += '<input class="ninemlFloat required number" id="id_reportingInterval" type="text" name="reportingInterval" value="{0}"/><br/>'.format(self.reportingInterval)
         content += '</fieldset>\n'
 
         if len(self.parameters) > 0:
@@ -787,26 +787,26 @@ class nineml_component_inspector:
 
         content = '<ul>'
         if item.itemType == treeItem.typeFloat:
-            content += '<li><label for="{1}">{0}</label><input class="required number" type="text" name="{1}" value="{2}"/></li>'.format(item.name, inputName, item.value)
+            content += '<li><label for="{1}">{0}</label><input class="ninemlFloat required number" type="text" name="{1}" value="{2}"/></li>'.format(item.name, inputName, item.value)
 
         elif item.itemType == treeItem.typeInteger:
-            content += '<li><label for="{1}">{0}</label><input class="required digits" type="text" name="{1}" value="{2}"/></li>'.format(item.name, inputName, item.value)
+            content += '<li><label for="{1}">{0}</label><input class="ninemlFloat required digits" type="text" name="{1}" value="{2}"/></li>'.format(item.name, inputName, item.value)
 
         elif item.itemType == treeItem.typeString:
             if required:
-                content += '<li><label for="{1}">{0}</label><input class="required" type="text" name="{1}" value="{2}"/></li>'.format(item.name, inputName, item.value)
+                content += '<li><label for="{1}">{0}</label><input class="ninemlString required" type="text" name="{1}" value="{2}"/></li>'.format(item.name, inputName, item.value)
             else:
-                content += '<li><label for="{1}">{0}</label><input type="text" name="{1}" value="{2}"/></li>'.format(item.name, inputName, item.value)
+                content += '<li><label for="{1}">{0}</label><input class="ninemlString" type="text" name="{1}" value="{2}"/></li>'.format(item.name, inputName, item.value)
 
         elif item.itemType == treeItem.typeBoolean:
             if item.value:
-                content += '<li><label for="{1}">{0}</label><input type="checkbox" name="{1}" checked/></li>'.format(item.name, inputName)
+                content += '<li><label for="{1}">{0}</label><input class="ninemlCheckBox" type="checkbox" name="{1}" checked/></li>'.format(item.name, inputName)
             else:
-                content += '<li><label for="{1}">{0}</label><input type="checkbox" name="{1}"/></li>'.format(item.name, inputName)
+                content += '<li><label for="{1}">{0}</label><input class="ninemlCheckBox" type="checkbox" name="{1}"/></li>'.format(item.name, inputName)
 
         elif item.itemType == treeItem.typeList:
             if isinstance(item.data, collections.Iterable) and len(item.data) > 0:
-                content += '<li><label for="{1}">{0}</label> <select name="{1}">'.format(item.name, inputName)
+                content += '<li><label for="{1}">{0}</label> <select class="ninemlComboBox" name="{1}">'.format(item.name, inputName)
                 for available_regime in item.data:
                     if available_regime == item.value:
                         content += '<option value="{0}" selected>{0}</option>'.format(available_regime)
