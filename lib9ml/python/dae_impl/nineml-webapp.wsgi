@@ -1,6 +1,6 @@
 from __future__ import print_function
 from pprint import pformat
-import os, sys, math, json, traceback, os.path, tempfile, shutil
+import os, sys, math, json, traceback, os.path, tempfile, shutil, cgi
 import cPickle as pickle
 from time import localtime, strftime, time
 import uuid, urlparse, zipfile, cgitb
@@ -154,13 +154,10 @@ class nineml_webapp:
         if dictFormData.has_key('InitialValues'):
             #data = json.loads(dictFormData['InitialValues'][0])
             try:
-                strJSON = str(dictFormData['InitialValues'][0])
-                strJSON = strJSON.replace('\r', '')
-                strJSON = strJSON.replace('\n', '')
-                strJSON = strJSON.replace('\t', '')
+                strJSON = unicode(dictFormData['InitialValues'][0])
                 data = json.loads(strJSON)
             except Exception as e:
-                html = self.error(str(e) + '\n' + strJSON)
+                html = self.error(str(e))
                 output_len = len(html)
                 start_response('200 OK', [('Content-type', 'text/html'),
                                         ('Content-Length', str(output_len))])
@@ -568,6 +565,7 @@ class nineml_webapp:
                 raw_arguments  = pformat(environ['wsgi.input'].read(content_length))
                 raw_arguments  = raw_arguments.strip(' \'')
                 dictFormData   = urlparse.parse_qs(raw_arguments)
+                #dictFormData = cgi.FieldStorage(fp=environ['wsgi.input'], environ=environ) 
 
                 if not __actionName__ in dictFormData:
                     raise RuntimeError('Phase argument must be specified')

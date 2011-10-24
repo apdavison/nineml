@@ -45,7 +45,9 @@
                             }
                             else
                             {
+                                var traceback = results["traceback"];
                                 alert(error);
+                                alert(traceback);
                             }
                             $("#dialogInitialPage").dialog("enable"); 
                         });
@@ -391,7 +393,8 @@
                     "Continue": function() { 
                         $(this).dialog("close");                         
                         
-                        var inputData = $("#textareaInputData").text();
+                        var inputData = $("#textareaInputData").val();
+                        alert(inputData);
                         var appID      = $("#applicationID").html();
                         var parameters = {"__NINEML_ACTION__"    : "displayGUI",
                                           "__NINEML_WEBAPP_ID__" : appID,
