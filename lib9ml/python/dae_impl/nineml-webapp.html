@@ -2,10 +2,9 @@
 <html>
 <head>
     <title>NineML WebApp</title>
-    <meta content="text/html; charset=ISO-8859-1" http-equiv="content-type">
-<!--    <link type="text/css" href="script/css/smoothness/jquery-ui.css" rel="stylesheet" />   -->
+    <meta content="text/html; charset=UTF-8" http-equiv="content-type">
     <link type="text/css" href="script/css/redmond/jquery-ui-1.8.16.custom.css" rel="stylesheet" />   
-    <link type="text/css" href="nineml-webapp.css"            rel="stylesheet" media="all" />
+    <link type="text/css" href="nineml-webapp.css" rel="stylesheet" media="all" />
     <script type="text/javascript" src="script/js/jquery-1.6.2.min.js"></script>
     <script type="text/javascript" src="script/js/jquery-ui-1.8.16.custom.min.js"></script>
     <script type="text/javascript" src="script/jquery.form.js"></script>
@@ -45,8 +44,8 @@
                             }
                             else
                             {
-                                var traceback = results["traceback"];
                                 alert(error);
+                                var traceback = results["traceback"];
                                 alert(traceback);
                             }
                             $("#dialogInitialPage").dialog("enable"); 
@@ -394,7 +393,6 @@
                         $(this).dialog("close");                         
                         
                         var inputData = $("#textareaInputData").val();
-                        alert(inputData);
                         var appID      = $("#applicationID").html();
                         var parameters = {"__NINEML_ACTION__"    : "displayGUI",
                                           "__NINEML_WEBAPP_ID__" : appID,
@@ -582,44 +580,44 @@
 <div id="dialogPredefinedValuesHelp" title="Help">
     <p>Some dummy input data that should work</p>
     <p><b>Component: hierachical_iaf_1coba</b> <br/>
-        <pre>
+        <code>
 {
-  "timeHorizon": 1.0, 
-  "reportingInterval": 0.001, 
-  "initial_conditions": {
-    "iaf_1coba.iaf.tspike": -10000000000, 
-    "iaf_1coba.iaf.V": -0.06, 
-    "iaf_1coba.cobaExcit.g": 0.0
-  }, 
-  "parameters": {
-    "iaf_1coba.iaf.gl": 50.0, 
-    "iaf_1coba.cobaExcit.vrev": 0.0, 
-    "iaf_1coba.cobaExcit.q": 3.0, 
-    "iaf_1coba.iaf.vreset": -0.06, 
-    "iaf_1coba.cobaExcit.tau": 5.0, 
-    "iaf_1coba.iaf.taurefrac": 0.008, 
-    "iaf_1coba.iaf.vthresh": -0.04, 
-    "iaf_1coba.iaf.vrest": -0.06, 
-    "iaf_1coba.iaf.cm": 1.0
-  }, 
-  "variables_to_report": {
-    "iaf_1coba.cobaExcit.I": true, 
-    "iaf_1coba.iaf.V": true
-  }, 
-  "event_ports_expressions": {
-    "iaf_1coba.cobaExcit.spikeinput": "0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90"
-  }, 
-  "active_regimes": {
-    "iaf_1coba.cobaExcit": "cobadefaultregime", 
-    "iaf_1coba.iaf": "subthresholdregime"
-  }, 
-  "analog_ports_expressions": {}
+    "timeHorizon": 1.0, 
+    "reportingInterval": 0.001, 
+    "initial_conditions": {
+        "iaf_1coba.iaf.tspike": -10000000000, 
+        "iaf_1coba.iaf.V": -0.06, 
+        "iaf_1coba.cobaExcit.g": 0.0
+    }, 
+    "parameters": {
+        "iaf_1coba.iaf.gl": 50.0, 
+        "iaf_1coba.cobaExcit.vrev": 0.0, 
+        "iaf_1coba.cobaExcit.q": 3.0, 
+        "iaf_1coba.iaf.vreset": -0.06, 
+        "iaf_1coba.cobaExcit.tau": 5.0, 
+        "iaf_1coba.iaf.taurefrac": 0.008, 
+        "iaf_1coba.iaf.vthresh": -0.04, 
+        "iaf_1coba.iaf.vrest": -0.06, 
+        "iaf_1coba.iaf.cm": 1.0
+    }, 
+    "variables_to_report": {
+        "iaf_1coba.cobaExcit.I": true, 
+        "iaf_1coba.iaf.V": true
+    }, 
+    "event_ports_expressions": {
+        "iaf_1coba.cobaExcit.spikeinput": "0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90"
+    }, 
+    "active_regimes": {
+        "iaf_1coba.cobaExcit": "cobadefaultregime", 
+        "iaf_1coba.iaf": "subthresholdregime"
+    }, 
+    "analog_ports_expressions": {}
 }
-        </pre>
+        </code>
     </p>
     
     <p><b>Component: iaf</b><br/>
-        <pre>
+        <code>
 {
   "timeHorizon": 1.0, 
   "reportingInterval": 0.001, 
@@ -646,11 +644,11 @@
     "iaf.ISyn" : "1.2"
   }
 }
-        </pre>
+        </code>
     </p>
             
     <p><b>Component: coba_synapse</b> <br/>
-        <pre>
+        <code>
 {
   "timeHorizon": 1.0, 
   "reportingInterval": 0.001, 
@@ -674,8 +672,8 @@
   "analog_ports_expressions": {
     "CobaSyn.V" : "-0.050"
   }
-}
-        </pre>
+} 
+        </code>
     </p>
 </div>
 

@@ -1,6 +1,6 @@
 from __future__ import print_function
 from pprint import pformat
-import os, sys, math, json, traceback, os.path, tempfile, shutil, cgi
+import os, sys, math, json, traceback, os.path, tempfile, shutil, cgi, unicodedata
 import cPickle as pickle
 from time import localtime, strftime, time
 import uuid, urlparse, zipfile, cgitb
@@ -152,17 +152,12 @@ class nineml_webapp:
         #print('applicationID = ' + applicationID, file=sys.stderr)
         
         if dictFormData.has_key('InitialValues'):
-            #data = json.loads(dictFormData['InitialValues'][0])
             try:
-                strJSON = unicode(dictFormData['InitialValues'][0])
-                data = json.loads(strJSON)
-            except Exception as e:
-                html = self.error(str(e))
-                output_len = len(html)
-                start_response('200 OK', [('Content-type', 'text/html'),
-                                        ('Content-Length', str(output_len))])
-                return [html]
-
+                print(repr(dictFormData['InitialValues'][0]), file=sys.stderr)
+                data = json.loads(dictFormData['InitialValues'][0])
+            except:
+                pass
+        
         simulation_data = daeSimulationInputData()
         simulation_data.loadDictionary(data)
         
@@ -565,8 +560,11 @@ class nineml_webapp:
                 raw_arguments  = pformat(environ['wsgi.input'].read(content_length))
                 raw_arguments  = raw_arguments.strip(' \'')
                 dictFormData   = urlparse.parse_qs(raw_arguments)
-                #dictFormData = cgi.FieldStorage(fp=environ['wsgi.input'], environ=environ) 
+                fieldStorage = cgi.FieldStorage(fp=environ['wsgi.input'], environ=environ) 
 
+                print(dictFormData, file=sys.stderr)
+                print(str(fieldStorage), file=sys.stderr)
+                
                 if not __actionName__ in dictFormData:
                     raise RuntimeError('Phase argument must be specified')
 
