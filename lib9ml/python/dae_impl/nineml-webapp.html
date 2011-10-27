@@ -17,6 +17,8 @@
         <p>You don't have javascript enabled.</p>
     </noscript>         
     <script type="text/javascript">
+        var __nineml_webapp__ = "http://nineml-app.incf.org/nineml-webapp";
+        
         $(document).ready(function(){
             
             $("#mainContent").css("display", "inline");
@@ -31,7 +33,7 @@
                         // Get App IOD from the server which is needed to store the input data for activity
                         $("#dialogInitialPage").dialog("disable"); 
                         var parameters = {"__NINEML_ACTION__" : "getApplicationID"};
-                        $.post("nineml-webapp", parameters, function(data) {
+                        $.post(__nineml_webapp__, parameters, function(data) {
                             var results = JSON.parse(data);
                             var success = results["success"];
                             var error   = results["error"];
@@ -73,7 +75,7 @@
                         var appID      = $("#applicationID").html();
                         var parameters = {"__NINEML_ACTION__"    : "downloadPDF",
                                           "__NINEML_WEBAPP_ID__" : appID};
-                        $.download("nineml-webapp", $.param(parameters));
+                        $.download(__nineml_webapp__, $.param(parameters));
                     }, 
                     "Download ZIP": function() { 
                         if($("#zipAvailable").text() != "true")
@@ -84,7 +86,7 @@
                         var appID      = $("#applicationID").html();
                         var parameters = {"__NINEML_ACTION__"    : "downloadZIP",
                                           "__NINEML_WEBAPP_ID__" : appID};
-                        $.download("nineml-webapp", $.param(parameters));
+                        $.download(__nineml_webapp__, $.param(parameters));
                     }, 
                     "Close": function() { 
                         $(this).dialog("close");                         
@@ -104,7 +106,7 @@
                         var appID      = $("#applicationID").html();
                         var parameters = {"__NINEML_ACTION__"    : "generateReport",
                                           "__NINEML_WEBAPP_ID__" : appID};
-                        $.post("nineml-webapp", parameters, function(data) {
+                        $.post(__nineml_webapp__, parameters, function(data) {
                             var results = JSON.parse(data);
                             var success = results["success"];
                             var error   = results["error"];
@@ -163,7 +165,7 @@
                         var parameters = {"__NINEML_ACTION__"    : "setALComponent",
                                           "__NINEML_WEBAPP_ID__" : appID,
                                           "TestableComponent" : component};
-                        $.post("nineml-webapp", parameters, function(data) {
+                        $.post(__nineml_webapp__, parameters, function(data) {
                             var results = JSON.parse(data);
                             var success = results["success"];
                             var error   = results["error"];
@@ -199,7 +201,7 @@
                         $("#formUploadXMLFile").submit();
                         //$("#testableComponent").text(component);
                         //$("#selectedALComponentName").text(component);                        
-                        //$("#formUploadXMLFile").load("nineml-webapp", parameters);
+                        //$("#formUploadXMLFile").load(__nineml_webapp__, parameters);
                         $(this).dialog("close"); 
                     }, */
                     "Close": function() { 
@@ -349,7 +351,7 @@
                                 var parameters = {"__NINEML_ACTION__"    : "addTest",
                                                 "__NINEML_WEBAPP_ID__" : appID};
                                 parameters = $.param(parameters) + "&" + formData;
-                                $.post("nineml-webapp", parameters, function(data) {
+                                $.post(__nineml_webapp__, parameters, function(data) {
                                     var results = JSON.parse(data);
                                     var success = results["success"];
                                     var error   = results["error"];
@@ -397,7 +399,7 @@
                         var parameters = {"__NINEML_ACTION__"    : "displayGUI",
                                           "__NINEML_WEBAPP_ID__" : appID,
                                           "InitialValues"        : inputData};
-                        $.post("nineml-webapp", parameters, function(data) {
+                        $.post(__nineml_webapp__, parameters, function(data) {
                             var results = JSON.parse(data);
                             var success = results["success"];
                             var error   = results["error"];
@@ -439,7 +441,7 @@
             
             $("#buttonSelectALComponent").button().click(function(){
                 var parameters = {"__NINEML_ACTION__" : "getAvailableALComponents"};
-                $.post("nineml-webapp", parameters, function(data) {
+                $.post(__nineml_webapp__, parameters, function(data) {
                     var results = JSON.parse(data);
                     var success = results["success"];
                     var error   = results["error"];
@@ -540,7 +542,7 @@
 </div>
 
 <div id="dialogUploadALComponent" title="Upload AL Component">
-    <form id="formUploadXMLFile" action="nineml-webapp" enctype="multipart/form-data" method="post">
+    <form id="formUploadXMLFile" action="" enctype="multipart/form-data" method="post">
 <!--        <input id="applicationID" type="hidden" name="applicationID" value=""/>-->
         <input type="hidden" name="__NINEML_ACTION__" value="uploadULComponent"/>
         <label for="file">NineML User Layer XML file:</label> 
@@ -559,7 +561,7 @@
 <div id="dialogAddTest" title="Edit components parameters">
     <p id="errorLabelContainer_dialogAddTest" style="color:red;"></p>
     <ul id="errorContainer_dialogAddTest"></ul>
-    <form class="cmxform" id="formAddTest" action="nineml-webapp" method="post">
+    <form id="formAddTest" action="" method="post">
     </form>
 <div>
 
