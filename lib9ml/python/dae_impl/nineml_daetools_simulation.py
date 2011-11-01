@@ -147,9 +147,9 @@ class ninemlTesterDataReporter(daeDataReporterLocal):
             fig.savefig(pngPath, dpi=(300))
             
             if self.exportCSV(xPoints, yPoints, xAxisLabel, yAxisLabel, csvPath):
-                plots.append((var.Name, xPoints, yPoints, pngName, csvName))
+                plots.append((var.Name, xPoints, yPoints, pngName, csvName, pngPath, csvPath))
             else:
-                plots.append((var.Name, xPoints, yPoints, None, csvName))
+                plots.append((var.Name, xPoints, yPoints, pngName, None, pngPath, None))
 
         return plots
 

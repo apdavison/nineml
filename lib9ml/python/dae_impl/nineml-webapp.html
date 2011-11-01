@@ -55,9 +55,9 @@
                             }
                             else
                             {
-                                alert(error);
                                 var traceback = results["traceback"];
-                                alert(traceback);
+                                var message = "<p>Error occured while getting the uuid:<br/><pre>{0}</pre></p> <p>Traceback:<br/><pre>{1}</pre></p>".format(error, traceback);
+                                showErrorMessage(message, 500, 300);
                             }
                             $("#dialogInitialPage").dialog("enable"); 
                         });
@@ -137,12 +137,11 @@
                             else
                             {
                                 var traceback = results["traceback"];
-                                alert(error);
-                                alert(traceback);
+                                var message = "<p>Error occured while generating the report:<br/><pre>{0}</pre></p><p>Traceback:<br/><pre>{1}</pre></p>".format(error, traceback);
+                                showErrorMessage(message, 400, 300);
                             }
                             
                             $("#dialogGenerateALReport").dialog("enable");
-                            //$("#dialogGenerateALReport").dialog("close"); 
                         });
                     }, 
                     "Close": function() { 
@@ -185,10 +184,13 @@
                                 $("#testableComponent").text(component);
                                 $("#selectedALComponentName").text(component);  
                                 $("#postResults").html(component);
+                                $("#testsList").empty();
                             }
                             else
                             {
-                                alert(error);
+                                var traceback = results["traceback"];
+                                var message = "<p>Error occured while setting the component:<br/><pre>{0}</pre></p> <p>Traceback:<br/><pre>{1}</pre></p>".format(error, traceback);
+                                showErrorMessage(message, 500, 300);
                             }
                             $("#dialogSelectALComponent").dialog("enable");
                             $("#dialogSelectALComponent").dialog("close"); 
@@ -211,10 +213,13 @@
                         $("#testableComponent").text(component_name);
                         $("#selectedALComponentName").text(component_name);  
                         $("#postResults").html(component_name);
+                        $("#testsList").empty();
                     }
                     else
                     {
-                        alert(error);
+                        var traceback = results["traceback"];
+                        var message = "<p>Error occured while processing the xml file:<br/><pre>{0}</pre></p> <p>Traceback:<br/><pre>{1}</pre></p>".format(error, traceback);
+                        showErrorMessage(message, 500, 300);
                     }
                     $("#dialogUploadALComponent").dialog("enable"); 
                     $("#dialogUploadALComponent").dialog("close"); 
@@ -242,6 +247,7 @@
                     } 
                 },
                 open: function(event, ui) {
+                        $("#fileXML").attr("value", "")
                         $("#testableComponent").empty();
                         $("#selectedALComponentName").empty();
                     }
@@ -343,7 +349,8 @@
                                 var testDescription = $("#id_testDescription").val();
                                 if(checkIfUnique(testName) == false)
                                 {
-                                    alert("Test with that name already exists.");
+                                    var message = "Test with that name already exists.";
+                                    showErrorMessage(message, 400, 200);
                                     return;
                                 }
                                 
@@ -372,7 +379,9 @@
                                     }
                                     else
                                     {
-                                        alert(error);
+                                        var traceback = results["traceback"];
+                                        var message = "<p>Error occured while adding the test:<br/><pre>{0}</pre></p> <p>Traceback:<br/><pre>{1}</pre></p>".format(error, traceback);
+                                        showErrorMessage(message, 500, 300);
                                     }
                                     $("#dialogAddTest").dialog("enable");                         
                                     $("#dialogAddTest").dialog("close");                         
@@ -414,7 +423,9 @@
                             }
                             else
                             {
-                                alert(error);
+                                var traceback = results["traceback"];
+                                var message = "<p>Error occured while setting the predefined values:<br/><pre>{0}</pre></p> <p>Traceback:<br/><pre>{1}</pre></p>".format(error, traceback);
+                                showErrorMessage(message, 500, 300);
                             }
                         });
                     }
@@ -435,21 +446,22 @@
                     }
                     else
                     {
-                        alert(error);
+                        var traceback = results["traceback"];
+                        var message = "<p>Error occured while getting the available components:<br/><pre>{0}</pre></p> <p>Traceback:<br/><pre>{1}</pre></p>".format(error, traceback);
+                        showErrorMessage(message, 500, 300);
                     }
                 })
             });
             
             $("#buttonUploadALComponent").button().click(function(){
-                //alert("Not implemented yet");
-                //return;
                 $("#dialogUploadALComponent").dialog("open"); 
             });
             
             $("#buttonAddTest").button().click(function(){
                 if($("#selectedALComponentName").text() == "")
                 {
-                    alert("First select/upload a component");
+                    var message = "First select/upload a component";
+                    showErrorMessage(message, 400, 300);
                     return;
                 }
                 $("#dialogAddPredefinedInputData").dialog("open");

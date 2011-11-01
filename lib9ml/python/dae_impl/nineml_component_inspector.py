@@ -988,14 +988,9 @@ class nineml_component_inspector:
         content.append('Description: \n{0}\\newline\n'.format(testDescription))
         content.append('Input data: \n{0}\\newline\n'.format(testInputs))
         for plot in plots:
-            varName      = plot[0]
-            xPoints      = plot[1]
-            yPoints      = plot[2]
-            pngFileName  = plot[3]
-            csvFileName  = plot[4]
-            tex_plot = '\\begin{center}\n\\includegraphics{./' + pngFileName + '}\n\\end{center}\n'
+            varName, xPoints, yPoints, pngName, csvName, pngPath, csvPath = plot
+            tex_plot = '\\begin{center}\n\\includegraphics{' + pngPath + '}\n\\end{center}\n'
             content.append(tex_plot)
-
         
     def correctName(self, name):
         return name.replace('_', '\\_')

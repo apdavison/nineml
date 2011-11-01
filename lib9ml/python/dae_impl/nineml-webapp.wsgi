@@ -106,8 +106,7 @@ class nineml_webapp:
         if not 'xmlNineMLFile' in fieldStorage:
             raise RuntimeError('No input xml file with NineML component has been specified')
         
-        xmlFileContent = fieldStorage['xmlNineMLFile'].value
-        xmlFile        = fieldStorage['xmlNineMLFile'].file
+        xmlFile = fieldStorage['xmlNineMLFile'].file
         nineml_component = readers.XMLReader.read(xmlFile)
         return self.writeComponentToZODB(nineml_component, fieldStorage, environ, start_response)
     
@@ -124,7 +123,6 @@ class nineml_webapp:
 
     def writeComponentToZODB(self, nineml_component, fieldStorage, environ, start_response):
         applicationID = self.applicationIDFromDictionary(fieldStorage)
-        #print('applicationID = ' + applicationID, file=sys.stderr)
         
         dictZODB = {}
         dictZODB['name']                = nineml_component.name
@@ -133,9 +131,7 @@ class nineml_webapp:
         dictZODB['HTTP_USER_AGENT']     = environ['HTTP_USER_AGENT']
         dictZODB['tests']               = {}
         
-        #print(dictZODB, file=sys.stderr)
         self.writeZODB(applicationID, dictZODB)
-        #print('wrote ZODB', file=sys.stderr)
     
         results = {}
         results['success'] = True
@@ -153,14 +149,13 @@ class nineml_webapp:
         data = {}
 
         applicationID = self.applicationIDFromDictionary(fieldStorage)
-        #print('applicationID = ' + applicationID, file=sys.stderr)
         
         if 'InitialValues' in fieldStorage:
             try:
-                print('JSON data: ' + str(fieldStorage['InitialValues'].value), file=sys.stderr)
+                #print('JSON data: ' + str(fieldStorage['InitialValues'].value), file=sys.stderr)
                 data = json.loads(fieldStorage['InitialValues'].value)
             except Exception as e:
-                print('JSON exception: ' + str(e), file=sys.stderr)
+                #print('JSON exception: ' + str(e), file=sys.stderr)
                 pass
         
         simulation_data = daeSimulationInputData()
@@ -406,7 +401,6 @@ class nineml_webapp:
                                   #('Content-Transfer-Encoding', 'base64'),
                                   ('Content-Disposition', 'attachment; filename={0}.pdf'.format(name)),
                                   ('Content-Length', str(output_len))])
-        print('downloadPDF = ' + applicationID, file=sys.stderr)
         return [html]
     
     def downloadZIP(self, fieldStorage, environ, start_response):
@@ -439,6 +433,7 @@ class nineml_webapp:
         
             if isOK:
                 testName, testDescription, dictInputs, plots, log_output = results
+                print('plots = ' + str(plots), file=sys.stderr)
                 tests_data.append( (testName, testDescription, dictInputs, plots, log_output, tmp) )
                 test_reports += 'Test status: {0} [SUCCEEDED]'.format(testName)
             else:
@@ -495,9 +490,12 @@ class nineml_webapp:
 
             # Write .png and .csv files
             for plot in plots:
-                varName, xPoints, yPoints, pngName, csvName = plot
-                zip.write(tmpFolder + '/' + pngName, testFolder + pngName)
-                zip.write(tmpFolder + '/' + csvName, testFolder + csvName)
+                varName, xPoints, yPoints, pngName, csvName, pngPath, csvPath = plot
+                # it was tmpFolder + '/' + pngName before
+                if pngName:
+                    zip.write(pngPath, testFolder + pngName)
+                if csvName:
+                    zip.write(csvPath, testFolder + csvName)
         
         zip.close()
     
