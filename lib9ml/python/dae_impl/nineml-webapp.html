@@ -8,7 +8,11 @@
          http://nineml-app.incf.org
     -->
     <meta content="text/html; charset=UTF-8" http-equiv="content-type">
-    <link type="text/css" href="http://localhost/script/css/redmond/jquery-ui-1.8.16.custom.css" rel="stylesheet" />   
+    <link type="text/css" href="http://localhost/script/css/redmond/jquery-ui-1.8.16.custom.css" rel="stylesheet" />  
+    
+<!--    <style type="text/css">@import url(http://www.incf.org/portal_css/INCF.org%20skin/base-cachekey2304.css);</style>
+    <style type="text/css" media="all">@import url(http://www.incf.org/portal_css/INCF.org%20skin/ploneCustom-cachekey9204.css);</style>-->
+    
     <link type="text/css" href="http://localhost/nineml-webapp.css" rel="stylesheet" media="all" />
     <script type="text/javascript" src="http://localhost/script/js/jquery-1.6.2.min.js"></script>
     <script type="text/javascript" src="http://localhost/script/js/jquery-ui-1.8.16.custom.min.js"></script>
@@ -64,9 +68,13 @@
                     },
                     
                     "Simulate Network": function() { 
-                        $.Alert('This is a custom alert box');
                         //$(this).dialog("close"); 
                     },
+                    
+                    "About": function() { 
+                        $("#dialogInitialPageHelp").dialog("open");
+                        //$(this).dialog("close"); 
+                    }
                 }
             });
             
@@ -79,7 +87,7 @@
                     "Download PDF": function() { 
                         if($("#pdfAvailable").text() != "true")
                         {
-                            alert("PDF report is not available");
+                            showErrorMessage("PDF report is not available", 400, 200);
                             return;
                         }
                         var appID      = $("#applicationID").html();
@@ -90,7 +98,7 @@
                     "Download ZIP": function() { 
                         if($("#zipAvailable").text() != "true")
                         {
-                            alert("ZIP archive with the test data is not available");
+                            showErrorMessage("ZIP archive with the test data is not available", 400, 200);
                             return;
                         }
                         var appID      = $("#applicationID").html();
@@ -213,7 +221,6 @@
                         $("#testableComponent").text(component_name);
                         $("#selectedALComponentName").text(component_name);  
                         $("#postResults").html(component_name);
-                        $("#testsList").empty();
                     }
                     else
                     {
@@ -221,6 +228,8 @@
                         var message = "<p>Error occured while processing the xml file:<br/><pre>{0}</pre></p> <p>Traceback:<br/><pre>{1}</pre></p>".format(error, traceback);
                         showErrorMessage(message, 500, 300);
                     }
+                    $("#testsList").empty();
+                    
                     $("#dialogUploadALComponent").dialog("enable"); 
                     $("#dialogUploadALComponent").dialog("close"); 
                 },
@@ -266,8 +275,8 @@
             $("#dialogInitialPageHelp").dialog({
                 autoOpen: false,
                 modal: true,
-                width : 500,
-                height : 400,
+                width : 600,
+                height : 500,
                 buttons: {
                     Ok: function() {
                         $(this).dialog("close");
@@ -571,7 +580,52 @@
     <div id="zipAvailable" style="display:none;"></div>
 </div>
 
-<div id="dialogInitialPageHelp" title="Help">
+<div id="dialogInitialPageHelp" title="About">
+<p>
+The NineML web app is intended to serve as a reference implementation, 
+testing tool and report generator for NineML descriptions and components.
+</p>
+
+<p>
+NineML, Network Interchange for Neuroscience ML, is a markup language for 
+computational neuroscience model description developed by the INCF Program on 
+Multiscale Modeling’s Task Force on Standards and Guidelines for Multiscale Modeling. 
+A first version was released to the scientific community in July 2011. 
+Read more on the official NineML web pages are located on the INCF Software Center: 
+<a href="http://software.incf.org/software/nineml">http://software.incf.org/software/nineml</a>
+</p>
+
+<p>
+The NineML web app and reference implementation is developed by Dragan Nikolic and builds on
+<ul>
+<li>the DAE Tools, developed by Dragan Nikolic; <a href="http://daetools.sourceforge.net">http://daetools.sourceforge.net</a> </li>
+<li>the Python implementation of NineML developed by Mike Hull, Eilif Muller, and Andrew Davison; 
+  <a href="http://phobos.incf.ki.se">http://phobos.incf.ki.se</a> </li>
+<li>the work and discussions carried out by the Task Force on Standards and Guidelines for Multiscale Modeling: 
+    <a href="http://www.incf.org/programs/modeling/people">http://www.incf.org/programs/modeling/people</a> </li>
+</ul>
+</p>
+<hr/>
+
+<p>
+NineML is still a work in progress and your comments and feedback will be extremely valuable. 
+You can report bugs or missing features here and you can contact us using the following mailing-lists: <br/>
+
+<ul>
+<li>NineML announce: getting informed about NineML updates, events, ... <br/>
+<a href="http://lists.incf.org/mailman/listinfo/nineml-announce">http://lists.incf.org/mailman/listinfo/nineml-announce</a> </li>
+
+<li>NineML developers: planning to get involved in the further development of NineML, 
+join this list to get in touch with the taskforce and the API developers <br/>
+<a href="http://lists.incf.org/mailman/listinfo/nineml-developers">http://lists.incf.org/mailman/listinfo/nineml-developers</a> </li>
+
+<li>NineML users: Want to use NineML but do not know how to do it? 
+Need more information about the use of the APIs, have questions regarding NineML, 
+join this list and we will give as much detail as possible to satisfy your curiosity <br/>
+<a href="http://lists.incf.org/mailman/listinfo/nineml-users">http://lists.incf.org/mailman/listinfo/nineml-users</a> </li>
+</ul>
+</p>
+
 </div>
 
 <div id="dialogPredefinedValuesHelp" title="Help">

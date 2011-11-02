@@ -46,12 +46,8 @@ class daeNineMLWebAppLog(daeLogs.daeBaseLog):
         #print(self.IndentString + message, file=sys.stderr)
 
 class nineml_webapp:
-    def __init__(self):
-        pass
-
     def initial_page(self, environ, start_response):
-        available_components = sorted(TestableComponent.list_available())
-        html = getInitialPage(available_components)
+        html = '<html><head><meta http-equiv="Refresh" content="0; url=nineml-webapp.html" /></head><body></body></html>'
         output_len = len(html)
         start_response('200 OK', [('Content-type', 'text/html'),
                                   ('Content-Length', str(output_len))])
@@ -561,15 +557,10 @@ class nineml_webapp:
         try:
             html = ''
             if not ___import_exception___:
-                #content_length = int(environ['CONTENT_LENGTH'])
-                #raw_arguments  = pformat(environ['wsgi.input'].read(content_length))
-                #raw_arguments  = raw_arguments.strip(' \'')
-                #dictFormData   = urlparse.parse_qs(raw_arguments)
-
                 fieldStorage = cgi.FieldStorage(fp=environ['wsgi.input'], environ=environ) 
-                print(str(fieldStorage), file=sys.stderr)
                 if not __actionName__ in fieldStorage:
-                    raise RuntimeError('Phase argument must be specified')
+                    return self.initial_page(environ, start_response)
+                    #raise RuntimeError('Phase argument must be specified')
 
                 action = fieldStorage[__actionName__].value
                 
