@@ -495,19 +495,37 @@
 
 <body>
 <div id="dialogInitialPage" style="display:none;" title="NineML Web Application">
-    <h3>Welcome to nowhere!</h3>
     <p>
-    The web application takes a NineML component as an input and produces the component report in Latex/PDF format. 
-    Optionally it can show the GUI that allows user to enter the data necessary for simulation: values of the parameters,
-    initial conditions etc. Some predefined initial input values can be given in JSON format (to speed-up oftenly repeated tests).
-    If no initial values are provided the GUI will be populated with zeros and defaults. <br/>
-    The button <b>Generate report</b> produces the report with no test data added.<br/>
-    The button <b>Add test</b> generates GUI with the data that should be entered, runs the simulation, produces results/plots
-    and generates the report with the test data.<br/>
+    The NineML web app is intended to serve as a reference implementation, 
+    testing tool and report generator for <a href="http://software.incf.org/software/nineml">NineML</a> 
+    descriptions and components.
     </p>
     <p>
-    The analog ports input fields accept simple numbers or expressions made with the basic mathematical functions, pi, e and numbers. <br/>
-    The event ports input fields accept a comma-delimited values that represent time in seconds when the event will be triggered.
+    <b>Usage:</b><br/>
+    The web application takes an abstraction layer NineML component as an input and produces 
+    the component report in PDF format. The input component can be selected from the catalog or uploaded
+    by the user. Optionally, it can run one or more tests (simulations) for the given set of inputs. 
+    Simulation inputs can be entered into the GUI form where the following information about test should be provided:
+      <ul>
+          <li>Test name and description</li>
+          <li>Simulation time horizon and reporting interval</li>
+          <li>Parameters values</li>
+          <li>Initial conditions values</li>
+          <li>Initially active regimes</li>
+          <li>Analog ports values<br/>
+              The values allowed are simple numbers or time-dependent functions that may contain numbers, 
+              basic mathematical functions, constants (such as <i>&pi;</i>, <i>e</i>) and <i>time</i>.</li>
+          <li>Event ports values<br/>
+              The values allowed at the moment are limited to a comma-delimited sequence of floating point 
+              numbers representing incoming event moments.</li>
+          <li>List of variables/ports/aliases whose values should be included in the report</li>
+      </ul> 
+    Some predefined initial input values can be given in JSON format (to speed-up oftenly repeated tests).
+    If no initial values are provided the GUI will be populated with zeros and defaults. <br/>
+    After the component has been selected and tests data entered the button <i>Generate</i> runs the simulations, 
+    produces results/plots and generates the report with the test data. If successful, the application will
+    offer the user to download the pdf report and the zip archive with the simulation inputs, raw outputs, plots 
+    and log files.
     </p>
 </div>
 
