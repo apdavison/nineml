@@ -8,7 +8,7 @@
          http://nineml-app.incf.org
     -->
     <meta content="text/html; charset=UTF-8" http-equiv="content-type">
-    <link type="text/css" href="http://localhost/script/css/smoothness/jquery-ui-1.8.16.custom.css" rel="stylesheet" />  
+    <link type="text/css" href="http://localhost/script/css/redmond/jquery-ui-1.8.16.custom.css" rel="stylesheet" />  
     
 <!--    <style type="text/css">@import url(http://www.incf.org/portal_css/INCF.org%20skin/base-cachekey2304.css);</style>
     <style type="text/css" media="all">@import url(http://www.incf.org/portal_css/INCF.org%20skin/ploneCustom-cachekey9204.css);</style>-->
@@ -43,11 +43,11 @@
                 height : 500,
                 buttons: {
                     "Generate AL report": function() { 
-                        // Get App IOD from the server which is needed to store the input data for activity
+                        // Get App ID from the server which is needed to store the input data for activity
                         $("#dialogInitialPage").dialog("disable"); 
                         var parameters = {"__NINEML_ACTION__" : "getApplicationID"};
                         $.post(__nineml_webapp__, parameters, function(data) {
-                            var results = JSON.parse(data);
+                            var results = data;
                             var success = results["success"];
                             var error   = results["error"];
                             var uuid    = results["content"];
@@ -125,7 +125,7 @@
                         var parameters = {"__NINEML_ACTION__"    : "generateReport",
                                           "__NINEML_WEBAPP_ID__" : appID};
                         $.post(__nineml_webapp__, parameters, function(data) {
-                            var results = JSON.parse(data);
+                            var results = data;
                             var success = results["success"];
                             var error   = results["error"];
                             var html    = results["content"];
@@ -183,7 +183,7 @@
                                           "__NINEML_WEBAPP_ID__" : appID,
                                           "TestableComponent" : component};
                         $.post(__nineml_webapp__, parameters, function(data) {
-                            var results = JSON.parse(data);
+                            var results = data;
                             var success = results["success"];
                             var error   = results["error"];
                             var name    = results["content"];
@@ -212,7 +212,8 @@
 
             $("#formUploadXMLFile").ajaxForm({                 
                 success: function(responseText, statusText) {        
-                    var results        = JSON.parse(responseText);
+                    //var results      = JSON.parse(responseText);
+                    var results        = responseText;
                     var success        = results["success"];
                     var error          = results["error"];
                     var component_name = results["content"];
@@ -371,7 +372,8 @@
                                                 "__NINEML_WEBAPP_ID__" : appID};
                                 parameters = $.param(parameters) + "&" + formData;
                                 $.post(__nineml_webapp__, parameters, function(data) {
-                                    var results = JSON.parse(data);
+                                    //var results = JSON.parse(data);
+                                    var results = data;
                                     var success = results["success"];
                                     var error   = results["error"];
                                     var json    = results["content"];
@@ -421,7 +423,8 @@
                                           "__NINEML_WEBAPP_ID__" : appID,
                                           "InitialValues"        : inputData};
                         $.post(__nineml_webapp__, parameters, function(data) {
-                            var results = JSON.parse(data);
+                            //var results = JSON.parse(data);
+                            var results = data;
                             var success = results["success"];
                             var error   = results["error"];
                             var html    = results["content"];
@@ -444,7 +447,8 @@
             $("#buttonSelectALComponent").button().click(function(){
                 var parameters = {"__NINEML_ACTION__" : "getAvailableALComponents"};
                 $.post(__nineml_webapp__, parameters, function(data) {
-                    var results = JSON.parse(data);
+                    //var results = JSON.parse(data);
+                    var results = data;
                     var success = results["success"];
                     var error   = results["error"];
                     var html    = results["content"];

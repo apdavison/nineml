@@ -82,7 +82,7 @@ class nineml_webapp:
         html = json.dumps(results, indent = 2)
         
         output_len = len(html)
-        start_response('200 OK', [('Content-type', 'text/html'),
+        start_response('200 OK', [('Content-type', 'application/json'),
                                   ('Content-Length', str(output_len))])
         return [html]
     
@@ -93,8 +93,10 @@ class nineml_webapp:
         results['content'] = str(uuid.uuid1())
         html = json.dumps(results, indent = 2)
 
+        print(results['content'], file=sys.stderr)
+        
         output_len = len(html)
-        start_response('200 OK', [('Content-type', 'text/html'),
+        start_response('200 OK', [('Content-type', 'application/json'),
                                   ('Content-Length', str(output_len))])
         return [html]
 
@@ -123,9 +125,13 @@ class nineml_webapp:
         dictZODB = {}
         dictZODB['name']                = nineml_component.name
         dictZODB['nineml_component']    = nineml_component
-        dictZODB['REMOTE_ADDR']         = environ['REMOTE_ADDR']
-        dictZODB['HTTP_USER_AGENT']     = environ['HTTP_USER_AGENT']
         dictZODB['tests']               = {}
+        dictZODB['REMOTE_ADDR']         = ''
+        dictZODB['HTTP_USER_AGENT']     = ''
+        if 'REMOTE_ADDR' in environ:
+            dictZODB['REMOTE_ADDR'] = environ['REMOTE_ADDR']
+        if 'HTTP_USER_AGENT' in environ:
+            dictZODB['HTTP_USER_AGENT'] = environ['HTTP_USER_AGENT']
         
         self.writeZODB(applicationID, dictZODB)
     
@@ -136,7 +142,7 @@ class nineml_webapp:
         html = json.dumps(results, indent = 2)
         
         output_len = len(html)
-        start_response('200 OK', [('Content-type', 'text/html'),
+        start_response('200 OK', [('Content-type', 'application/json'),
                                   ('Content-Length', str(output_len))])
         return [html]
     
@@ -180,7 +186,7 @@ class nineml_webapp:
         html = json.dumps(results, indent = 2)
         
         output_len = len(html)
-        start_response('200 OK', [('Content-type', 'text/html'),
+        start_response('200 OK', [('Content-type', 'application/json'),
                                   ('Content-Length', str(output_len))])
         return [html]
 
@@ -205,7 +211,7 @@ class nineml_webapp:
         html = json.dumps(results, indent = 2)
             
         output_len = len(html)
-        start_response('200 OK', [('Content-type', 'text/html'),
+        start_response('200 OK', [('Content-type', 'application/json'),
                                   ('Content-Length', str(output_len))])
         return [html]
 
@@ -380,7 +386,7 @@ class nineml_webapp:
         html = json.dumps(results, indent = 2)
         
         output_len = len(html)
-        start_response('200 OK', [('Content-type', 'text/html'),
+        start_response('200 OK', [('Content-type', 'application/json'),
                                   ('Content-Length', str(output_len))])
         return [html]
 
@@ -427,6 +433,7 @@ class nineml_webapp:
             testDescription, simulation_data = test
             isOK, results = self.run_test(nineml_component, simulation_data, tmp, testName, testDescription)
         
+            print('isOK: ' + str(isOK), file=sys.stderr)
             if isOK:
                 testName, testDescription, dictInputs, plots, log_output = results
                 print('plots = ' + str(plots), file=sys.stderr)
