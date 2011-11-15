@@ -1,6 +1,6 @@
 from __future__ import print_function
 from pprint import pformat
-import os, sys, math, json, traceback, os.path, tempfile, shutil, cgi, unicodedata
+import os, sys, re, math, json, traceback, os.path, tempfile, shutil, cgi, unicodedata, StringIO
 import cPickle as pickle
 from time import localtime, strftime, time
 import uuid, urlparse, zipfile, cgitb
@@ -100,7 +100,7 @@ class nineml_webapp:
                                   ('Content-Length', str(output_len))])
         return [html]
 
-    def uploadULComponent(self, fieldStorage, environ, start_response):
+    def uploadALComponent(self, fieldStorage, environ, start_response):
         if not 'xmlNineMLFile' in fieldStorage:
             raise RuntimeError('No input xml file with NineML component has been specified')
         
@@ -108,6 +108,14 @@ class nineml_webapp:
         nineml_component = readers.XMLReader.read(xmlFile)
         return self.writeComponentToZODB(nineml_component, fieldStorage, environ, start_response)
     
+    def uploadALComponentAsXMLString(self, fieldStorage, environ, start_response):
+        if not 'xmlFile' in fieldStorage:
+            raise RuntimeError('No input string with NineML component has been specified')
+        
+        xmlFile = StringIO.StringIO(fieldStorage['xmlFile'].value)
+        nineml_component = readers.XMLReader.read(xmlFile)
+        return self.writeComponentToZODB(nineml_component, fieldStorage, environ, start_response)
+        
     def setALComponent(self, fieldStorage, environ, start_response):
         if not 'TestableComponent' in fieldStorage:
             raise RuntimeError('No input NineML component has been specified')
@@ -191,17 +199,41 @@ class nineml_webapp:
         return [html]
 
     def addTest(self, fieldStorage, environ, start_response):
-        applicationID = self.applicationIDFromDictionary(fieldStorage)
+        testName, testDescription, simulation_data = self.getSimulationData(fieldStorage)
+        return self.addTestToZODB(testName, testDescription, simulation_data, fieldStorage, environ, start_response)
 
+    def addTestSkipGUI(self, fieldStorage, environ, start_response):
+        if 'InitialValues' in fieldStorage:
+            data = json.loads(fieldStorage['InitialValues'].value)
+        
+        if 'testName' in fieldStorage:
+            testName = str(fieldStorage['testName'].value)
+        else:
+            testName = 'test-no.' + str(len(tests) + 1)
+        
+        if 'testDescription' in fieldStorage:
+            testDescription = str(fieldStorage['testDescription'].value)
+        else:
+            testDescription = ''
+        
+        simulation_data = daeSimulationInputData()
+        simulation_data.loadDictionary(data)
+        
+        return self.addTestToZODB(testName, testDescription, simulation_data, fieldStorage, environ, start_response)
+
+    def addTestToZODB(self, testName, testDescription, simulation_data, fieldStorage, environ, start_response):
+        applicationID = self.applicationIDFromDictionary(fieldStorage)
         dictZODB = self.readZODB(applicationID)
         if not dictZODB:
             raise RuntimeError('Invalid application ID has been specified') 
         
-        testName, testDescription, simulation_data = self.getSimulationData(fieldStorage)
-
-        tests = dictZODB['tests'];
+        valid = re.compile(r"[a-zA-Z0-9 _-]+$")
+        if not valid.match(testName):
+            raise RuntimeError('Test names can contain only alpha-numeric characters, space, _ and -') 
+        
+        tests = dictZODB['tests']
         tests[testName] = (testDescription, simulation_data)          
-        dictZODB['tests'] = tests;
+        dictZODB['tests'] = tests
         self.writeZODB(applicationID, dictZODB)
         
         results = {}
@@ -239,7 +271,7 @@ class nineml_webapp:
         for key in fieldStorage:
             value = fieldStorage[key].value
             names = key.split('.')
-            print(str(key) + ' : ' + str(value), file=sys.stderr)
+            #print(str(key) + ' : ' + str(value), file=sys.stderr)
             if len(names) > 0:
                 canonicalName = '.'.join(names[1:])
 
@@ -271,6 +303,9 @@ class nineml_webapp:
         simulation_data.event_ports_expressions  = event_ports_expressions
         simulation_data.active_regimes           = active_regimes
         simulation_data.variables_to_report      = variables_to_report
+        
+        #print(testName, testDescription, file=sys.stderr)
+        #print(simulation_data, file=sys.stderr)
         
         return testName, testDescription, simulation_data
         
@@ -380,7 +415,8 @@ class nineml_webapp:
         results = {}
         results['success']      = True
         results['error']        = ''
-        results['content']      = test_reports
+        results['content']      = {'pdfAvailable' : enablePDF,
+                                   'zipAvailable' : enableZIP}
         results['pdfAvailable'] = enablePDF
         results['zipAvailable'] = enableZIP
         html = json.dumps(results, indent = 2)
@@ -475,7 +511,8 @@ class nineml_webapp:
         
         for i, test_data in enumerate(tests_data):
             testName, testDescription, dictInputs, plots, log_output, tmpFolder = test_data
-            testFolder = 'test-no.{0}/'.format(i+1, testName) 
+            #testFolder = 'test-no.{0}/'.format(i+1, testName) 
+            testFolder = '{0}/'.format(testName) 
             
             # Write log file contents
             logName = '__log_output__.txt'
@@ -577,8 +614,11 @@ class nineml_webapp:
                 elif action == 'getApplicationID':
                     return self.getApplicationID(fieldStorage, environ, start_response)
                 
-                elif action == 'uploadULComponent':
-                    return self.uploadULComponent(fieldStorage, environ, start_response)
+                elif action == 'uploadALComponent':
+                    return self.uploadALComponent(fieldStorage, environ, start_response)
+                
+                elif action == 'uploadALComponentAsXMLString':
+                    return self.uploadALComponentAsXMLString(fieldStorage, environ, start_response)
                 
                 elif action == 'setALComponent':
                     return self.setALComponent(fieldStorage, environ, start_response)
@@ -588,13 +628,12 @@ class nineml_webapp:
                 
                 elif action == 'addTest':
                     return self.addTest(fieldStorage, environ, start_response)
+                    
+                elif action == 'addTestSkipGUI':
+                    return self.addTestSkipGUI(fieldStorage, environ, start_response)
                 
                 elif action == 'generateReport':
                     return self.generateReport(fieldStorage, environ, start_response)
-                    #return self.generate_report_with_no_tests(fieldStorage, environ, start_response)
-
-                elif action == 'Generate report with tests':
-                    return self.generate_report_with_tests(fieldStorage, environ, start_response)
                 
                 elif action == 'downloadPDF':
                     return self.downloadPDF(fieldStorage, environ, start_response)
@@ -611,7 +650,7 @@ class nineml_webapp:
             html = self.error(e)
 
         output_len = len(html)
-        start_response('200 OK', [('Content-type', 'text/html'),
+        start_response('200 OK', [('Content-type', 'application/json'),
                                   ('Content-Length', str(output_len))])
         return [html]
 

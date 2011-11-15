@@ -128,14 +128,14 @@
                             var results = data;
                             var success = results["success"];
                             var error   = results["error"];
-                            var html    = results["content"];
+                            var status  = results["content"];
                             if(success == true)
                             {
-                                if(results["pdfAvailable"] == true)
+                                if(status["pdfAvailable"] == true)
                                 {
                                     $("#pdfAvailable").text("true");
                                 }
-                                if(results["zipAvailable"] == true)
+                                if(status["zipAvailable"] == true)
                                 {
                                     $("#zipAvailable").text("true");
                                 }
@@ -210,9 +210,9 @@
                 },
             });
 
-            $("#formUploadXMLFile").ajaxForm({                 
+            $("#formUploadXMLFile").ajaxForm({  
+                dataType: "json",
                 success: function(responseText, statusText) {        
-                    //var results      = JSON.parse(responseText);
                     var results        = responseText;
                     var success        = results["success"];
                     var error          = results["error"];
@@ -323,6 +323,19 @@
                 });
                 return unique;
             }
+            
+            function checkName(name)
+            {
+                var regex = /^([a-zA-Z0-9 _-]+)$/;
+                if(regex.test(name) == false)
+                {
+                    return false;
+                }
+                else
+                {
+                    return true;
+                }
+            }
 
             jQuery.validator.messages.required = "&nbsp; [required]";
             jQuery.validator.messages.digits   = "&nbsp; [invalid]";
@@ -347,19 +360,18 @@
                         $("#formAddTest").validate(
                         {
                             errorClass: "invalid",
-                            //errorContainer: "#errorContainer_dialogAddTest, #errorLabelContainer_dialogAddTest",
-                            /*showErrors: function(errorMap, errorList) {
-                                var message = "<b>There are " + this.numberOfInvalids() + " errors on the form.";
-                                message += "<br/>Please check the fields marked in red.</b>";
-                                $("#errorLabelContainer_dialogAddTest").html(message);
-                                this.defaultShowErrors();
-                            },*/
                             submitHandler: function() { 
                                 var testName        = $("#id_testName").val();
                                 var testDescription = $("#id_testDescription").val();
                                 if(checkIfUnique(testName) == false)
                                 {
-                                    var message = "Test with that name already exists.";
+                                    var message = "A test with that name already exists.";
+                                    showErrorMessage(message, 400, 200);
+                                    return;
+                                }
+                                if(checkName(testName) == false)
+                                {
+                                    var message = "Test names can contain only alpha-numeric characters, space, _ and -";
                                     showErrorMessage(message, 400, 200);
                                     return;
                                 }
@@ -550,12 +562,8 @@
                 <br/>
                 <button id="buttonAddTest">Add test</button>
             </li>
-        </ol>
-        
-    </div>
-
-    </div>
-    
+        </ol>        
+    </div>    
 </div>
 
 <div id="applicationID" style="display:none;"></div>
@@ -570,10 +578,9 @@
 <div id="dialogUploadALComponent" title="Upload AL Component">
     <form id="formUploadXMLFile" action="" enctype="multipart/form-data" method="post">
         <input id="formUploadApplicationID" type="hidden" name="__NINEML_WEBAPP_ID__" value=""/>
-        <input type="hidden" name="__NINEML_ACTION__" value="uploadULComponent"/>
+        <input type="hidden" name="__NINEML_ACTION__" value="uploadALComponent"/>
         <label for="file">NineML Abstraction Layer XML file:</label>
         <input id="fileXML" type="file" name="xmlNineMLFile" accept="text/xml" />
-        <!--<input type="submit" value="Upload1" />-->
     </form>
 </div>
 

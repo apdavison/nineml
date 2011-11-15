@@ -48,7 +48,7 @@ def createPDF(texFile, outdir = None):
         
     return res
 
-def showPDF(pdf):
+def showFile(pdf):
     if os.name == 'nt':
         os.filestart(pdf)
     elif os.name == 'posix':
@@ -63,5 +63,5 @@ if __name__ == "__main__":
     inspector.inspect(nineml_component)
     createLatexReport(inspector, [], 'nineml-tex-template.tex', tex)
     res = createPDF(tex)
-    showPDF(pdf)  
+    showFile(pdf)  
 
