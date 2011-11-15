@@ -78,55 +78,18 @@ class nineml_web_service:
                       '__NINEML_WEBAPP_ID__' : self.applicationID
                      }
         self._sendRequest(parameters, self.headers)
-        pdf, response     = self._getResponse()
-        received_filename = self._getAttachmentFilename(response)
-        
-        if def_filename:
-            filename = def_filename
-        elif received_filename:
-            filename = received_filename
-        else:
-            RuntimeError('No filename specified')
-        
-        if pdf:
-            f = open(filename, "w")
-            f.write(pdf)
-            f.close()
-            if openInDefaultApp:
-                if os.name == 'nt':
-                    os.filestart(filename)
-                elif os.name == 'posix':
-                    os.system('/usr/bin/xdg-open ' + filename)  
-        return pdf
+        pdf, response = self._getResponse()
+        filename      = self._getAttachmentFilename(response)
+        return filename, pdf
         
     def downloadZIP(self, **kwargs):
-        def_filename     = kwargs.get('filename',         None)
-        openInDefaultApp = kwargs.get('openInDefaultApp', True)
-        
         parameters = {'__NINEML_ACTION__'    : 'downloadZIP',
                       '__NINEML_WEBAPP_ID__' : self.applicationID
                      }
         self._sendRequest(parameters, self.headers)
-        zip, response     = self._getResponse()
-        received_filename = self._getAttachmentFilename(response)
-        
-        if def_filename:
-            filename = def_filename
-        elif received_filename:
-            filename = received_filename
-        else:
-            RuntimeError('No filename specified')
-        
-        if zip:
-            f = open(filename, "w")
-            f.write(zip)
-            f.close()
-            if openInDefaultApp:
-                if os.name == 'nt':
-                    os.filestart(filename)
-                elif os.name == 'posix':
-                    os.system('/usr/bin/xdg-open ' + filename)  
-        return zip
+        zip, response = self._getResponse()
+        filename      = self._getAttachmentFilename(response)
+        return filename, zip
 
     def _getApplicationID(self):
         parameters = {'__NINEML_ACTION__' : 'getApplicationID'}
@@ -184,6 +147,9 @@ class nineml_web_service:
         return data, response
    
 def saveFileAndOpenInDefaultApp(filename, contents):
+    if not contents:
+        return
+    
     f = open(filename, "w")
     f.write(contents)
     f.close()
@@ -230,13 +196,15 @@ def testTestableComponent():
     testName          = 'Test testable component' 
     testDescription   = 'Test Description' 
     testableComponent = 'hierachical_iaf_1coba'
-    ws = nineml_web_service('localhost')
+    #ws = nineml_web_service('localhost')
+    ws = nineml_web_service()
     ws.setALComponent(testableComponent)
     ws.addTest(testName, testDescription, initialValues)
     ws.generateReport()
 
     filename, pdf = ws.downloadPDF()
     saveFileAndOpenInDefaultApp(filename, pdf)
+    
     filename, zip = ws.downloadZIP()
     saveFileAndOpenInDefaultApp(filename, zip)
 
@@ -280,17 +248,19 @@ def testUploadedComponent():
     testName        = 'Test uploaded component' 
     testDescription = 'Test Description' 
     xmlFile         = 'hierachical_iaf_1coba.xml'
-    ws = nineml_web_service('localhost')
+    #ws = nineml_web_service('localhost')
+    ws = nineml_web_service()
     ws.uploadALComponent(xmlFile)
     ws.addTest(testName, testDescription, initialValues)
     ws.generateReport()
 
     filename, pdf = ws.downloadPDF()
     saveFileAndOpenInDefaultApp(filename, pdf)
+    
     filename, zip = ws.downloadZIP()
     saveFileAndOpenInDefaultApp(filename, zip)
 
 if __name__ == "__main__":
     testTestableComponent()
-    #testUploadedComponent()
+    testUploadedComponent()
     
