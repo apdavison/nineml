@@ -10,7 +10,7 @@ from nineml.abstraction_layer import ComponentClass
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import Qt
 from nineml_component_inspector import nineml_component_inspector
-from nineml_tex_report import createLatexReport, createPDF, showPDF
+from nineml_tex_report import createLatexReport, createPDF, showFile
 
 def test_Izhikevich():
     nineml_component = TestableComponent('izhikevich')()
@@ -291,4 +291,4 @@ if __name__ == "__main__":
 
     createLatexReport(inspector, tests_data, 'nineml-tex-template.tex', tex)
     res = createPDF(tex, tmpFolder)
-    showPDF(pdf)
+    showFile(pdf)

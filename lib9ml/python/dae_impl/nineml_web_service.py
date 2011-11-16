@@ -196,8 +196,8 @@ def testTestableComponent():
     testName          = 'Test testable component' 
     testDescription   = 'Test Description' 
     testableComponent = 'hierachical_iaf_1coba'
-    #ws = nineml_web_service('localhost')
-    ws = nineml_web_service()
+    ws = nineml_web_service('localhost')
+    #ws = nineml_web_service()
     ws.setALComponent(testableComponent)
     ws.addTest(testName, testDescription, initialValues)
     ws.generateReport()
@@ -248,8 +248,8 @@ def testUploadedComponent():
     testName        = 'Test uploaded component' 
     testDescription = 'Test Description' 
     xmlFile         = 'hierachical_iaf_1coba.xml'
-    #ws = nineml_web_service('localhost')
-    ws = nineml_web_service()
+    ws = nineml_web_service('localhost')
+    #ws = nineml_web_service()
     ws.uploadALComponent(xmlFile)
     ws.addTest(testName, testDescription, initialValues)
     ws.generateReport()
@@ -262,5 +262,5 @@ def testUploadedComponent():
 
 if __name__ == "__main__":
     testTestableComponent()
-    testUploadedComponent()
+    #testUploadedComponent()
     
