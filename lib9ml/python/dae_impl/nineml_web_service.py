@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from __future__ import print_function
-import os, httplib, urllib, json, re
+import os, sys, httplib, urllib, json, re
 
 class nineml_web_service:
     def __init__(self, server = 'nineml-app.incf.org', port = 80):
@@ -42,6 +42,14 @@ class nineml_web_service:
         component_name, response = self._getResponse()
         return component_name
     
+    def getInitialValuesAsJSON(self):
+        parameters = {'__NINEML_ACTION__'    : 'getInitialValuesAsJSON',
+                      '__NINEML_WEBAPP_ID__' : self.applicationID
+                     }
+        self._sendRequest(parameters, self.headers)
+        json, response = self._getResponse()
+        return json
+        
     def displayGUI(self, initialValues = ''):
         parameters = {'__NINEML_ACTION__'    : 'displayGUI',
                       '__NINEML_WEBAPP_ID__' : self.applicationID,
@@ -196,15 +204,36 @@ def testTestableComponent():
     testName          = 'Test testable component' 
     testDescription   = 'Test Description' 
     testableComponent = 'hierachical_iaf_1coba'
+    
+    # 1. Create nineml_web_service object
+    #    With no arguments it will connect to the INCF web server
+    #    It can also connect to the other servers running the app (localhost for instance)
     ws = nineml_web_service('localhost')
     #ws = nineml_web_service()
+    
+    # 2. Set the abstraction layer component.
+    #    a) It can be a TestableComponent from the catalog with setALComponent('component-name')
+    #    b) It can be uploaded with uploadALComponent('xml-file')
     ws.setALComponent(testableComponent)
+    
+    # 3. Empty test data can be obtained by calling the getInitialValuesAsJSON() function
+    #    The return value is a dictionary with all information set to defaults (zeroes and other defaults),
+    #    which can be filled-in with some meaningful values.
+    json = ws.getInitialValuesAsJSON()
+    print(json)
+    
+    # 4. Add one or more tests (optional). 
+    #   Tests expect a dictionary with the initial values, as returned from the getInitialValuesAsJSON() function
     ws.addTest(testName, testDescription, initialValues)
+    
+    # 5. Generate report on the server
     ws.generateReport()
 
+    # 6. Fetch the report in PDF format
     filename, pdf = ws.downloadPDF()
     saveFileAndOpenInDefaultApp(filename, pdf)
     
+    # 7. Fetch the zip file with the tests data (optional, if any test specified)
     filename, zip = ws.downloadZIP()
     saveFileAndOpenInDefaultApp(filename, zip)
 

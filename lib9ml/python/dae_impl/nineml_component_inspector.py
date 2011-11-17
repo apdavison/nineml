@@ -593,7 +593,7 @@ class nineml_component_inspector:
         data['parameters']                = self.parameters
         data['initial_conditions']        = self.initial_conditions
         data['analog_ports_expressions']  = self.analog_ports_expressions
-        data['event_ports_expressions']    = self.event_ports_expressions
+        data['event_ports_expressions']   = self.event_ports_expressions
         data['active_regimes']            = self.active_regimes
         data['variables_to_report']       = self.variables_to_report
         return json.dumps(data, indent = 2)

@@ -250,7 +250,7 @@ def getObjectFromCanonicalName(rootModel, canonicalName, **kwargs):
     canonicalName: a 'path' to the object ('model1.model2.object')
     """
     relativeName = daeGetRelativeName(rootModel.CanonicalName, canonicalName)
-    #print '  relativeName = {0} for root = {1} and canonicalName = {2}'.format(relativeName, rootModel.CanonicalName, canonicalName)
+    #print('  relativeName = {0} for root = {1} and canonicalName = {2}'.format(relativeName, rootModel.CanonicalName, canonicalName))
     listCanonicalName = relativeName.split('.')
     objectName = listCanonicalName[-1]
     objectPath = listCanonicalName[:-1]
@@ -351,15 +351,7 @@ class nineml_daetools_bridge(daeModel):
             portFrom = getObjectFromNamespaceAddress(self, port_connection[0], look_for_ports = True, look_for_reduceports = True)
             portTo   = getObjectFromNamespaceAddress(self, port_connection[1], look_for_ports = True, look_for_reduceports = True)
             #print '  {0} -> {1}\n'.format(type(portFrom), type(portTo))
-            self.connectPorts(portFrom, portTo)
-
-        # 8) Connect event ports
-        #if self.Name == 'iaf_1coba':
-        #    spikeoutput = getObjectFromCanonicalName(self, 'iaf_1coba.iaf.spikeoutput',      look_for_eventports = True)
-        #    spikeinput  = getObjectFromCanonicalName(self, 'iaf_1coba.cobaExcit.spikeinput', look_for_eventports = True)
-        #    #print 'spikeoutput =', spikeoutput
-        #    #print 'spikeinput =', spikeinput
-        #    self.ConnectEventPorts(spikeinput, spikeoutput)
+            nineml_daetools_bridge.connectPorts(self, portFrom, portTo)
             
     def DeclareEquations(self):
         # Create the epression parser and set its Identifiers/Functions dictionaries
@@ -489,7 +481,8 @@ class nineml_daetools_bridge(daeModel):
                 return var
         return None
 
-    def connectPorts(self, portInlet, portOutlet):
+    @classmethod
+    def connectPorts(cls, model, portInlet, portOutlet):
         portFrom = None
         portTo   = None
 
@@ -507,7 +500,7 @@ class nineml_daetools_bridge(daeModel):
         else:
             raise RuntimeError('invalid portTo')
 
-        self.ConnectPorts(portFrom, portTo)
+        model.ConnectPorts(portFrom, portTo)
 
 
 
