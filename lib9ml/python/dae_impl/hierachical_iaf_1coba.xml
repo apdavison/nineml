@@ -1,0 +1,70 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<NineML xmlns="http://nineml.org/9ML/0.1">
+  <ComponentClass name="iaf_1coba">
+    <AnalogPort mode="send" name="iaf_V"/>
+    <AnalogPort mode="reduce" reduce_op="+" name="iaf_ISyn"/>
+    <AnalogPort mode="send" name="cobaExcit_I"/>
+    <EventPort mode="send" name="iaf_spikeoutput"/>
+    <EventPort mode="recv" name="cobaExcit_spikeinput"/>
+    <Parameter dimension="??" name="iaf_cm"/>
+    <Parameter dimension="??" name="iaf_taurefrac"/>
+    <Parameter dimension="??" name="iaf_gl"/>
+    <Parameter dimension="??" name="iaf_vreset"/>
+    <Parameter dimension="??" name="iaf_vrest"/>
+    <Parameter dimension="??" name="iaf_vthresh"/>
+    <Parameter dimension="??" name="cobaExcit_tau"/>
+    <Parameter dimension="??" name="cobaExcit_q"/>
+    <Parameter dimension="??" name="cobaExcit_vrev"/>
+    <Dynamics>
+      <Regime name="Regime1">
+        <TimeDerivative variable="iaf_V">
+          <MathInline>( iaf_gl*( iaf_vrest - iaf_V ) + iaf_ISyn+cobaExcit_I)/(iaf_cm)</MathInline>
+        </TimeDerivative>
+        <TimeDerivative variable="cobaExcit_g">
+          <MathInline>-cobaExcit_g/cobaExcit_tau</MathInline>
+        </TimeDerivative>
+        <OnEvent target_regime="Regime1" src_port="cobaExcit_spikeinput">
+          <StateAssignment variable="cobaExcit_g">
+            <MathInline>cobaExcit_g+cobaExcit_q</MathInline>
+          </StateAssignment>
+        </OnEvent>
+        <OnCondition target_regime="Regime2">
+          <StateAssignment variable="iaf_tspike">
+            <MathInline>t</MathInline>
+          </StateAssignment>
+          <StateAssignment variable="iaf_V">
+            <MathInline>iaf_vreset</MathInline>
+          </StateAssignment>
+          <EventOut port="iaf_spikeoutput"/>
+          <Trigger>
+            <MathInline>iaf_V &gt; iaf_vthresh</MathInline>
+          </Trigger>
+        </OnCondition>
+      </Regime>
+      <Regime name="Regime2">
+        <TimeDerivative variable="iaf_V">
+          <MathInline>0</MathInline>
+        </TimeDerivative>
+        <TimeDerivative variable="cobaExcit_g">
+          <MathInline>-cobaExcit_g/cobaExcit_tau</MathInline>
+        </TimeDerivative>
+        <OnEvent target_regime="Regime2" src_port="cobaExcit_spikeinput">
+          <StateAssignment variable="cobaExcit_g">
+            <MathInline>cobaExcit_g+cobaExcit_q</MathInline>
+          </StateAssignment>
+        </OnEvent>
+        <OnCondition target_regime="Regime1">
+          <Trigger>
+            <MathInline>t &gt;= iaf_tspike + iaf_taurefrac</MathInline>
+          </Trigger>
+        </OnCondition>
+      </Regime>
+      <Alias name="cobaExcit_I">
+        <MathInline>cobaExcit_g*(cobaExcit_vrev-iaf_V)</MathInline>
+      </Alias>
+      <StateVariable dimension="??" name="iaf_V"/>
+      <StateVariable dimension="??" name="iaf_tspike"/>
+      <StateVariable dimension="??" name="cobaExcit_g"/>
+    </Dynamics>
+  </ComponentClass>
+</NineML>
