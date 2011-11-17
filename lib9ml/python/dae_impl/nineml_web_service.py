@@ -208,8 +208,8 @@ def testTestableComponent():
     # 1. Create nineml_web_service object
     #    With no arguments it will connect to the INCF web server
     #    It can also connect to the other servers running the app (localhost for instance)
-    ws = nineml_web_service('localhost')
-    #ws = nineml_web_service()
+    #ws = nineml_web_service('localhost')
+    ws = nineml_web_service()
     
     # 2. Set the abstraction layer component.
     #    a) It can be a TestableComponent from the catalog with setALComponent('component-name')
@@ -277,8 +277,8 @@ def testUploadedComponent():
     testName        = 'Test uploaded component' 
     testDescription = 'Test Description' 
     xmlFile         = 'hierachical_iaf_1coba.xml'
-    ws = nineml_web_service('localhost')
-    #ws = nineml_web_service()
+    #ws = nineml_web_service('localhost')
+    ws = nineml_web_service()
     ws.uploadALComponent(xmlFile)
     ws.addTest(testName, testDescription, initialValues)
     ws.generateReport()
