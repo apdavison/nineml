@@ -154,6 +154,29 @@ class nineml_webapp:
                                   ('Content-Length', str(output_len))])
         return [html]
     
+    def getInitialValuesAsJSON(self, fieldStorage, environ, start_response):
+        applicationID = self.applicationIDFromDictionary(fieldStorage)
+        
+        dictZODB = self.readZODB(applicationID)
+        if not dictZODB:
+            raise RuntimeError('Invalid application ID has been specified') 
+        
+        nineml_component = dictZODB['nineml_component']
+
+        inspector = nineml_component_inspector()
+        inspector.inspect(nineml_component)
+        
+        results = {}
+        results['success'] = True
+        results['error']   = ''
+        results['content'] = inspector.jsonData()
+        html = json.dumps(results, indent = 2)
+        
+        output_len = len(html)
+        start_response('200 OK', [('Content-type', 'application/json'),
+                                  ('Content-Length', str(output_len))])
+        return [html]
+    
     def displayGUI(self, fieldStorage, environ, start_response):
         html = ''
         data = {}
@@ -625,6 +648,9 @@ class nineml_webapp:
                 
                 elif action == 'displayGUI':
                     return self.displayGUI(fieldStorage, environ, start_response)
+                    
+                elif action == 'getInitialValuesAsJSON':
+                    return self.getInitialValuesAsJSON(fieldStorage, environ, start_response)
                 
                 elif action == 'addTest':
                     return self.addTest(fieldStorage, environ, start_response)
