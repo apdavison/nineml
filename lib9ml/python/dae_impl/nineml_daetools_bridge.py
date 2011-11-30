@@ -502,5 +502,11 @@ class nineml_daetools_bridge(daeModel):
 
         model.ConnectPorts(portFrom, portTo)
 
+    @classmethod
+    def connectEventPorts(cls, model, portFrom, portTo):
+        if (portFrom.Type != eOutletPort) or (portTo.Type != eInletPort):
+            raise RuntimeError('Cannot connect event ports: incompatible types')
+        
+        model.ConnectEventPorts(portFrom, portTo)
 
 
