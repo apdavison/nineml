@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import print_function
-import os, sys, urllib
+import os, sys, urllib, re
 from time import localtime, strftime
 
 import nineml
@@ -11,12 +11,9 @@ from nineml.abstraction_layer.testing_utils import TestableComponent
 
 from daetools.pyDAE import pyCore, pyActivity, pyDataReporting, pyIDAS, daeLogs
 from nineml_component_inspector import nineml_component_inspector
-from nineml_daetools_bridge import nineml_daetools_bridge, findObjectInModel
+from nineml_daetools_bridge import nineml_daetools_bridge, findObjectInModel, fixObjectName
 from nineml_tex_report import createLatexReport, createPDF
 from nineml_daetools_simulation import daeSimulationInputData, nineml_daetools_simulation, ninemlTesterDataReporter, daetools_model_setup
-
-__ExplicitConnectionsComponentName__ = 'ExplicitConnectionsComponent'
-__CSAComponentName__                 = 'CSA'
 
 def fixKeyNames(rootModel, parameters):
     """
@@ -35,24 +32,37 @@ def create_nineml_daetools_bridge(name, al_component, parent = None, description
     """
     Creates 'nineml_daetools_bridge' object for a given AbstractionLayer Component
     """
-    return nineml_daetools_bridge(name, al_component, parent, description)
+    return nineml_daetools_bridge(fixObjectName(name), al_component, parent, description)
 
 def create_al_from_ul_component(ul_component):
     """
-    Creates AL component for a given UL component
+    Creates AL component for a given UL component.
+    Returns a tuple (ALComponent object, URL). If the component cannot be loaded then the object is None.
+    This is a case when loading ExplicitConnections rule or the url cannot be resolved.
     """
-    al_component = nineml.abstraction_layer.readers.XMLReader.read(ul_component.definition.url) 
-    if not al_component:
-        raise RuntimeError('Cannot resolve UL component [%s] definition: %s'.format(name, ul_component.definition.url))
+    try:
+        al_component = None
+        al_component = nineml.abstraction_layer.readers.XMLReader.read(ul_component.definition.url) 
+    
+    except Exception as e:
+        print(str(e))
+
+    # If the component cannot be loaded then 
     return al_component
 
-class daetools_point_neurone_network:
+class daetools_point_neurone_network(pyCore.daeModel):
     """
+    A top-level daetools model. All other models will be added to it (neurones, synapses):
+     - Neurone names will be: model_name.population_name.Neurone_xxx
+     - Synapse names will be: model_name.projection_name_Synxxx_sourceindex_targetindex
     """
     def __init__(self, model):
         """
         """
-        self._name        = model.name
+        name_ = fixObjectName(model.name)
+        pyCore.daeModel.__init__(self, name_, None, '')
+        
+        self._name        = name_
         self._model       = model
         self._components  = {}
         self._groups      = {}
@@ -75,14 +85,27 @@ class daetools_point_neurone_network:
 
     def getComponent(self, name):
         if not name in self._components:
-            raise RuntimeError('Component [%s] does not exist in the network'.format(name)) 
-        return self._components[name]
-        
+            raise RuntimeError('Component [{0}] does not exist in the network'.format(name)) 
+        return self._components[name][0]
+
+    def getComponentURL(self, name):
+        if not name in self._components:
+            raise RuntimeError('Component [{0}] does not exist in the network'.format(name)) 
+        return self._components[name][1].definition.url
+    
+    def getComponentParameters(self, name):
+        if not name in self._components:
+            raise RuntimeError('Component [{0}] does not exist in the network'.format(name)) 
+        return self._components[name][1].parameters
+
     def getGroup(self, name):
         if not name in self._groups:
-            raise RuntimeError('Group [%s] does not exist in the network'.format(name)) 
+            raise RuntimeError('Group [{0}] does not exist in the network'.format(name)) 
         return self._groups[name]
 
+    def DeclareEquations(self):
+        pass
+    
     def _handleGroup(self, name, ul_group):
         """
         Handles a NineML UserLayer Group object:
@@ -104,7 +127,7 @@ class daetools_point_neurone_network:
          - ul_component: UL BaseComponent-derived object
         """
         al_component = create_al_from_ul_component(ul_component) 
-        self._components[name] = al_component
+        self._components[name] = (al_component, ul_component)
 
 class daetools_group:
     """
@@ -112,7 +135,8 @@ class daetools_group:
     def __init__(self, name, ul_group, network):
         """
         """
-        self._name        = name
+        self._name        = fixObjectName(name)
+        self._network     = network
         self._populations = {}
         self._projections = {}
         
@@ -134,12 +158,12 @@ class daetools_group:
 
     def getPopulation(self, name):
         if not name in self._populations:
-            raise RuntimeError('Population [%s] does not exist in the group'.format(name)) 
+            raise RuntimeError('Population [{0}] does not exist in the group'.format(name)) 
         return self._populations[name]
         
     def getProjection(self, name):
         if not name in self._projections:
-            raise RuntimeError('Projection [%s] does not exist in the group'.format(name)) 
+            raise RuntimeError('Projection [{0}] does not exist in the group'.format(name)) 
         return self._projections[name]
     
     def _handlePopulation(self, name, ul_population, network):
@@ -157,7 +181,7 @@ class daetools_group:
         """
         Handles a NineML UserLayer Projection object:
          - Creates connections between a source and a target neurone via PSR component.
-           PSR components are first transformed into 'nineml_daetools_bridge' objects
+           PSR components are first transformed into the 'nineml_daetools_bridge' objects
         Arguments:
          - name: string
          - ul_projection: UL Projection object
@@ -175,15 +199,16 @@ class daetools_population:
          - ul_population: UL Population object
          - network: daetools_point_neurone_network object
         """
-        self._name       = name
+        self._name       = fixObjectName(name)
+        self._network    = network
         self._neurones   = []
         self._positions  = []
         
-        # Instantiate AL component based on the UL component
+        # Get the AL component from the network
         al_component = network.getComponent(ul_population.prototype.name) 
         
         for i in range(0, ul_population.number):
-            neurone = create_nineml_daetools_bridge('Neurone_{0}'.format(i), al_component)
+            neurone = create_nineml_daetools_bridge('{0}_Neurone({1})'.format(self._name, i), al_component, network, '')
             self._neurones.append(neurone)
         
         try:
@@ -219,27 +244,20 @@ class daetools_projection:
          - group: daetools_group object
          - network: daetools_point_neurone_network object
         """
-        self._name                  = ul_projection.name
+        self._name                  = fixObjectName(name)
+        self._network               = network
         self._source_population     = group.getPopulation(ul_projection.source.name)
         self._target_population     = group.getPopulation(ul_projection.target.name)
         self._psr                   = network.getComponent(ul_projection.synaptic_response.name)
         self._connection_type       = network.getComponent(ul_projection.connection_type.name)
         self._generated_connections = []
         
-        self._handleConnectionRuleComponent(network.getComponent(ul_projection.rule.name))
-
-        """
-        for connection in self._connections:
-            if not isinstance(connection, (list, tuple)):
-                raise RuntimeError('Invalid list of explicit connections')
-            
-            if len(connection) == 4:
-                # Format: (s, t, w, d)
-                s, t, w, d = connection
-                self._createConnection(s, t, w, d)
-            else:
-                raise RuntimeError('Invalid explicit connection: {1}'.format(connection))
-        """
+        al_connection_rule_component = network.getComponent(ul_projection.rule.name)
+        explicit_connections_file    = network.getComponentURL(ul_projection.rule.name)
+        if al_connection_rule_component: # CSA
+            self._handleConnectionRuleComponent(al_connection_rule_component)
+        else: # explicit connections
+            self._handleExplicitConnections(explicit_connections_file)
         
     def __repr__(self):
         res = 'daetools_projection({0})\n'.format(self._name)
@@ -249,8 +267,8 @@ class daetools_projection:
         res += '    {0}\n'.format(self._target_population)
         res += '  psr:\n'
         res += '    {0}\n'.format(self._psr)
-        res += '  connection_rule:\n'
-        res += '    {0}\n'.format(self._connection_rule)
+        #res += '  connection_rule:\n'
+        #res += '    {0}\n'.format(self._connection_rule)
         res += '  connection_type:\n'
         res += '    {0}\n'.format(self._connection_type)
         return res
@@ -258,18 +276,59 @@ class daetools_projection:
     def _handleConnectionRuleComponent(self, al_connection_rule):
         """
         Arguments:
-         - al_connection_rule: AL Component object
+         - al_connection_rule: AL Component object (CSA or other)
         """
-        if al_connection_rule.name == __ExplicitConnectionsComponentName__:
-            pass
+        raise RuntimeError('Support for connection rule component not implemented yet')
+
+    def _handleExplicitConnections(self, url):
+        """
+        Creates connections based on the file with explicit connections (argument 'url'). 
+         - Opens and parses the file with explicit connections.
+           The file is a space-delimited text file in the format: source_target[_weight_delay_parameter1_parameter2 ...]
+           Weight, delay and parameters are optional.
+         - Based on the connections connects source->target neurones and (optionally) sets weights and delays
+        Arguments:
+         - url: URL of the external file with explicit connections
+        """
+        connections = []
+        f = urllib.urlopen(url)
         
-        elif al_connection_rule.name == __CSAComponentName__:
-            pass
+        source_index = -1
+        target_index = -1
+        weight       = 0.0
+        delay        = 0.0
+        parameters   = []
+        conn_count   = 0
         
-        else:
-            raise RuntimeError('Unsupported connection rule component: {0}'.format(connection_rule.name))
-    
-    def _createConnection(self, source_index, target_index, weight, delay):
+        scan = re.compile(' ')
+        for line in f.readlines():
+            items = scan.split(line)
+            
+            size = len(items)
+            if(size < 2):
+                raise RuntimeError('Not enough data in the explicit connections file: {0}'.format(url))
+            
+            source_index = int(items[0])
+            target_index = int(items[1])
+            
+            if size >= 3:
+                weight = float(items[2])
+            else:
+                weight = 0.0
+            
+            if size >= 4:
+                delay = float(items[3])
+            else:
+                delay = 0.0
+            
+            connections.append( (source_index, target_index, weight, delay) )
+            self._createConnection(source_index, target_index, weight, delay, conn_count)
+            conn_count += 1
+        
+        print(connections)
+        #print(self._generated_connections)
+
+    def _createConnection(self, source_index, target_index, weight, delay, n):
         """
         Arguments:
          - source_index: integer; index in the source population
@@ -280,73 +339,14 @@ class daetools_projection:
         source_neurone = self._source_population.getNeurone(source_index)
         target_neurone = self._target_population.getNeurone(target_index)
         
-        synapse_name   = 'Synapse_n%i_%i_%i'.format(len(target_neurone.Models), source_index, source_index)
-        synapse        = create_nineml_daetools_bridge(synapse_name, self._psr_al_component, target)
+        synapse_name   = '{0}_Synapse({1})({2},{3})'.format(self._name, n, int(source_index), int(target_index))
+        synapse        = create_nineml_daetools_bridge(synapse_name, self._psr, self._network, '')
+        print(synapse.CanonicalName)
         
-        self._connectSourceNeuroneAndSynapse(source_neurone, synapse)
-        self._connectSynapseAndTargetNeurone(synapse, target_neurone)
+        nineml_daetools_bridge.connectEventPorts(source_neurone, synapse, self._network)
+        nineml_daetools_bridge.connectAnaloguePorts(synapse, target_neurone, self._network)
         
-        self.generated_connections.append( (source_neurone, synapse, target_neurone) )
-
-    def _connectSourceNeuroneAndSynapse(self, source, synapse):
-        """
-        Arguments:
-         - source: nineml_daetools_bridge object (neurone)
-         - synapse: nineml_daetools_bridge object (synapse)
-        """
-        if (len(source.nineml_event_ports) != 1) or (source.nineml_event_ports[0].Type != eOutletPort):
-            raise RuntimeError('The source neurone [%s] must have a single outlet event port'.format(source.Name))
-        
-        if (len(synapse.nineml_event_ports) != 1) or (synapse.nineml_event_ports[0].Type != eInletPort):
-            raise RuntimeError('The synapse [%s] must have a single inlet event port'.format(source.Name))
-        
-        source_port = source.nineml_event_ports[0]
-        target_port = synapse.nineml_event_ports[0]
-        
-        nineml_daetools_bridge.connectEventPorts(source, source_port, target_port)
-    
-    def _connectSynapseAndTargetNeurone(self, synapse, target):
-        """
-        Arguments:
-         - synapse: nineml_daetools_bridge object (synapse)
-         - target: nineml_daetools_bridge object (neurone)
-        """
-        if len(synapse.Ports) != len(target.Ports):
-            raise RuntimeError('Cannot connect a synapse to a neurone: number of analogue ports do not match')
-        
-        # Iterate over synapse ports to find a match for each one in the target neurone ports list.
-        # If a match is not found, or if an incompatible pair of ports has been found throw an exception.
-        # ACHTUNG, ACHTUNG!! It is assumed that synapses do not have reduce ports (tamba/lamba?)
-        for synapse_port in synapse.nineml_analog_ports:
-            matching_port_found = False
-            
-            # 1) Look in the list of analogue ports
-            for target_port in target.nineml_analog_ports:
-                if synapse_port.Name == target_port.Name:
-                    if (synapse_port.Type == eInletPort) and (target_port.Type == eOutletPort):
-                        nineml_daetools_bridge.connectPorts(target, synapse_port, target_port)
-                        matching_port_found = True
-                    
-                    elif (synapse_port.Type == eOutletPort) and (target_port.Type == eInletPort):
-                        nineml_daetools_bridge.connectPorts(target, synapse_port, target_port)
-                        matching_port_found = True
-                    
-                    else:
-                        msg = 'Cannot connect a synapse to a neurone: synapse port [%s] and neurone port [%s] do not match'.format(synapse_port.Name, target_port.Name)
-                        raise RuntimeError(msg)
-            
-            # 2) If not connected yet, look in the list of reduce ports
-            if matching_port_found == False:
-                for target_port in target.nineml_reduce_ports:
-                    if synapse_port.Name == target_port.Name:
-                        # Achtung! Reduce ports are implicitly inlet
-                        if (synapse_port.Type == eOutletPort):
-                            nineml_daetools_bridge.connectPorts(target, synapse_port, target_port)
-                            matching_port_found = True
-            
-            # If not found - die ignobly
-            if matching_port_found == False:
-                raise RuntimeError('Cannot connect a synapse to a neurone: cannot find a match for the synapse port [%s]'.format(synapse_port.Name))
+        self._generated_connections.append( (source_neurone, synapse, target_neurone) )
 
 """    
         
@@ -426,76 +426,55 @@ class nineml_daetools_network_simulation(pyActivity.daeSimulation):
 if __name__ == "__main__":
     catalog = "file:///home/ciroki/Data/NineML/nineml-model-tree/lib9ml/python/dae_impl/"
 
-    exc_cell_parameters = nineml.user_layer.ParameterSet(
-                                                            membraneCapacitance=(1.0, "nF"),
-                                                            membraneTimeConstant=(20.0, "ms"),
-                                                            refractoryTime=(5.0, "ms"),
-                                                            threshold=(-50.0, "mV"),
-                                                            restingPotential=(-65.0, "mV"),
-                                                            resetPotential=(-65.0, "mV")
-                                                         )
+    sn_parameters = {
+                     'tspike' :    (-10000.0, ''),
+                     'V' :         (-0.06, ''),
+                     'gl' :        (50.0, ''),
+                     'vreset' :    (-0.06, ''),
+                     'taurefrac' : (0.008, ''),
+                     'vthresh' :   (-0.04, ''),
+                     'vrest' :     (-0.06, ''),
+                     'cm' :        (1.0, '')
+                    }
+    
+    psr_parameters = {
+                       'vrev' : (0.0, ''),
+                       'q'    : (3.0, ''),
+                       'tau'  : (5.0, ''),
+                       'g'    : (0.0, '')
+                     }
+    
+    fake_grid2D = nineml.user_layer.Structure("2D grid", catalog + "coba_synapse.xml")
 
-    inh_cell_parameters = nineml.user_layer.ParameterSet(
-                                                        membraneTimeConstant=(20.0, "ms"),
-                                                        resetPotential=(-60.0, "mV")
-                                                        )
-    inh_cell_parameters.complete(exc_cell_parameters)
+    exc_celltype = nineml.user_layer.SpikingNodeType("Excitatory neuron type", catalog + "iaf.xml", sn_parameters)
+    inh_celltype = nineml.user_layer.SpikingNodeType("Inhibitory neuron type", catalog + "iaf.xml", sn_parameters)
 
-    exc_celltype = nineml.user_layer.SpikingNodeType("Excitatory neuron type",
-                                        catalog + "coba_synapse.xml",
-                                        exc_cell_parameters)
-    inh_celltype = nineml.user_layer.SpikingNodeType("Inhibitory neuron type",
-                                        catalog + "coba_synapse.xml",
-                                        inh_cell_parameters)
+    exc_cells = nineml.user_layer.Population("Excitatory cells", 10, exc_celltype, nineml.user_layer.PositionList(structure=fake_grid2D))
+    inh_cells = nineml.user_layer.Population("Inhibitory cells", 10, inh_celltype, nineml.user_layer.PositionList(structure=fake_grid2D))
 
-    grid2D = nineml.user_layer.Structure("2D grid",
-                            catalog + "coba_synapse.xml",
-                            {'fillOrder': ("sequential", None),
-                            'aspectRatioXY': (1.0, "dimensionless"),
-                            'dx': (1.0, u"µm"), 'dy': (1.0, u"µm"),
-                            'x0': (0.0, u"µm"), 'y0': (0.0, u"µm")})
-                                    
-    exc_cells = nineml.user_layer.Population("Excitatory cells", 100, exc_celltype,
-                                nineml.user_layer.PositionList(structure=grid2D))
-    inh_cells = nineml.user_layer.Population("Inhibitory cells", 25, inh_celltype,
-                                nineml.user_layer.PositionList(structure=grid2D))
+    exc_connection_rule = nineml.user_layer.ConnectionRule("Excitatory Connections", catalog + "exc_connections.txt",)
+    inh_connection_rule = nineml.user_layer.ConnectionRule("Inhibitory Connections", catalog + "inh_connections.txt",)
 
-    connection_rule = nineml.user_layer.ConnectionRule("random connections",
-                                            catalog + "coba_synapse.xml",
-                                            {'p_connect': (0.1, "dimensionless")})
+    exc_psr = nineml.user_layer.SynapseType("Excitatory post-synaptic response", catalog + "coba_synapse.xml", psr_parameters)
+    inh_psr = nineml.user_layer.SynapseType("Inhibitory post-synaptic response", catalog + "coba_synapse.xml", psr_parameters)
 
-    exc_psr = nineml.user_layer.SynapseType("Excitatory post-synaptic response",
-                                catalog + "coba_synapse.xml",
-                                dict(decayTimeConstant=(5.0, "ms"), reversalPotential=(0.0, "mV")))
-    inh_psr = nineml.user_layer.SynapseType("Inhibitory post-synaptic response",
-                                catalog + "coba_synapse.xml",
-                                dict(decayTimeConstant=(5.0, "ms"), reversalPotential=(-70.0, "mV")))
+    exc_connection_type = nineml.user_layer.ConnectionType("Static excitatory connections", catalog + "coba_synapse.xml", {'weight': (0.1, "nS"), 'delay': (0.3, "ms")})
+    inh_connection_type = nineml.user_layer.ConnectionType("Static inhibitory connections", catalog + "coba_synapse.xml", {'weight': (0.2, "nS"), 'delay': (0.3, "ms")})
 
-    exc_connection_type = nineml.user_layer.ConnectionType("Static excitatory connections",
-                                                catalog + "coba_synapse.xml",
-                                                {'weight': (0.1, "nS"), 'delay': (0.3, "ms")})
-    inh_connection_type = nineml.user_layer.ConnectionType("Static inhibitory connections",
-                                                catalog + "coba_synapse.xml",
-                                                {'weight': (0.2, "nS"), 'delay': (0.3, "ms")})
-
-    exc2exc = nineml.user_layer.Projection("Excitatory cells-Excitatory cells",
-                                exc_cells, exc_cells, connection_rule,
-                                exc_psr, exc_connection_type)
-    inh2all = nineml.user_layer.Projection("Inhibitory connections",
-                                inh_cells, exc_cells, connection_rule,
-                                inh_psr, inh_connection_type)
+    exc2exc = nineml.user_layer.Projection("Excitatory connections", exc_cells, exc_cells, exc_connection_rule, exc_psr, exc_connection_type)
+    inh2exc = nineml.user_layer.Projection("Inhibitory connections", inh_cells, exc_cells, inh_connection_rule, inh_psr, inh_connection_type)
 
     network = nineml.user_layer.Group("Network")
     network.add(exc_cells)
     network.add(inh_cells)
     network.add(exc2exc)
-    network.add(inh2all)
+    network.add(inh2exc)
 
     model = nineml.user_layer.Model("Simple 9ML example model")
     model.add_group(network)
-    #model.write("simple_example1.xml")
+    model.write("simple_example1.xml")
     
     
     network = daetools_point_neurone_network(model)
-    print(network)
+    #print(network)
 

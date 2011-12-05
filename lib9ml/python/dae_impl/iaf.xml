@@ -2,7 +2,7 @@
 <NineML xmlns="http://nineml.org/9ML/0.1">
   <ComponentClass name="iaf">
     <AnalogPort mode="send" name="V"/>
-    <AnalogPort mode="reduce" reduce_op="+" name="ISyn"/>
+    <AnalogPort mode="reduce" reduce_op="+" name="I"/>
     <EventPort mode="send" name="spikeoutput"/>
     <Parameter dimension="??" name="cm"/>
     <Parameter dimension="??" name="taurefrac"/>
@@ -13,7 +13,7 @@
     <Dynamics>
       <Regime name="subthresholdregime">
         <TimeDerivative variable="V">
-          <MathInline>( gl*( vrest - V ) + ISyn)/(cm)</MathInline>
+          <MathInline>( gl*( vrest - V ) + I)/(cm)</MathInline>
         </TimeDerivative>
         <OnCondition target_regime="refractoryregime">
           <StateAssignment variable="tspike">

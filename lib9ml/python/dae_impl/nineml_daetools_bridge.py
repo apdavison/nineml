@@ -265,9 +265,13 @@ def getObjectFromCanonicalName(rootModel, canonicalName, **kwargs):
     # Now we have the model where port should be located (root)
     # Search for the 'name' in the 'root' model (in the types of objects given in **kwargs)
     return findObjectInModel(root, objectName, **kwargs)
-    
+
+def fixObjectName(name):
+    new_name = name.replace(' ', '_')
+    return new_name
+
 class ninemlAnalogPort(daePort):
-    def __init__(self, Name, PortType, Model, Description = ""):
+    def __init__(self, Name, PortType, Model, Description = ''):
         daePort.__init__(self, Name, PortType, Model, Description)
 
         # NineML ports always contain only one variable, and that variable is referred to by the port name
@@ -502,11 +506,80 @@ class nineml_daetools_bridge(daeModel):
 
         model.ConnectPorts(portFrom, portTo)
 
+    #@classmethod
+    #def connectEventPorts(cls, model, portFrom, portTo):
+    #    if (portFrom.Type != eOutletPort) or (portTo.Type != eInletPort):
+    #        raise RuntimeError('Cannot connect event ports: incompatible types')
+    #    
+    #    model.ConnectEventPorts(portTo, portFrom)
+
     @classmethod
-    def connectEventPorts(cls, model, portFrom, portTo):
-        if (portFrom.Type != eOutletPort) or (portTo.Type != eInletPort):
+    def connectEventPorts(cls, source, target, parent_model):
+        """
+        Arguments:
+         - source: nineml_daetools_bridge object (neurone)
+         - target: nineml_daetools_bridge object (target)
+        """
+        if (len(source.nineml_event_ports) != 1) or (source.nineml_event_ports[0].Type != pyCore.eOutletPort):
+            raise RuntimeError('The source neurone [{0}] must have a single outlet event port'.format(source.Name))
+        
+        if (len(target.nineml_event_ports) != 1) or (target.nineml_event_ports[0].Type != pyCore.eInletPort):
+            raise RuntimeError('The target [{0}] must have a single inlet event port'.format(source.Name))
+        
+        source_port = source.nineml_event_ports[0]
+        target_port = target.nineml_event_ports[0]
+        #print('source_port.Type =', source_port.Type)
+        #print('target_port.Type =', target_port.Type)
+        
+        #cls.connectEventPorts(parent_model, source_port, target_port)
+        if (source_port.Type != eOutletPort) or (target_port.Type != eInletPort):
             raise RuntimeError('Cannot connect event ports: incompatible types')
         
-        model.ConnectEventPorts(portFrom, portTo)
+        parent_model.ConnectEventPorts(target_port, source_port)
+    
+    @classmethod
+    def connectAnaloguePorts(cls, source, target, parent_model):
+        """
+        Arguments:
+         - source: nineml_daetools_bridge object (source)
+         - target: nineml_daetools_bridge object (neurone)
+        """
+        #print('{0} -> {1}'.format(len(source.nineml_analog_ports), len(target.nineml_analog_ports)))
+        #if len(source.nineml_analog_ports) != len(target.nineml_analog_ports):
+        #    raise RuntimeError('Cannot connect a source to a neurone: number of analogue ports do not match')
+        
+        # Iterate over source ports to find a match for each one in the target neurone ports list.
+        # If a match is not found, or if an incompatible pair of ports has been found throw an exception.
+        # ACHTUNG, ACHTUNG!! It is assumed that sources do not have reduce ports (tamba/lamba?)
+        for source_port in source.nineml_analog_ports:
+            matching_port_found = False
+            
+            # 1) Look in the list of analogue ports
+            for target_port in target.nineml_analog_ports:
+                if source_port.Name == target_port.Name:
+                    if (source_port.Type == eInletPort) and (target_port.Type == eOutletPort):
+                        cls.connectPorts(parent_model, source_port, target_port)
+                        matching_port_found = True
+                    
+                    elif (source_port.Type == eOutletPort) and (target_port.Type == eInletPort):
+                        cls.connectPorts(parent_model, source_port, target_port)
+                        matching_port_found = True
+                    
+                    else:
+                        msg = 'Cannot connect a source to a neurone: source port [{0}] and neurone port [{1}] do not match'.format(source_port.Name, target_port.Name)
+                        raise RuntimeError(msg)
+            
+            # 2) If not connected yet, look in the list of reduce ports
+            if matching_port_found == False:
+                for target_port in target.nineml_reduce_ports:
+                    if source_port.Name == target_port.Name:
+                        # Achtung! Reduce ports are implicitly inlet
+                        if (source_port.Type == eOutletPort):
+                            cls.connectPorts(parent_model, source_port, target_port)
+                            matching_port_found = True
+            
+            # If not found - die ignobly
+            if matching_port_found == False:
+                raise RuntimeError('Cannot connect a source to a neurone: cannot find a match for the source port [{0}]'.format(source_port.Name))
 
 
