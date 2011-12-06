@@ -355,7 +355,7 @@ class nineml_daetools_bridge(daeModel):
             portFrom = getObjectFromNamespaceAddress(self, port_connection[0], look_for_ports = True, look_for_reduceports = True)
             portTo   = getObjectFromNamespaceAddress(self, port_connection[1], look_for_ports = True, look_for_reduceports = True)
             #print '  {0} -> {1}\n'.format(type(portFrom), type(portTo))
-            nineml_daetools_bridge.connectPorts(self, portFrom, portTo)
+            self.connectPorts(portFrom, portTo)
             
     def DeclareEquations(self):
         # Create the epression parser and set its Identifiers/Functions dictionaries
@@ -506,15 +506,14 @@ class nineml_daetools_bridge(daeModel):
 
         model.ConnectPorts(portFrom, portTo)
 
-    #@classmethod
-    #def connectEventPorts(cls, model, portFrom, portTo):
-    #    if (portFrom.Type != eOutletPort) or (portTo.Type != eInletPort):
-    #        raise RuntimeError('Cannot connect event ports: incompatible types')
-    #    
-    #    model.ConnectEventPorts(portTo, portFrom)
+    def connectEventPorts(self, portFrom, portTo):
+        if (portFrom.Type != eOutletPort) or (portTo.Type != eInletPort):
+            raise RuntimeError('Cannot connect event ports: incompatible types')
+        
+        self.ConnectEventPorts(portTo, portFrom)
 
     @classmethod
-    def connectEventPorts(cls, source, target, parent_model):
+    def connectModelsByEventPort(cls, source, target, parent_model):
         """
         Arguments:
          - source: nineml_daetools_bridge object (neurone)
@@ -538,19 +537,17 @@ class nineml_daetools_bridge(daeModel):
         parent_model.ConnectEventPorts(target_port, source_port)
     
     @classmethod
-    def connectAnaloguePorts(cls, source, target, parent_model):
+    def connectModelsByAnaloguePorts(cls, source, target, parent_model):
         """
+        Iterate over source ports to find a match for each one in the target list of ports and connect it.
+        If a match is not found, or if an incompatible pair of ports has been found throw an exception.
+        [ACHTUNG, ACHTUNG!! It is assumed that sources do not have reduce ports (tamba/lamba?)]
         Arguments:
-         - source: nineml_daetools_bridge object (source)
+         - source: nineml_daetools_bridge object (synapse)
          - target: nineml_daetools_bridge object (neurone)
+         - parent_model: nineml_daetools_bridge object (typically network object)
+        Returns nothing.
         """
-        #print('{0} -> {1}'.format(len(source.nineml_analog_ports), len(target.nineml_analog_ports)))
-        #if len(source.nineml_analog_ports) != len(target.nineml_analog_ports):
-        #    raise RuntimeError('Cannot connect a source to a neurone: number of analogue ports do not match')
-        
-        # Iterate over source ports to find a match for each one in the target neurone ports list.
-        # If a match is not found, or if an incompatible pair of ports has been found throw an exception.
-        # ACHTUNG, ACHTUNG!! It is assumed that sources do not have reduce ports (tamba/lamba?)
         for source_port in source.nineml_analog_ports:
             matching_port_found = False
             
@@ -558,11 +555,11 @@ class nineml_daetools_bridge(daeModel):
             for target_port in target.nineml_analog_ports:
                 if source_port.Name == target_port.Name:
                     if (source_port.Type == eInletPort) and (target_port.Type == eOutletPort):
-                        cls.connectPorts(parent_model, source_port, target_port)
+                        parent_model.connectPorts(source_port, target_port)
                         matching_port_found = True
                     
                     elif (source_port.Type == eOutletPort) and (target_port.Type == eInletPort):
-                        cls.connectPorts(parent_model, source_port, target_port)
+                        parent_model.connectPorts(source_port, target_port)
                         matching_port_found = True
                     
                     else:
@@ -575,7 +572,7 @@ class nineml_daetools_bridge(daeModel):
                     if source_port.Name == target_port.Name:
                         # Achtung! Reduce ports are implicitly inlet
                         if (source_port.Type == eOutletPort):
-                            cls.connectPorts(parent_model, source_port, target_port)
+                            parent_model.connectPorts(source_port, target_port)
                             matching_port_found = True
             
             # If not found - die ignobly

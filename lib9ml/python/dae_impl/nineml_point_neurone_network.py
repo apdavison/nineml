@@ -330,11 +330,19 @@ class daetools_projection:
 
     def _createConnection(self, source_index, target_index, weight, delay, n):
         """
+        Connects a source and a target neurone via the psr component.
+        First tries to obtain the source/target neurone objects from the corresponding populations, 
+        then creates the nineml_daetools_bridge object for the synapse component and finally tries 
+        to connect event ports between the source neurone and the synapse and analogue ports between
+        the synapse and the target neurone. The source neurone, the synapse and the target neurone 
+        are appended to the list of generated connections.
         Arguments:
          - source_index: integer; index in the source population
          - target_index: integer; index in the target population
          - weight: float
          - delay: float
+         - n: number of connections in the projection (just to format the name of the synapse)
+        Returns nothing.
         """
         source_neurone = self._source_population.getNeurone(source_index)
         target_neurone = self._target_population.getNeurone(target_index)
@@ -343,51 +351,10 @@ class daetools_projection:
         synapse        = create_nineml_daetools_bridge(synapse_name, self._psr, self._network, '')
         print(synapse.CanonicalName)
         
-        nineml_daetools_bridge.connectEventPorts(source_neurone, synapse, self._network)
-        nineml_daetools_bridge.connectAnaloguePorts(synapse, target_neurone, self._network)
+        nineml_daetools_bridge.connectModelsByEventPort    (source_neurone, synapse,        self._network)
+        nineml_daetools_bridge.connectModelsByAnaloguePorts(synapse,        target_neurone, self._network)
         
         self._generated_connections.append( (source_neurone, synapse, target_neurone) )
-
-"""    
-        
-
-    def DeclareEquations(self):
-        pass
-
-    def _createConnection(self, source_index, target_index, weight, delay):
-        source = self.population_s[source_index]
-        target = self.population_t[target_index]
-        psr    = self._clonePSRComponent()
-        
-        self._connectSourceNeuroneAndPSR(source, psr)
-        self._connectPSRAndTargetNeurone(psr, target)
-        
-        self.generated_connections.append( (source, psr, target) )
-
-    def _connectSourceNeuroneAndPSR(self, source, psr):
-        source_port = findObjectInModel(source, 'spikeoutput', look_for_eventports = True)
-        target_port = findObjectInModel(psr,    'spikeinput',  look_for_eventports = True)
-        print(source_port)
-        print(target_port)
-    
-    def _connectPSRAndTargetNeurone(self, psr, target):
-        source_I = findObjectInModel(psr, 'I', look_for_ports = True)
-        source_V = findObjectInModel(psr, 'V', look_for_ports = True)
-        print(source_I)
-        print(source_V)
-        
-        target_I = findObjectInModel(target, 'ISyn', look_for_reduceports = True)
-        target_V = findObjectInModel(target, 'V',    look_for_ports       = True)
-        print(target_I)
-        print(target_V)
-        
-        nineml_daetools_bridge.connectPorts(self, source_I, target_I)
-        nineml_daetools_bridge.connectPorts(self, source_V, target_V)
-
-    def _clonePSRComponent(self):
-        psr = nineml_daetools_bridge('PSR_{0}'.format(len(self.generated_connections)), self.psr, self)
-        return psr
-"""
 
 class nineml_daetools_network_simulation(pyActivity.daeSimulation):
     def __init__(self, network):
@@ -452,17 +419,11 @@ if __name__ == "__main__":
     exc_cells = nineml.user_layer.Population("Excitatory cells", 10, exc_celltype, nineml.user_layer.PositionList(structure=fake_grid2D))
     inh_cells = nineml.user_layer.Population("Inhibitory cells", 10, inh_celltype, nineml.user_layer.PositionList(structure=fake_grid2D))
 
-    exc_connection_rule = nineml.user_layer.ConnectionRule("Excitatory Connections", catalog + "exc_connections.txt",)
-    inh_connection_rule = nineml.user_layer.ConnectionRule("Inhibitory Connections", catalog + "inh_connections.txt",)
+    connection_rule = nineml.user_layer.ConnectionRule("Excitatory Connections", catalog + "connections.txt",)
+    psr             = nineml.user_layer.SynapseType   ("Post-synaptic response", catalog + "coba_synapse.xml", psr_parameters)
+    connection_type = nineml.user_layer.ConnectionType("Static connections",     catalog + "coba_synapse.xml", {'weight': (0.1, "nS"), 'delay': (0.3, "ms")})
 
-    exc_psr = nineml.user_layer.SynapseType("Excitatory post-synaptic response", catalog + "coba_synapse.xml", psr_parameters)
-    inh_psr = nineml.user_layer.SynapseType("Inhibitory post-synaptic response", catalog + "coba_synapse.xml", psr_parameters)
-
-    exc_connection_type = nineml.user_layer.ConnectionType("Static excitatory connections", catalog + "coba_synapse.xml", {'weight': (0.1, "nS"), 'delay': (0.3, "ms")})
-    inh_connection_type = nineml.user_layer.ConnectionType("Static inhibitory connections", catalog + "coba_synapse.xml", {'weight': (0.2, "nS"), 'delay': (0.3, "ms")})
-
-    exc2exc = nineml.user_layer.Projection("Excitatory connections", exc_cells, exc_cells, exc_connection_rule, exc_psr, exc_connection_type)
-    inh2exc = nineml.user_layer.Projection("Inhibitory connections", inh_cells, exc_cells, inh_connection_rule, inh_psr, inh_connection_type)
+    inh2exc = nineml.user_layer.Projection("Inhibitory connections", inh_cells, exc_cells, connection_rule, inh_psr, connection_type)
 
     network = nineml.user_layer.Group("Network")
     network.add(exc_cells)
