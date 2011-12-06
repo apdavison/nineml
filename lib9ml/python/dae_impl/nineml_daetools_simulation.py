@@ -177,8 +177,9 @@ class ninemlTesterDataReporter(daeDataReporterLocal):
 # It is defined as a seperate class for it will be needed to setup params/variables/... for a model 
 # that is not a top-level model of a simulation (for instance in a network)
 class daetools_model_setup:
-    def __init__(self, model, **kwargs):
-        self.model = model
+    def __init__(self, model, keysAsCanonicalNames, **kwargs):
+        self.model                = model
+        self.keysAsCanonicalNames = keysAsCanonicalNames
 
         dictIdentifiers, dictFunctions      = getAnalogPortsDictionaries(self.model)
         self.analog_ports_expression_parser = ExpressionParser(dictIdentifiers, dictFunctions)
@@ -196,7 +197,8 @@ class daetools_model_setup:
         
         # Initialize reduce ports
         for portName, expression in list(self._analog_ports_expressions.items()):
-            portName = str(portName)
+            if not self.keysAsCanonicalNames:
+                portName = self.model.CanonicalName + '.' + portName
             port = getObjectFromCanonicalName(self.model, portName, look_for_ports = True, look_for_reduceports = True)
             if port == None:
                 print('Warning: Could not locate port {0}'.format(portName))
@@ -211,7 +213,8 @@ class daetools_model_setup:
 
     def SetUpParametersAndDomains(self):
         for paramName, value in list(self._parameters.items()):
-            paramName = str(paramName)
+            if not self.keysAsCanonicalNames:
+                paramName = self.model.CanonicalName + '.' + paramName
             parameter = getObjectFromCanonicalName(self.model, paramName, look_for_parameters = True)
             if parameter == None:
                 print('Warning: Could not locate parameter {0}'.format(paramName))
@@ -223,11 +226,12 @@ class daetools_model_setup:
             elif isinstance(value, (float, int, long)):
                 parameter.SetValue(value)
             else:
-                raise RuntimeError('Invalid parameter: {0} value specified: {1}'.format(paramName, value))
+                raise RuntimeError('Invalid parameter: {0} value type specified: {1}-{2}'.format(paramName, value, type(value)))
 
     def SetUpVariables(self):
         for varName, value in list(self._initial_conditions.items()):
-            varName = str(varName)
+            if not self.keysAsCanonicalNames:
+                varName = self.model.CanonicalName + '.' + varName
             variable = getObjectFromCanonicalName(self.model, varName, look_for_variables = True)
             if variable == None:
                 print('Warning: Could not locate variable {0}'.format(varName))
@@ -242,7 +246,8 @@ class daetools_model_setup:
                 raise RuntimeError('Invalid variable: {0} initial condition specified: {1}'.format(varName, value))
 
         for portName, expression in list(self._analog_ports_expressions.items()):
-            portName = str(portName)
+            if not self.keysAsCanonicalNames:
+                portName = self.model.CanonicalName + '.' + portName
             if expression == None or expression == '':
                 raise RuntimeError('The analog port {0} is not connected and no value has been provided'.format(portName))
             port = getObjectFromCanonicalName(self.model, portName, look_for_ports = True, look_for_reduceports = True)
@@ -261,7 +266,8 @@ class daetools_model_setup:
             #print('  --> Assign the value of the port variable: {0} to {1} (evaluated value: {2})'.format(portName, expression, value))
         
         for portName, expression in list(self._event_ports_expressions.items()):
-            portName = str(portName)
+            if not self.keysAsCanonicalNames:
+                portName = self.model.CanonicalName + '.' + portName
             if expression == None or expression == '':
                 continue
             port = getObjectFromCanonicalName(self.model, portName, look_for_eventports = True)
@@ -285,7 +291,8 @@ class daetools_model_setup:
             #print('  --> Event port {0} triggers at: {1}'.format(portName, expression))
 
         for modelName, stateName in list(self._active_regimes.items()):
-            modelName = str(modelName)
+            if not self.keysAsCanonicalNames:
+                modelName = self.model.CanonicalName + '.' + modelName
             stateName = str(stateName)
             stn = getObjectFromCanonicalName(self.model, modelName + '.' + nineml_daetools_bridge.ninemlSTNRegimesName, look_for_stns = True)
             if stn == None:
@@ -295,9 +302,10 @@ class daetools_model_setup:
             #print('  --> Set the active state in the model: {0} to: {1}'.format(modelName, stateName), 0)
             stn.ActiveState = stateName
 
-        self.model.SetReportingOn(False)
+        self.model.SetReportingOn(True)
         for varName, value in list(self._variables_to_report.items()):
-            varName = str(varName)
+            if not self.keysAsCanonicalNames:
+                varName = self.model.CanonicalName + '.' + varName
             if value:
                 variable = getObjectFromCanonicalName(self.model, varName, look_for_variables = True)
                 if variable == None:
@@ -315,7 +323,7 @@ class nineml_daetools_simulation(daeSimulation):
         self.TimeHorizon       = float(kwargs.get('timeHorizon',       0.0))
         self.ReportingInterval = float(kwargs.get('reportingInterval', 0.0))
 
-        self.setup = daetools_model_setup(model, **kwargs)
+        self.setup = daetools_model_setup(model, True, **kwargs)
         self.m     = model
     
     def SetUpParametersAndDomains(self):

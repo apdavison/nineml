@@ -355,7 +355,7 @@ class nineml_daetools_bridge(daeModel):
             portFrom = getObjectFromNamespaceAddress(self, port_connection[0], look_for_ports = True, look_for_reduceports = True)
             portTo   = getObjectFromNamespaceAddress(self, port_connection[1], look_for_ports = True, look_for_reduceports = True)
             #print '  {0} -> {1}\n'.format(type(portFrom), type(portTo))
-            self.connectPorts(portFrom, portTo)
+            nineml_daetools_bridge.connectPorts(portFrom, portTo, self)
             
     def DeclareEquations(self):
         # Create the epression parser and set its Identifiers/Functions dictionaries
@@ -486,7 +486,7 @@ class nineml_daetools_bridge(daeModel):
         return None
 
     @classmethod
-    def connectPorts(cls, model, portInlet, portOutlet):
+    def connectPorts(cls, portInlet, portOutlet, parent_model):
         portFrom = None
         portTo   = None
 
@@ -504,20 +504,25 @@ class nineml_daetools_bridge(daeModel):
         else:
             raise RuntimeError('invalid portTo')
 
-        model.ConnectPorts(portFrom, portTo)
+        parent_model.ConnectPorts(portFrom, portTo)
 
-    def connectEventPorts(self, portFrom, portTo):
+    @classmethod
+    def connectEventPorts(cls, portFrom, portTo, parent_model):
         if (portFrom.Type != eOutletPort) or (portTo.Type != eInletPort):
             raise RuntimeError('Cannot connect event ports: incompatible types')
         
-        self.ConnectEventPorts(portTo, portFrom)
+        parent_model.ConnectEventPorts(portTo, portFrom)
 
     @classmethod
-    def connectModelsByEventPort(cls, source, target, parent_model):
+    def connectModelsViaEventPort(cls, source, target, parent_model):
         """
+        Connects the source and the target models via single event port.
+        There must be a single outlet port in the source model and a single inlet port in the target model. 
         Arguments:
          - source: nineml_daetools_bridge object (neurone)
          - target: nineml_daetools_bridge object (target)
+         - parent_model: daeModel object (typically a network object)
+        Returns nothing.
         """
         if (len(source.nineml_event_ports) != 1) or (source.nineml_event_ports[0].Type != pyCore.eOutletPort):
             raise RuntimeError('The source neurone [{0}] must have a single outlet event port'.format(source.Name))
@@ -527,25 +532,22 @@ class nineml_daetools_bridge(daeModel):
         
         source_port = source.nineml_event_ports[0]
         target_port = target.nineml_event_ports[0]
-        #print('source_port.Type =', source_port.Type)
-        #print('target_port.Type =', target_port.Type)
         
-        #cls.connectEventPorts(parent_model, source_port, target_port)
-        if (source_port.Type != eOutletPort) or (target_port.Type != eInletPort):
-            raise RuntimeError('Cannot connect event ports: incompatible types')
-        
-        parent_model.ConnectEventPorts(target_port, source_port)
+        cls.connectEventPorts(source_port, target_port, parent_model)
     
     @classmethod
-    def connectModelsByAnaloguePorts(cls, source, target, parent_model):
+    def connectModelsViaAnaloguePorts(cls, source, target, parent_model):
         """
-        Iterate over source ports to find a match for each one in the target list of ports and connect it.
-        If a match is not found, or if an incompatible pair of ports has been found throw an exception.
+        Connects all analogue ports in the source model to all analogue ports in the target model 
+        and stores the connections in the parent_model.
+        The function iterates over the source ports and tries to find its match in the target ports.
+        If a match is found it connects them. If a match is not found, or if an incompatible pair 
+        of ports has been found it throws an exception.
         [ACHTUNG, ACHTUNG!! It is assumed that sources do not have reduce ports (tamba/lamba?)]
         Arguments:
          - source: nineml_daetools_bridge object (synapse)
          - target: nineml_daetools_bridge object (neurone)
-         - parent_model: nineml_daetools_bridge object (typically network object)
+         - parent_model: nineml_daetools_bridge object (typically a network object)
         Returns nothing.
         """
         for source_port in source.nineml_analog_ports:
@@ -555,11 +557,11 @@ class nineml_daetools_bridge(daeModel):
             for target_port in target.nineml_analog_ports:
                 if source_port.Name == target_port.Name:
                     if (source_port.Type == eInletPort) and (target_port.Type == eOutletPort):
-                        parent_model.connectPorts(source_port, target_port)
+                        nineml_daetools_bridge.connectPorts(source_port, target_port, parent_model)
                         matching_port_found = True
                     
                     elif (source_port.Type == eOutletPort) and (target_port.Type == eInletPort):
-                        parent_model.connectPorts(source_port, target_port)
+                        nineml_daetools_bridge.connectPorts(source_port, target_port, parent_model)
                         matching_port_found = True
                     
                     else:
@@ -572,10 +574,10 @@ class nineml_daetools_bridge(daeModel):
                     if source_port.Name == target_port.Name:
                         # Achtung! Reduce ports are implicitly inlet
                         if (source_port.Type == eOutletPort):
-                            parent_model.connectPorts(source_port, target_port)
+                            nineml_daetools_bridge.connectPorts(source_port, target_port, parent_model)
                             matching_port_found = True
             
-            # If not found - die ignobly
+            # If not found - die miserably
             if matching_port_found == False:
                 raise RuntimeError('Cannot connect a source to a neurone: cannot find a match for the source port [{0}]'.format(source_port.Name))
 
