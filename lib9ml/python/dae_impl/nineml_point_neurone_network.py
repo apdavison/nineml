@@ -17,9 +17,7 @@ from nineml_daetools_simulation import daeSimulationInputData, nineml_daetools_s
 
 def fixParametersDictionary(parameters):
     """
-    The function replaces dictionary keys with their canonical names: 'V' becomes 'model1.model2.[...].V' 
-    Arguments:
-      - rootModel: daeModel object
+    Returns a dictionary made of the following key:value pairs: { 'name' : (value, unit) }  
       - parameters: ParameterSet object
     """
     new_parameters = {}
@@ -54,10 +52,64 @@ def create_al_from_ul_component(ul_component):
 
     return al_component
 
+class explicit_connections_generator_interface:
+    """
+    The simplest implementation of the ConnectionGenerator interface (NEST) 
+    built on top of the explicit list of connections.
+    """
+    def __init__(self, connections):
+        """
+        Iniializes the list of connections that the simulator can iterate on.
+        """
+        self._connections = connections
+        self._current     = 0
+    
+    @property
+    def size(self):
+        """
+        Returns the number of the connections.
+        """
+        return len(self._connections)
+        
+    @property
+    def arity(self):
+        """
+        Returns the number of values stored in an individual connection.
+        """
+        if len(self._connections) == 0:
+            return 0
+        else:
+            return len(self._connections[0])
+    
+    def __iter__(self):
+        """
+        Initializes the counter and returns the iterator.
+        """
+        self.start()
+        return self
+    
+    def start(self):
+        """
+        Initializes the iterator.
+        """
+        self._current = 0
+    
+    def next(self):
+        """
+        Returns the current connection and moves the counter to the next one.
+        """
+        if self._current >= len(self._connections):
+            raise StopIteration
+        
+        connection = self._connections[self._current]
+        self._current += 1
+        
+        return connection
+        
 class daetools_point_neurone_network(pyCore.daeModel):
     """
     A top-level daetools model. All other models will be added to it (neurones, synapses):
-     - Neurone names will be: model_name.population_name_Neurone_xxx
+     - Neurone names will be: model_name.population_name_Neurone(xxx)
      - Synapse names will be: model_name.projection_name_Synapsexxx(source_index,target_index)
     """
     def __init__(self, model):
@@ -398,6 +450,14 @@ class nineml_daetools_network_simulation(pyActivity.daeSimulation):
             s.SetUpVariables()
 
 if __name__ == "__main__":
+    connections = explicit_connections_generator_interface([(0, 0, 0.1, 0.2), (0, 1, 0.1, 0.2), (0, 2, 0.1, 0.2), (0, 3, 0.1, 0.2), (0, 4, 0.1, 0.2)])
+    print('size = ', connections.size)
+    print('arity = ', connections.arity)
+    for connection in connections:
+        print(connection)
+    
+    exit(0)
+    
     catalog = "file:///home/ciroki/Data/NineML/nineml-model-tree/lib9ml/python/dae_impl/"
 
     sn_parameters = {
