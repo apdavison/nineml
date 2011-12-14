@@ -12,11 +12,34 @@ from nineml_daetools_bridge import *
 from nineml_tex_report import *
 
 import matplotlib as mpl
+# There were some problems in webapp; 'Agg' is a workaround
 mpl.use('Agg')
 import matplotlib.pyplot as plt
 
 class daeSimulationInputData:
+    """
+    The class that handles input data for the daetools simulation.
+    It can convert to/from python dictionaries and json strings with some basic checks.
+    More thorough checks should be added. 
+    The data include:
+    
+    * timeHorizon               : float (in seconds)
+    * reportingInterval         : float (in seconds)
+    * parameters                : dictionary 'parameter name':float
+    * initial_conditions        : dictionary 'variable name':float
+    * analog_ports_expressions  : dictionary 'port name':float
+    * event_ports_expressions   : dictionary 'port name':string (input expression) 
+    * active_regimes            : dictionary 'model name':'active regime name'
+    * variables_to_report       : dictionary 'variable|port name':boolean
+    
+    **Achtung!** All names (keys in dictionaries) are given in canonical form: 
+    *toplevel_model.child_model1.child_model2.parameter_name*
+    """
     def __init__(self):
+        """
+        :rtype: 
+        :raises: 
+        """
         self.parser = ExpressionParser()
 
         # Dictionaries 'canonical/relative name' : floating-point-value
@@ -33,12 +56,13 @@ class daeSimulationInputData:
         self.timeHorizon       = 0.0
         self.reportingInterval = 0.0
 
-        #self.daeSolver    = daeIDAS()
-        #self.laSolver     = pySuperLU.daeCreateSuperLUSolver()
-        #self.log          = daePythonStdOutLog()
-        #self.dataReporter = daeTCPIPDataReporter()
-
     def asDictionary(self):
+        """
+        Returns the simulation data as a python dictionary.
+        
+        :rtype: python dictionary
+        :raises: 
+        """
         data = {}
         data['timeHorizon']               = self.timeHorizon
         data['reportingInterval']         = self.reportingInterval
@@ -51,10 +75,27 @@ class daeSimulationInputData:
         return data
         
     def asJSON(self, sort = True, indent = 2):
+        """
+        Returns the simulation data as a JSON string.
+        
+        :param sort: Boolean (should the keys be sorted)
+        :param indent: integer (number of blank characters to use as an indent)
+        
+        :rtype: string (in JSON format)
+        :raises: OverflowError, TypeError, ValueError
+        """
         data = self.asDictionary()
         return json.dumps(data, sort_keys = sort, indent = indent)
 
     def loadDictionary(self, dictData):
+        """
+        Loads the simulation data from a python dictionary.
+        
+        :param dictData: python dictionary
+        
+        :rtype:
+        :raises: 
+        """
         if 'timeHorizon' in dictData:
             self.timeHorizon = float(dictData['timeHorizon'])
 
@@ -92,6 +133,15 @@ class daeSimulationInputData:
                 self.variables_to_report = temp
         
     def loadJSON(self, jsonContent):
+        """
+        Loads the simulation data from a JSON string.
+        
+        :param jsonContent: string (in JSON format)
+        
+        :rtype:
+        
+        :raises: OverflowError, TypeError, ValueError
+        """
         dictData = json.loads(jsonContent)
         self.loadFromDictionary(dictData)
        
@@ -103,11 +153,44 @@ class daeSimulationInputData:
         return str(data)
 
 class ninemlTesterDataReporter(daeDataReporterLocal):
+    """
+    A tailor-made daetools datareporter. It holds the data reported by the daetools simulation 
+    and prepares the data for the report generation. 
+    It derives from the daeDataReporterLocal class which does all the processing and keeps the data
+    in the 'Process' data member (daeDataReporterProcess object). 
+    daeDataReporterProcess class has the following properties:
+    
+    * Name      : string
+    * Domains   : list of daeDataReceiverDomain objects (not used in NineML)
+    * Variables : list of daeDataReceiverVariable objects
+    
+    For more information consult daetools documentation (http://daetools.sourceforge.net/w/index.php/Documentation)
+    """
     def __init__(self):
+        """
+        """
         daeDataReporterLocal.__init__(self)
         self.ProcessName = ""
 
     def createReportData(self, tmp_folder = '/tmp'):
+        """
+        Creates matplotlib plots for every variable/port requested and returns the data 
+        for the model report as a list of python tuples (one for each plot):
+        
+        * variable name : string
+        * xPoints : 1D numpy array of floats (time values)
+        * yPoints : 1D numpy array of floats (variable values)
+        * pngName : filename with a PNG image
+        * csvName : filename with the plot raw data in CSV format
+        * pngPath : path to the PNG image
+        * csvPath : path to the raw data CSV file
+        
+        :param tmp_folder: string (a folder where the plots will be stored)
+        
+        :rtype: python tuple
+        
+        :raises: RuntimeError
+        """
         fp8  = mpl.font_manager.FontProperties(family='sans-serif', style='normal', variant='normal', weight='normal', size=8)
         fp9  = mpl.font_manager.FontProperties(family='sans-serif', style='normal', variant='normal', weight='normal', size=9)
         fp11 = mpl.font_manager.FontProperties(family='sans-serif', style='normal', variant='normal', weight='normal', size=11)
@@ -120,7 +203,7 @@ class ninemlTesterDataReporter(daeDataReporterLocal):
                   'text.fontsize':   8,
                   'xtick.labelsize': 8,
                   'ytick.labelsize': 8,
-                  'text.usetex': True}
+                  'text.usetex':     True}
         mpl.rcParams.update(params)
 
         plots = []
@@ -146,14 +229,18 @@ class ninemlTesterDataReporter(daeDataReporterLocal):
             #ax.set_ylabel(yAxisLabel)
             fig.savefig(pngPath, dpi=(300))
             
-            if self.exportCSV(xPoints, yPoints, xAxisLabel, yAxisLabel, csvPath):
+            if self._exportCSV(xPoints, yPoints, xAxisLabel, yAxisLabel, csvPath):
                 plots.append((var.Name, xPoints, yPoints, pngName, csvName, pngPath, csvPath))
             else:
                 plots.append((var.Name, xPoints, yPoints, pngName, None, pngPath, None))
 
         return plots
 
-    def exportCSV(self, x, y, xname, yname, filename):
+    def _exportCSV(self, x, y, xname, yname, filename):
+        """
+        Private function to create CSV file with the raw simulation data.
+        :rtype: Boolean (True if successful)
+        """
         try:
             n = len(x)
             f = open(filename, "w")
@@ -162,30 +249,62 @@ class ninemlTesterDataReporter(daeDataReporterLocal):
                 f.write('%.18e,%.18e\n' % (x[i], y[i]))
             f.close()
             return True
+        
         except Exception as e:
             return False
 
     def Connect(self, ConnectionString, ProcessName):
+        """
+        Virtual function, a part of the daetools daeDataReporter interface,
+        called to connect the data reporter to the corresponding data receiver.
+        Here everything is kept in the data reporter so just return True always.
+        """
         return True
 
     def Disconnect(self):
+        """
+        Virtual function, a part of the daetools daeDataReporter interface,
+        called to disconnect the data reporter from the corresponding data receiver.
+        Here it always returns True.
+        """
         return True
 
     def IsConnected(self):
+        """
+        Virtual function, a part of the daetools daeDataReporter interface,
+        called to test if the data reporter is connected to the corresponding data receiver.
+        Here it always returns True.
+        """
         return True
 
-# It is defined as a seperate class for it will be needed to setup params/variables/... for a model 
-# that is not a top-level model of a simulation (for instance in a network)
 class daetools_model_setup:
+    """
+    Sets the parameter values, initial conditions and other processing needed.
+    It is used by the daetools_simulation class to set-up indicidual models (neurones, synapses etc). 
+    naturally it belongs to the daetools_simulation class. However, it is defined as a seperate class 
+    for it will be needed to setup params/variables/... for a model that is not a top-level model of 
+    a simulation (for instance in a network).
+    It defines two functions which are used by the simulation:
+    
+    * SetUpParametersAndDomains
+    * SetUpVariables
+    """
     def __init__(self, model, keysAsCanonicalNames, **kwargs):
+        """
+        :param model: daeModel-derived object
+        :param keysAsCanonicalNames: Boolean (True if the keys are canonical names)
+        :param **kwargs: python dictionaries containing parameters values, initial conditions, etc.
+        
+        :raises: RuntimeError
+        """
         self.model                = model
         self.keysAsCanonicalNames = keysAsCanonicalNames
 
         dictIdentifiers, dictFunctions      = getAnalogPortsDictionaries(self.model)
         self.analog_ports_expression_parser = ExpressionParser(dictIdentifiers, dictFunctions)
 
-        # These dictionaries may contain unicode strings (if the input originated from the web form)
-        # Therefore, str(...) should be used whenever a string is expected
+        # Is there a problem if these dictionaries contain unicode strings?
+        # (if the input originated from the web form)
         self._parameters               = kwargs.get('parameters',               {})
         self._initial_conditions       = kwargs.get('initial_conditions',       {})
         self._active_regimes           = kwargs.get('active_regimes',           {})
@@ -194,6 +313,7 @@ class daetools_model_setup:
         self._event_ports_expressions  = kwargs.get('event_ports_expressions',  {})
 
         self.intervals = {}
+        self.debug     = True
         
         # Initialize reduce ports
         for portName, expression in list(self._analog_ports_expressions.items()):
@@ -201,7 +321,8 @@ class daetools_model_setup:
                 portName = self.model.CanonicalName + '.' + portName
             port = getObjectFromCanonicalName(self.model, portName, look_for_ports = True, look_for_reduceports = True)
             if port == None:
-                print('Warning: Could not locate port {0}'.format(portName))
+                if self.debug:
+                    print('Warning: Could not locate port {0}'.format(portName))
                 continue
             
             if isinstance(port, ninemlReduceAnalogPort):
@@ -212,15 +333,25 @@ class daetools_model_setup:
                 pass
 
     def SetUpParametersAndDomains(self):
+        """
+        Sets the parameter values. Called automatically by the simulation.
+        
+        :rtype: None
+        :raises: RuntimeError
+        """
         for paramName, value in list(self._parameters.items()):
             if not self.keysAsCanonicalNames:
                 paramName = self.model.CanonicalName + '.' + paramName
             parameter = getObjectFromCanonicalName(self.model, paramName, look_for_parameters = True)
             if parameter == None:
-                print('Warning: Could not locate parameter {0}'.format(paramName))
+                if self.debug:
+                    print('Warning: Could not locate parameter {0}'.format(paramName))
                 continue
             
-            #print('  --> Set the parameter: {0} to: {1}'.format(paramName, value))
+            if self.debug:
+                print('  --> Set the parameter: {0} to: {1}'.format(paramName, value))
+            
+            # This needs some processing, units checking and converting
             if isinstance(value, tuple):
                 parameter.SetValue(value[0])
             elif isinstance(value, (float, int, long)):
@@ -229,15 +360,25 @@ class daetools_model_setup:
                 raise RuntimeError('Invalid parameter: {0} value type specified: {1}-{2}'.format(paramName, value, type(value)))
 
     def SetUpVariables(self):
+        """
+        Sets the initial conditions and other stuff. Called automatically by the simulation.
+        
+        :rtype: None
+        :raises: RuntimeError
+        """
         for varName, value in list(self._initial_conditions.items()):
             if not self.keysAsCanonicalNames:
                 varName = self.model.CanonicalName + '.' + varName
             variable = getObjectFromCanonicalName(self.model, varName, look_for_variables = True)
             if variable == None:
-                print('Warning: Could not locate variable {0}'.format(varName))
+                if self.debug:
+                    print('Warning: Could not locate variable {0}'.format(varName))
                 continue
             
-            #print('  --> Set the variable: {0} to: {1}'.format(varName, value))
+            if self.debug:
+                print('  --> Set the variable: {0} to: {1}'.format(varName, value))
+            
+            # This needs some processing, units checking and converting
             if isinstance(value, tuple):
                 variable.SetInitialCondition(value[0])
             elif isinstance(value, (float, int, long)):
@@ -252,7 +393,8 @@ class daetools_model_setup:
                 raise RuntimeError('The analog port {0} is not connected and no value has been provided'.format(portName))
             port = getObjectFromCanonicalName(self.model, portName, look_for_ports = True, look_for_reduceports = True)
             if port == None:
-                print('Warning: Could not locate port {0}'.format(portName))
+                if self.debug:
+                    print('Warning: Could not locate port {0}'.format(portName))
                 continue
             
             value = float(self.analog_ports_expression_parser.parse_and_evaluate(expression))
@@ -263,7 +405,9 @@ class daetools_model_setup:
                     a_port.value.AssignValue(value)
             else:
                 raise RuntimeError('Unknown port object: {0}'.format(portName))
-            #print('  --> Assign the value of the port variable: {0} to {1} (evaluated value: {2})'.format(portName, expression, value))
+            
+            if self.debug:
+                print('  --> Assign the value of the port variable: {0} to {1} (evaluated value: {2})'.format(portName, expression, value))
         
         for portName, expression in list(self._event_ports_expressions.items()):
             if not self.keysAsCanonicalNames:
@@ -272,7 +416,8 @@ class daetools_model_setup:
                 continue
             port = getObjectFromCanonicalName(self.model, portName, look_for_eventports = True)
             if port == None:
-                port('Warning: Could not locate event port {0}'.format(portName))
+                if self.debug:
+                    print('Warning: Could not locate event port {0}'.format(portName))
                 continue
             
             str_values = expression.split(',')
@@ -288,7 +433,9 @@ class daetools_model_setup:
                     data = []
                 data.append(port)
                 self.intervals[value] = data
-            #print('  --> Event port {0} triggers at: {1}'.format(portName, expression))
+            
+            if self.debug:
+                print('  --> Event port {0} triggers at: {1}'.format(portName, expression))
 
         for modelName, stateName in list(self._active_regimes.items()):
             if not self.keysAsCanonicalNames:
@@ -296,12 +443,15 @@ class daetools_model_setup:
             stateName = str(stateName)
             stn = getObjectFromCanonicalName(self.model, modelName + '.' + nineml_daetools_bridge.ninemlSTNRegimesName, look_for_stns = True)
             if stn == None:
-                print('Warning: Could not locate STN {0}'.format(nineml_daetools_bridge.ninemlSTNRegimesName))
+                if self.debug:
+                    print('Warning: Could not locate STN {0}'.format(nineml_daetools_bridge.ninemlSTNRegimesName))
                 continue
 
-            #print('  --> Set the active state in the model: {0} to: {1}'.format(modelName, stateName), 0)
+            if self.debug:
+                print('  --> Set the active state in the model: {0} to: {1}'.format(modelName, stateName), 0)
             stn.ActiveState = stateName
 
+        # This should be False by default
         self.model.SetReportingOn(True)
         for varName, value in list(self._variables_to_report.items()):
             if not self.keysAsCanonicalNames:
@@ -309,15 +459,31 @@ class daetools_model_setup:
             if value:
                 variable = getObjectFromCanonicalName(self.model, varName, look_for_variables = True)
                 if variable == None:
-                    print('Warning: Could not locate variable {0}'.format(varName))
+                    if self.debug:
+                        print('Warning: Could not locate variable {0}'.format(varName))
                     continue
                 
-                #print('  --> Report the variable: {0}'.format(varName), 0)
+                if self.debug:
+                    print('  --> Report the variable: {0}'.format(varName), 0)
                 variable.ReportingOn = True
 
 
 class nineml_daetools_simulation(daeSimulation):
+    """
+    nineml_daetools_simulation carries out the simulation of the given (top level) model.
+    Used only for simulation of the single AL component (wrapped into the nineml_daetools_bridge object),
+    by the NineML WebApp and nineml_desktop_app.
+    """
     def __init__(self, model, **kwargs):
+        """
+        Initializes nineml_daetools_simulation object.
+        
+        :param model: nineml_daetools_bridge object
+        :param **kwargs: python dictionaries containing parameters values, initial conditions, reporting interval, time horizon, etc
+        
+        :rtype: None
+        :raises: RuntimeError
+        """
         daeSimulation.__init__(self)
         
         self.TimeHorizon       = float(kwargs.get('timeHorizon',       0.0))
@@ -327,12 +493,35 @@ class nineml_daetools_simulation(daeSimulation):
         self.m     = model
     
     def SetUpParametersAndDomains(self):
+        """
+        Sets the parameter values. Called automatically by the simulation.
+        
+        :rtype: None
+        :raises: RuntimeError
+        """
         self.setup.SetUpParametersAndDomains()
         
     def SetUpVariables(self):
+        """
+        Sets the initial conditions and other stuff. Called automatically by the simulation.
+        
+        :rtype: None
+        :raises: RuntimeError
+        """
         self.setup.SetUpVariables()
                 
     def Run(self):
+        """
+        Runs the simulation for the specified time horizon reporting the results after every interval
+        (either a regular reporting time or spike event) + whenever a discontinuity is encountered.
+        If specified, spikes will be generated on corresponding event ports at given times. 
+        
+        Spike times are merged together with the reporting intervals in the dictionary setup.intervals
+        (time : event_port) so that they can be iterated over and the simulation run until the next one. 
+        
+        :rtype: None
+        :raises: RuntimeError
+        """
         # Add the normal reporting times
         for t in self.ReportingTimes:
             if not t in self.setup.intervals:
@@ -358,174 +547,7 @@ class nineml_daetools_simulation(daeSimulation):
             
             # Report the data
             self.ReportData(self.CurrentTime)
-    
-    """            
-    def SetUpParametersAndDomains(self):
-        for paramName, value in list(self._parameters.items()):
-            paramName = str(paramName)
-            parameter = getObjectFromCanonicalName(self.m, paramName, look_for_parameters = True)
-            if parameter == None:
-                raise RuntimeError('Could not locate parameter {0}'.format(paramName))
-            self.Log.Message('  --> Set the parameter: {0} to: {1}'.format(paramName, value), 0)
-            parameter.SetValue(value)
-
-    def SetUpVariables(self):
-        for varName, value in list(self._initial_conditions.items()):
-            varName = str(varName)
-            variable = getObjectFromCanonicalName(self.m, varName, look_for_variables = True)
-            if variable == None:
-                raise RuntimeError('Could not locate variable {0}'.format(varName))
-            self.Log.Message('  --> Set the variable: {0} to: {1}'.format(varName, value), 0)
-            variable.SetInitialCondition(value)
-
-        for portName, expression in list(self._analog_ports_expressions.items()):
-            portName = str(portName)
-            if expression == None or expression == '':
-                raise RuntimeError('The analog port {0} is not connected and no value has been provided'.format(portName))
-            port = getObjectFromCanonicalName(self.m, portName, look_for_ports = True, look_for_reduceports = True)
-            if port == None:
-                raise RuntimeError('Could not locate port {0}'.format(portName))
-            
-            value = float(self.analog_ports_expression_parser.parse_and_evaluate(expression))
-            if isinstance(port, ninemlAnalogPort):
-                port.value.AssignValue(value)
-            elif isinstance(port, ninemlReduceAnalogPort):
-                for a_port in port.Ports:
-                    a_port.value.AssignValue(value)
-            else:
-                raise RuntimeError('Unknown port object: {0}'.format(portName))
-            self.Log.Message('  --> Assign the value of the port variable: {0} to {1} (evaluated value: {2})'.format(portName, expression, value), 0)
-        
-        for portName, expression in list(self._event_ports_expressions.items()):
-            portName = str(portName)
-            if expression == None or expression == '':
-                continue
-            port = getObjectFromCanonicalName(self.m, portName, look_for_eventports = True)
-            if port == None:
-                raise RuntimeError('Could not locate event port {0}'.format(portName))
-            
-            str_values = expression.split(',')
-            for item in str_values:
-                try:
-                    value = float(item)
-                except ValueError:
-                    raise RuntimeError('Cannot convert: {0} to floating point value in the event port expression: {1}'.format(item, expression))
-                # At this point self.intervals contain only event emit time points
-                if value in self.intervals:
-                    data = self.intervals[value]
-                else:
-                    data = []
-                data.append(port)
-                self.intervals[value] = data
-            self.Log.Message('  --> Event port {0} triggers at: {1}'.format(portName, expression), 0)
-
-        for modelName, stateName in list(self._active_regimes.items()):
-            modelName = str(modelName)
-            stateName = str(stateName)
-            stn = getObjectFromCanonicalName(self.m, modelName + '.' + nineml_daetools_bridge.ninemlSTNRegimesName, look_for_stns = True)
-            if stn == None:
-                raise RuntimeError('Could not locate STN {0}'.format(nineml_daetools_bridge.ninemlSTNRegimesName))
-
-            self.Log.Message('  --> Set the active state in the model: {0} to: {1}'.format(modelName, stateName), 0)
-            stn.ActiveState = stateName
-
-        self.m.SetReportingOn(False)
-        for varName, value in list(self._variables_to_report.items()):
-            varName = str(varName)
-            if value:
-                variable = getObjectFromCanonicalName(self.m, varName, look_for_variables = True)
-                if variable == None:
-                    raise RuntimeError('Could not locate variable {0}'.format(varName))
-                self.Log.Message('  --> Report the variable: {0}'.format(varName), 0)
-                variable.ReportingOn = True
-    """        
-    """
-    @classmethod
-    def _SetUpParametersAndDomains(cls, model, _parameters, log):
-        for paramName, value in list(_parameters.items()):
-            paramName = str(paramName)
-            parameter = getObjectFromCanonicalName(model, paramName, look_for_parameters = True)
-            if parameter == None:
-                raise RuntimeError('Could not locate parameter {0}'.format(paramName))
-            log.Message('  --> Set the parameter: {0} to: {1}'.format(paramName, value), 0)
-            parameter.SetValue(value)
-    
-    @classmethod
-    def _SetUpVariables(cls, model, _initial_conditions, _analog_ports_expressions, 
-                        analog_ports_expression_parser, _event_ports_expressions, firing_intervals, 
-                        _active_regimes, _variables_to_report, log):
-        # It is defined as a static function for it will be needed to setup variables for a model that is not
-        # a top-level model of a simulation (for instance in a network)
-        for varName, value in list(_initial_conditions.items()):
-            varName = str(varName)
-            variable = getObjectFromCanonicalName(model, varName, look_for_variables = True)
-            if variable == None:
-                raise RuntimeError('Could not locate variable {0}'.format(varName))
-            log.Message('  --> Set the variable: {0} to: {1}'.format(varName, value), 0)
-            variable.SetInitialCondition(value)
-
-        for portName, expression in list(_analog_ports_expressions.items()):
-            portName = str(portName)
-            if expression == None or expression == '':
-                raise RuntimeError('The analog port {0} is not connected and no value has been provided'.format(portName))
-            port = getObjectFromCanonicalName(model, portName, look_for_ports = True, look_for_reduceports = True)
-            if port == None:
-                raise RuntimeError('Could not locate port {0}'.format(portName))
-            
-            value = float(analog_ports_expression_parser.parse_and_evaluate(expression))
-            if isinstance(port, ninemlAnalogPort):
-                port.value.AssignValue(value)
-            elif isinstance(port, ninemlReduceAnalogPort):
-                for a_port in port.Ports:
-                    a_port.value.AssignValue(value)
-            else:
-                raise RuntimeError('Unknown port object: {0}'.format(portName))
-            log.Message('  --> Assign the value of the port variable: {0} to {1} (evaluated value: {2})'.format(portName, expression, value), 0)
-        
-        for portName, expression in list(_event_ports_expressions.items()):
-            portName = str(portName)
-            if expression == None or expression == '':
-                continue
-            port = getObjectFromCanonicalName(model, portName, look_for_eventports = True)
-            if port == None:
-                raise RuntimeError('Could not locate event port {0}'.format(portName))
-            
-            str_values = expression.split(',')
-            for item in str_values:
-                try:
-                    value = float(item)
-                except ValueError:
-                    raise RuntimeError('Cannot convert: {0} to floating point value in the event port expression: {1}'.format(item, expression))
-                # At this point firing_intervals contain only event emit time points
-                if value in firing_intervals:
-                    data = firing_intervals[value]
-                else:
-                    data = []
-                data.append(port)
-                firing_intervals[value] = data
-            log.Message('  --> Event port {0} triggers at: {1}'.format(portName, expression), 0)
-
-        for modelName, stateName in list(_active_regimes.items()):
-            modelName = str(modelName)
-            stateName = str(stateName)
-            stn = getObjectFromCanonicalName(model, modelName + '.' + nineml_daetools_bridge.ninemlSTNRegimesName, look_for_stns = True)
-            if stn == None:
-                raise RuntimeError('Could not locate STN {0}'.format(nineml_daetools_bridge.ninemlSTNRegimesName))
-
-            log.Message('  --> Set the active state in the model: {0} to: {1}'.format(modelName, stateName), 0)
-            stn.ActiveState = stateName
-
-        model.SetReportingOn(False)
-        for varName, value in list(_variables_to_report.items()):
-            varName = str(varName)
-            if value:
-                variable = getObjectFromCanonicalName(model, varName, look_for_variables = True)
-                if variable == None:
-                    raise RuntimeError('Could not locate variable {0}'.format(varName))
-                log.Message('  --> Report the variable: {0}'.format(varName), 0)
-                variable.ReportingOn = True
-    """
-    
+   
 if __name__ == "__main__":
     timeHorizon       = 1
     reportingInterval = 0.001

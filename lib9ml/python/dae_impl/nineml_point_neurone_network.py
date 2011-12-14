@@ -1,8 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+"""
+.. module:: nineml_point_neurone_network
+   :platform: Unix, Windows
+   :synopsis: A useful module indeed.
+
+.. moduleauthor:: Dragan Nikolic <dnikolic@incf.org>
+
+"""
+
 from __future__ import print_function
-import os, sys, urllib, re
+import os, sys, urllib, re, traceback
 from time import localtime, strftime
 
 import nineml
@@ -11,14 +20,16 @@ from nineml.abstraction_layer.testing_utils import TestableComponent
 
 from daetools.pyDAE import pyCore, pyActivity, pyDataReporting, pyIDAS, daeLogs
 from nineml_component_inspector import nineml_component_inspector
-from nineml_daetools_bridge import nineml_daetools_bridge, findObjectInModel, fixObjectName
+from nineml_daetools_bridge import nineml_daetools_bridge, findObjectInModel, fixObjectName, printComponent
 from nineml_tex_report import createLatexReport, createPDF
 from nineml_daetools_simulation import daeSimulationInputData, nineml_daetools_simulation, ninemlTesterDataReporter, daetools_model_setup
 
 def fixParametersDictionary(parameters):
     """
-    Returns a dictionary made of the following key:value pairs: { 'name' : (value, unit) }  
-      - parameters: ParameterSet object
+    :param parameters: ParameterSet object.
+    
+    :rtype: A dictionary made of the following key:value pairs: ``{'name' : (value, unit) }``.
+    :raises: 
     """
     new_parameters = {}
     for name, parameter in list(parameters.items()):
@@ -27,7 +38,15 @@ def fixParametersDictionary(parameters):
 
 def create_nineml_daetools_bridge(name, al_component, parent = None, description = ''):
     """
-    Creates 'nineml_daetools_bridge' object for a given AbstractionLayer Component
+    Creates 'nineml_daetools_bridge' object for a given AbstractionLayer Component.
+    
+    :param name: string
+    :param al_component: AL Component object
+    :param parent: daeModel derived object
+    :param description: string
+    
+    :rtype: nineml_daetools_bridge object
+    :raises: RuntimeError 
     """
     return nineml_daetools_bridge(fixObjectName(name), al_component, parent, description)
 
@@ -38,52 +57,93 @@ def create_al_from_ul_component(ul_component):
     (for instance it is an explicit connections file) - the function returns None.
     This is a case when loading ExplicitConnections rule or the url cannot be resolved.
     However, the function always checks if the url is valid and throws an exception if it ain't.
+    
+    :param ul_component: UL Component object
+    
+    :rtype: AL Component object
+    :raises: RuntimeError 
     """
     try:
         al_component = None
         al_component = nineml.abstraction_layer.readers.XMLReader.read(ul_component.definition.url) 
     
-    except Exception as e:
-        # Getting an exception does not necessarily mean something bad. It will always happen if 
-        # the component is a component with explicit connections which is not a valid xml file. 
-        # Therefore, we try to see if the url is valid; if not - a death is imminent
-        # and an exception will be thrown.
-        f = urllib.urlopen(ul_component.definition.url)
+    except Exception as e1:
+        # Double-check all this below...
+        # Getting an exception can occur for two reasons:
+        #  1. The component at the specified URL does not exist
+        #  2. The component exists but the parser cannot parse it
+        # If the parser couldn't load it try to see if the url is valid and then die miserably
+        try:
+            f = urllib.urlopen(ul_component.definition.url)
+            raise RuntimeError('The component: {0} failed to parse: {1}'.format(ul_component.name, str(e1)))
+        
+        except Exception as e2:
+            raise RuntimeError('Cannot resolve the component: {0}, definition url: {1}, error: {2}'.format(ul_component.name, ul_component.definition.url, str(e2)))
+        
+        #exc_type, exc_value, exc_traceback = sys.exc_info()
+        #strTraceBack = ''.join(traceback.format_tb(exc_traceback))
+        #print('********************************************************')
+        #print('EXCEPTION', str(e), ul_component.definition.url)
+        #print(strTraceBack)
+        #print('********************************************************')
 
     return al_component
 
 class explicit_connections_generator_interface:
     """
-    The simplest implementation of the ConnectionGenerator interface (NEST) 
+    The simplest implementation of the ConnectionGenerator interface (Mikael Djurfeldt)
     built on top of the explicit list of connections.
+    
+    **Achtung, Achtung!** All indexes are zero-index based, for both source and target populations.
     """
     def __init__(self, connections):
         """
-        Iniializes the list of connections that the simulator can iterate on.
+        Initializes the list of connections that the simulator can iterate on.
+        
+        :param connections: a list of tuples: (int, int) or (int, int, weight) or (int, int, weight, delay) or (int, int, weight, delay, parameters)
+    
+        :rtype:        
+        :raises: RuntimeError 
         """
+        if not connections or len(connections) == 0:
+            raise RuntimeError('The connections argument is either None or an empty list')
+        
+        n_values = len(connections[0])
+        if n_values < 2:
+            raise RuntimeError('The number of items in each connection must be at least 2')
+        
+        for c in connections:
+            if len(c) != n_values:
+                raise RuntimeError('An invalid number of items in the connection: {0}; it should be {1}'.format(c, n_values))
+        
         self._connections = connections
         self._current     = 0
     
     @property
     def size(self):
         """
-        Returns the number of the connections.
+        :rtype: Integer (the number of the connections).
+        :raises: RuntimeError 
         """
         return len(self._connections)
         
     @property
     def arity(self):
         """
-        Returns the number of values stored in an individual connection.
+        Returns the number of values stored in an individual connection. It can be zero.
+        The first two are always weight and delay; the rest are connection specific parameters.
+        
+        :rtype: Integer
+        :raises: IndexError
         """
-        if len(self._connections) == 0:
-            return 0
-        else:
-            return len(self._connections[0])
+        return len(self._connections[0]) - 2
     
     def __iter__(self):
         """
-        Initializes the counter and returns the iterator.
+        Initializes and returns the iterator.
+        
+        :rtype: explicit_connections_generator_interface object (self)
+        :raises: 
         """
         self.start()
         return self
@@ -91,12 +151,19 @@ class explicit_connections_generator_interface:
     def start(self):
         """
         Initializes the iterator.
+        
+        :rtype:
+        :raises: 
         """
         self._current = 0
     
     def next(self):
         """
-        Returns the current connection and moves the counter to the next one.
+        Returns the connection and moves the counter to the next one.
+        The connection is a tuple: (source_index, target_index, [zero or more floating point values])
+        
+        :rtype: tuple
+        :raises: StopIteration (as required by the python iterator concept)
         """
         if self._current >= len(self._connections):
             raise StopIteration
@@ -109,11 +176,13 @@ class explicit_connections_generator_interface:
 class daetools_point_neurone_network(pyCore.daeModel):
     """
     A top-level daetools model. All other models will be added to it (neurones, synapses):
-     - Neurone names will be: model_name.population_name_Neurone(xxx)
-     - Synapse names will be: model_name.projection_name_Synapsexxx(source_index,target_index)
+     * Neurone names will be: model_name.population_name_Neurone(xxx)
+     * Synapse names will be: model_name.projection_name_Synapsexxx(source_index,target_index)
     """
     def __init__(self, model):
         """
+        :param model: UL Model object
+        :raises: RuntimeError
         """
         name_ = fixObjectName(model.name)
         pyCore.daeModel.__init__(self, name_, None, '')
@@ -140,47 +209,77 @@ class daetools_point_neurone_network(pyCore.daeModel):
         return res
 
     def getComponent(self, name):
+        """
+        :param name: string
+        :rtype: AL Component object
+        :raises: RuntimeError, IndexError
+        """
         if not name in self._components:
             raise RuntimeError('Component [{0}] does not exist in the network'.format(name)) 
         return self._components[name][0]
 
-    def getComponentURL(self, name):
+    def getULComponent(self, name):
+        """
+        :param name: string
+        :rtype: UL BaseComponent-derived object
+        :raises: RuntimeError, IndexError
+        """
         if not name in self._components:
             raise RuntimeError('Component [{0}] does not exist in the network'.format(name)) 
-        return self._components[name][1].definition.url
+        return self._components[name][1]
     
     def getComponentParameters(self, name):
+        """
+        :param name: string
+        :rtype: dictionary 'name':(value, unit)
+        :raises: RuntimeError, IndexError
+        """
         if not name in self._components:
             raise RuntimeError('Component [{0}] does not exist in the network'.format(name)) 
         return self._components[name][1].parameters
 
     def getGroup(self, name):
+        """
+        :param name: string
+        :rtype: daetools_group object
+        :raises: RuntimeError
+        """
         if not name in self._groups:
             raise RuntimeError('Group [{0}] does not exist in the network'.format(name)) 
         return self._groups[name]
 
     def DeclareEquations(self):
+        """
+        Does nothing.
+        :rtype:
+        :raises:
+        """
         pass
     
     def _handleGroup(self, name, ul_group):
         """
-        Handles a NineML UserLayer Group object:
-         - Resolves/creates AL components and their runtime parameters'/initial-conditions' values.
-         - Creates populations of neurones and adds them to the 'neuronePopulations' dictionary
-         - Creates projections and adds them to the 'projections' dictionary
-        Arguments:
-         - name: string
-         - ul_group: UL Group object
+        Handles UL Group object:
+         * Resolves/creates AL components and their runtime parameters'/initial-conditions' values.
+         * Creates populations of neurones and adds them to the 'neuronePopulations' dictionary
+         * Creates projections and adds them to the 'projections' dictionary
+        
+        :param name: string
+        :param ul_group: UL Group object
+        
+        :rtype:
+        :raises: RuntimeError
         """
         group = daetools_group(name, ul_group, self) 
         self._groups[name] = group
     
     def _handleComponent(self, name, ul_component):
         """
-        Resolves UL component and returns AL component
-        Arguments:
-         - name: string
-         - ul_component: UL BaseComponent-derived object
+        Resolves UL component and adds AL Component object to the list.
+        :param name: string
+        :param ul_component: UL BaseComponent-derived object
+        
+        :rtype:        
+        :raises: RuntimeError
         """
         al_component = create_al_from_ul_component(ul_component) 
         self._components[name] = (al_component, ul_component)
@@ -190,6 +289,12 @@ class daetools_group:
     """
     def __init__(self, name, ul_group, network):
         """
+        :param name: string
+        :param ul_group: UL Group object
+        :param network: daetools_point_neurone_network object
+        
+        :rtype:
+        :raises: RuntimeError
         """
         self._name        = fixObjectName(name)
         self._network     = network
@@ -213,22 +318,35 @@ class daetools_group:
         return res
 
     def getPopulation(self, name):
+        """
+        :param name: string
+        :rtype: daetools_population object
+        :raises: RuntimeError
+        """
         if not name in self._populations:
             raise RuntimeError('Population [{0}] does not exist in the group'.format(name)) 
         return self._populations[name]
         
     def getProjection(self, name):
+        """
+        :param name: string
+        :rtype: daetools_projection object
+        :raises: RuntimeError
+        """
         if not name in self._projections:
             raise RuntimeError('Projection [{0}] does not exist in the group'.format(name)) 
         return self._projections[name]
     
     def _handlePopulation(self, name, ul_population, network):
         """
-        Handles a NineML UserLayer Population object:
-         - Creates 'nineml_daetools_bridge' object for each neurone in the population
-        Arguments:
-         - name: string
-         - ul_population: UL Population object
+        Handles UL Population object:
+         * Creates 'nineml_daetools_bridge' object for each neurone in the population
+        
+        :param name: string
+        :param ul_population: UL Population object
+        
+        :rtype: None
+        :raises: RuntimeError
         """
         population = daetools_population(name, ul_population, network) 
         self._populations[name] = population
@@ -236,11 +354,14 @@ class daetools_group:
     def _handleProjection(self, name, ul_projection, network):
         """
         Handles a NineML UserLayer Projection object:
-         - Creates connections between a source and a target neurone via PSR component.
+         * Creates connections between a source and a target neurone via PSR component.
            PSR components are first transformed into the 'nineml_daetools_bridge' objects
-        Arguments:
-         - name: string
-         - ul_projection: UL Projection object
+        
+        :param name: string
+        :param ul_projection: UL Projection object
+        
+        :rtype:
+        :raises: RuntimeError
         """
         projection = daetools_projection(name, ul_projection, self, network) 
         self._projections[name] = projection
@@ -250,10 +371,12 @@ class daetools_population:
     """
     def __init__(self, name, ul_population, network):
         """
-        Arguments:
-         - name: string
-         - ul_population: UL Population object
-         - network: daetools_point_neurone_network object
+        :param name: string
+        :param ul_population: UL Population object
+        :param network: daetools_point_neurone_network object
+        
+        :rtype: 
+        :raises: RuntimeError
         """
         self._name       = fixObjectName(name)
         self._network    = network
@@ -274,6 +397,11 @@ class daetools_population:
             print(str(e))
         
     def getNeurone(self, index):
+        """
+        :param name: integer
+        :rtype: None
+        :raises: IndexError
+        """
         return self._neurones[int(index)]
     
     def __repr__(self):
@@ -285,21 +413,24 @@ class daetools_population:
 
 class daetools_projection:
     """
-    Data members:
-      _name                  : string
-      _source_population     : daetools_population
-      _target_population     : daetools_population
-      _psr                   : AL Component
-      _connection_type       : AL Component
-      _generated_connections : 
+    Data members:    
+     * _name                  : string
+     * _source_population     : daetools_population
+     * _target_population     : daetools_population
+     * _psr                   : AL Component
+     * _connection_type       : AL Component
+     * _connection_rule       : AL component
+     * _generated_connections : list of ...
     """
     def __init__(self, name, ul_projection, group, network):
         """
-        Arguments:
-         - name: string
-         - ul_projection: UL Projection object
-         - group: daetools_group object
-         - network: daetools_point_neurone_network object
+        :param name: string
+        :param ul_projection: UL Projection object
+        :param group: daetools_group object
+        :param network: daetools_point_neurone_network object
+        
+        :rtype:
+        :raises: RuntimeError
         """
         self._name                  = fixObjectName(name)
         self._network               = network
@@ -307,16 +438,18 @@ class daetools_projection:
         self._target_population     = group.getPopulation(ul_projection.target.name)
         self._psr                   = network.getComponent(ul_projection.synaptic_response.name)
         self._psr_parameters        = fixParametersDictionary(ul_projection.synaptic_response.parameters)
+        self._connection_rule       = network.getComponent(ul_projection.rule.name)
         self._connection_type       = network.getComponent(ul_projection.connection_type.name)
         self._generated_connections = []
         
-        al_connection_rule_component = network.getComponent(ul_projection.rule.name)
-        if al_connection_rule_component: # CSA
-            self._handleConnectionRuleComponent(al_connection_rule_component)
+        ul_connection_rule = network.getULComponent(ul_projection.rule.name)
+        if hasattr(ul_connection_rule, 'connections'): # Explicit connections
+            connections = getattr(ul_connection_rule, 'connections') 
+            cgi = explicit_connections_generator_interface(connections)
+            self._createConnections(cgi)
         
-        else: # explicit connections
-            explicit_connections_file = network.getComponentURL(ul_projection.rule.name)
-            self._handleExplicitConnections(explicit_connections_file)
+        else: # It should be the CSA component then
+            self._handleConnectionRuleComponent(self._connection_rule)
         
     def __repr__(self):
         res = 'daetools_projection({0})\n'.format(self._name)
@@ -326,68 +459,64 @@ class daetools_projection:
         res += '    {0}\n'.format(self._target_population)
         res += '  psr:\n'
         res += '    {0}\n'.format(self._psr)
-        #res += '  connection_rule:\n'
-        #res += '    {0}\n'.format(self._connection_rule)
+        res += '  connection_rule:\n'
+        res += '    {0}\n'.format(self._connection_rule)
         res += '  connection_type:\n'
         res += '    {0}\n'.format(self._connection_type)
         return res
 
     def _handleConnectionRuleComponent(self, al_connection_rule):
         """
-        Arguments:
-         - al_connection_rule: AL Component object (CSA or other)
+        :param al_connection_rule: AL Component object (CSA or other)
+        
+        :rtype: None
+        :raises: RuntimeError
         """
         raise RuntimeError('Support for connection rule component not implemented yet')
 
-    def _handleExplicitConnections(self, url):
+    def _createConnections(self, cgi):
         """
-        Creates connections based on the file with explicit connections (argument 'url'). 
-         - Opens and parses the file with explicit connections.
-           The file is a space-delimited text file in the format: source target [weight delay parameter1 parameter2 ...]
-           Weight, delay and parameters are optional.
-         - Based on the connections connects source->target neurones and (optionally) sets weights and delays
-        Arguments:
-         - url: URL of the external file with explicit connections
+        Iterates over ConnectionGeneratorInterface object and creates connections.
+        Based on the connections, connects source->target neurones and (optionally) sets weights and delays
+        
+        :param cgi: ConnectionGeneratorInterface object
+        
+        :rtype: None
+        :raises: RuntimeError
         """
-        connections = []
-        f = urllib.urlopen(url)
+        count        = 0
+        connections  = []
         
-        source_index = -1
-        target_index = -1
-        weight       = 0.0
-        delay        = 0.0
-        parameters   = []
-        conn_count   = 0
-        
-        scan = re.compile(' ')
-        for line in f.readlines():
-            items = scan.split(line)
-            
-            size = len(items)
+        for connection in cgi:
+            size = len(connection)
             if(size < 2):
-                raise RuntimeError('Not enough data in the explicit connections file: {0}'.format(url))
+                raise RuntimeError('Not enough data in the explicit lists of connections')
             
-            source_index = int(items[0])
-            target_index = int(items[1])
+            source_index = int(connection[0])
+            target_index = int(connection[1])
+            weight       = 0.0
+            delay        = 0.0
+            parameters   = []
             
-            if size >= 3:
-                weight = float(items[2])
-            else:
-                weight = 0.0
+            if cgi.arity == 1:
+                weight = float(connection[2])
+            elif cgi.arity == 2:
+                weight = float(connection[2])
+                delay  = float(connection[3])
+            elif cgi.arity >= 3:
+                weight = float(connection[2])
+                delay  = float(connection[3])
+                for i in range(4, size):
+                    parameters.append(float(connection[i]))           
             
-            if size >= 4:
-                delay = float(items[3])
-            else:
-                delay = 0.0
-            
-            connections.append( (source_index, target_index, weight, delay) )
-            self._createConnection(source_index, target_index, weight, delay, conn_count)
-            conn_count += 1
+            self._createConnection(source_index, target_index, weight, delay, parameters, count)
+            connections.append( (source_index, target_index, weight, delay, parameters) )
+            count += 1
         
-        print(connections)
-        #print(self._generated_connections)
+        for c in connections:
+            print(c)
 
-    def _createConnection(self, source_index, target_index, weight, delay, n):
+    def _createConnection(self, source_index, target_index, weight, delay, parameters, n):
         """
         Connects a source and a target neurone via the psr component.
         First tries to obtain the source/target neurone objects from the corresponding populations, 
@@ -395,20 +524,21 @@ class daetools_projection:
         to connect event ports between the source neurone and the synapse and analogue ports between
         the synapse and the target neurone. The source neurone, the synapse and the target neurone 
         are appended to the list of generated connections.
-        Arguments:
-         - source_index: integer; index in the source population
-         - target_index: integer; index in the target population
-         - weight: float
-         - delay: float
-         - n: number of connections in the projection (just to format the name of the synapse)
-        Returns nothing.
+        
+        :param source_index: integer; index in the source population
+        :param target_index: integer; index in the target population
+        :param weight: float
+        :param delay: float
+        :param n: number of connections in the projection (just to format the name of the synapse)
+        
+        :rtype: None
+        :raises: RuntimeError
         """
         source_neurone = self._source_population.getNeurone(source_index)
         target_neurone = self._target_population.getNeurone(target_index)
         
         synapse_name   = '{0}_Synapse{1}({2},{3})'.format(self._name, n, int(source_index), int(target_index))
         synapse        = create_nineml_daetools_bridge(synapse_name, self._psr, self._network, '')
-        print(synapse.CanonicalName)
         
         nineml_daetools_bridge.connectModelsViaEventPort    (source_neurone, synapse,        self._network)
         nineml_daetools_bridge.connectModelsViaAnaloguePorts(synapse,        target_neurone, self._network)
@@ -416,7 +546,13 @@ class daetools_projection:
         self._generated_connections.append( (source_neurone, synapse, target_neurone) )
 
 class nineml_daetools_network_simulation(pyActivity.daeSimulation):
+    """
+    """
     def __init__(self, network):
+        """
+        :rtype: None
+        :raises: RuntimeError
+        """
         pyActivity.daeSimulation.__init__(self)
         
         self.m = network
@@ -442,26 +578,109 @@ class nineml_daetools_network_simulation(pyActivity.daeSimulation):
                     self.model_setups.append(setup)
 
     def SetUpParametersAndDomains(self):
+        """
+        :rtype: None
+        :raises: RuntimeError
+        """
         for s in self.model_setups:
             s.SetUpParametersAndDomains()
         
     def SetUpVariables(self):
+        """
+        :rtype: None
+        :raises: RuntimeError
+        """
         for s in self.model_setups:
             s.SetUpVariables()
 
+def pyNN_example():
+    """
+    Example: Simple random network with a 1D population of Poisson spike sources projecting to a 2D population of IF_curr_alpha neurons.
+    Simple network with a 1D population of poisson spike sources projecting to a 2D population of IF_curr_exp neurons.
+
+    Andrew Davison, UNIC, CNRS
+    August 2006, November 2009
+
+    $Id: simpleRandomNetwork.py 894 2011-01-11 11:36:46Z apdavison $
+    """
+
+    import socket
+
+    from pyNN.utility import get_script_args
+
+    simulator_name = "neuron" # neuron nest
+    exec("from pyNN.%s import *" % simulator_name)
+
+    from pyNN.random import NumpyRNG
+
+    no_cells1 = 10
+    no_cells2 = 10
+    seed = 764756387
+    tstop = 1000.0 # ms
+    input_rate = 100.0 # Hz
+    cell_params = {'tau_refrac': 2.0,  # ms
+                   'v_thresh':  -50.0, # mV
+                   'tau_syn_E':  2.0,  # ms
+                   'tau_syn_I':  2.0}  # ms
+    n_record = 5
+
+    node = setup(timestep=0.025, min_delay=1.0, max_delay=1.0, debug=True, quit_on_end=False)
+    print( "Process with rank %d running on %s" % (node, socket.gethostname()) )
+
+
+    rng = NumpyRNG(seed=seed, parallel_safe=True)
+
+    print( "[%d] Creating populations" % node )
+    n_spikes = int(2*tstop*input_rate/1000.0)
+    spike_times = numpy.add.accumulate(rng.next(n_spikes, 'exponential',
+                                                [1000.0/input_rate], mask_local=False))
+    print( "[%d] spike_times: [%s]" % (node, str(spike_times)) )
+
+    input_population  = Population(no_cells1, SpikeSourceArray, {'spike_times': spike_times }, label="input")
+    output_population = Population(no_cells2, IF_curr_exp, cell_params, label="output")
+    print( "[%d] input_population cells: %s" % (node, input_population.local_cells) )
+    print( "[%d] output_population cells: %s" % (node, output_population.local_cells) )
+
+    print( "[%d] Connecting populations" % node )
+    connector = FixedProbabilityConnector(0.5, weights=1.0)
+    projection = Projection(input_population, output_population, connector, rng=rng)
+
+    file_stem = "Results/simpleRandomNetwork_np%d_%s" % (num_processes(), simulator_name)
+    projection.saveConnections('%s.conn' % file_stem)
+
+    input_population.record()
+    output_population.record()
+    output_population.sample(n_record, rng).record_v()
+
+    print( "[%d] Running simulation" % node )
+    run(tstop)
+
+    print( "[%d] Writing spikes to disk" % node )
+    output_population.printSpikes('%s_output.ras' % file_stem)
+    input_population.printSpikes('%s_input.ras' % file_stem)
+    print( "[%d] Writing Vm to disk" % node )
+    output_population.print_v('%s.v' % file_stem)
+
+    print( "[%d] Finishing" % node )
+    end()
+    print( "[%d] Done" % node )
+
+
 if __name__ == "__main__":
-    connections = explicit_connections_generator_interface([(0, 0, 0.1, 0.2), (0, 1, 0.1, 0.2), (0, 2, 0.1, 0.2), (0, 3, 0.1, 0.2), (0, 4, 0.1, 0.2)])
-    print('size = ', connections.size)
-    print('arity = ', connections.arity)
-    for connection in connections:
-        print(connection)
-    
-    exit(0)
+    #import numpy
+    #numpy.random.seed(1234)
+
+    #sources_ex = numpy.random.random_integers(0, 20, 10)
+    #sources_in = numpy.random.random_integers(0, 20, 10)
+    #print(sources_ex)
+    #print(sources_in)
+    #pyNN_example()
+    #exit(1)
     
     catalog = "file:///home/ciroki/Data/NineML/nineml-model-tree/lib9ml/python/dae_impl/"
 
     sn_parameters = {
-                     'tspike' :    (-10000.0, ''),
+                     'tspike' :    (-1.0, ''),
                      'V' :         (-0.06, ''),
                      'gl' :        (50.0, ''),
                      'vreset' :    (-0.06, ''),
@@ -478,15 +697,72 @@ if __name__ == "__main__":
                        'g'    : (0.0, '')
                      }
     
-    fake_grid2D = nineml.user_layer.Structure("2D grid", catalog + "coba_synapse.xml")
+    grid2D = nineml.user_layer.Structure("2D grid", catalog + "2Dgrid.xml")
 
     s_celltype = nineml.user_layer.SpikingNodeType("Source neurone type", catalog + "iaf.xml", sn_parameters)
     t_celltype = nineml.user_layer.SpikingNodeType("Target neurone type", catalog + "iaf.xml", sn_parameters)
 
-    s_cells = nineml.user_layer.Population("Source population", 10, s_celltype, nineml.user_layer.PositionList(structure=fake_grid2D))
-    t_cells = nineml.user_layer.Population("Target population", 10, s_celltype, nineml.user_layer.PositionList(structure=fake_grid2D))
+    s_cells = nineml.user_layer.Population("Source population", 10, s_celltype, nineml.user_layer.PositionList(structure=grid2D))
+    t_cells = nineml.user_layer.Population("Target population", 10, s_celltype, nineml.user_layer.PositionList(structure=grid2D))
 
-    connection_rule = nineml.user_layer.ConnectionRule("Explicit Connections",      catalog + "connections.txt",)
+    connections = [(0,0,1.0,1.0),
+                   (0,1,1.0,1.0),
+                   (0,2,1.0,1.0),
+                   (0,3,1.0,1.0),
+                   (0,5,1.0,1.0),
+                   (0,7,1.0,1.0),
+                   (1,1,1.0,1.0),
+                   (1,2,1.0,1.0),
+                   (1,5,1.0,1.0),
+                   (1,6,1.0,1.0),
+                   (1,7,1.0,1.0),
+                   (1,8,1.0,1.0),
+                   (2,0,1.0,1.0),
+                   (2,2,1.0,1.0),
+                   (2,4,1.0,1.0),
+                   (2,6,1.0,1.0),
+                   (2,9,1.0,1.0),
+                   (3,1,1.0,1.0),
+                   (3,4,1.0,1.0),
+                   (3,6,1.0,1.0),
+                   (3,8,1.0,1.0),
+                   (4,0,1.0,1.0),
+                   (4,1,1.0,1.0),
+                   (4,4,1.0,1.0),
+                   (4,5,1.0,1.0),
+                   (4,7,1.0,1.0),
+                   (4,8,1.0,1.0),
+                   (4,9,1.0,1.0),
+                   (5,1,1.0,1.0),
+                   (5,3,1.0,1.0),
+                   (5,8,1.0,1.0),
+                   (5,9,1.0,1.0),
+                   (6,6,1.0,1.0),
+                   (6,7,1.0,1.0),
+                   (6,8,1.0,1.0),
+                   (6,9,1.0,1.0),
+                   (7,0,1.0,1.0),
+                   (7,1,1.0,1.0),
+                   (7,3,1.0,1.0),
+                   (7,4,1.0,1.0),
+                   (7,8,1.0,1.0),
+                   (8,0,1.0,1.0),
+                   (8,1,1.0,1.0),
+                   (8,2,1.0,1.0),
+                   (8,6,1.0,1.0),
+                   (8,7,1.0,1.0),
+                   (8,9,1.0,1.0),
+                   (9,1,1.0,1.0),
+                   (9,3,1.0,1.0),
+                   (9,6,1.0,1.0),
+                   (9,7,1.0,1.0),
+                   (9,8,1.0,1.0),
+                   (9,9,1.0,1.0)
+                  ]
+    
+    connection_rule = nineml.user_layer.ConnectionRule("Explicit Connections", catalog + "explicit_list_of_connections.xml")
+    setattr(connection_rule, 'connections', connections)
+    
     psr             = nineml.user_layer.SynapseType   ("Post-synaptic response",    catalog + "coba_synapse.xml", psr_parameters)
     connection_type = nineml.user_layer.ConnectionType("Static weights and delays", catalog + "coba_synapse.xml", {'weight': (0.1, "nS"), 'delay': (0.3, "ms")})
 
@@ -501,9 +777,9 @@ if __name__ == "__main__":
     model.add_group(network)
     model.write("simple_example1.xml")
     
-    
     network = daetools_point_neurone_network(model)
     #print(network)
+    #exit(0)
 
     # Create Log, Solver, DataReporter and Simulation object
     log          = daeLogs.daePythonStdOutLog()
@@ -529,3 +805,51 @@ if __name__ == "__main__":
     # Run
     simulation.Run()
     simulation.Finalize()
+
+"""
+class IF_cond_exp(StandardCellType):
+    Leaky integrate and fire model with fixed threshold and 
+    exponentially-decaying post-synaptic conductance.
+    
+    default_parameters = {
+        'v_rest'     : -65.0,   # Resting membrane potential in mV. 
+        'cm'         : 1.0,     # Capacity of the membrane in nF
+        'tau_m'      : 20.0,    # Membrane time constant in ms.
+        'tau_refrac' : 0.1,     # Duration of refractory period in ms.
+        'tau_syn_E'  : 5.0,     # Decay time of the excitatory synaptic conductance in ms.
+        'tau_syn_I'  : 5.0,     # Decay time of the inhibitory synaptic conductance in ms.
+        'e_rev_E'    : 0.0,     # Reversal potential for excitatory input in mV
+        'e_rev_I'    : -70.0,   # Reversal potential for inhibitory input in mV
+        'v_thresh'   : -50.0,   # Spike threshold in mV.
+        'v_reset'    : -65.0,   # Reset potential after a spike in mV.
+        'i_offset'   : 0.0,     # Offset current in nA
+    }
+    recordable = ['spikes', 'v', 'gsyn']
+    default_initial_values = {
+        'v': -65.0, #'v_rest',
+    }
+
+Leaky_iaf:
+def get_component():
+    subthreshold_regime = al.Regime(
+        name="subthreshold_regime",
+        time_derivatives =[ "dV/dt = (-gL*(V-vL) + Isyn)/C",],
+        transitions = [al.On("V> theta",
+                                do=["t_spike = t", "V = V_reset",
+                                    al.OutputEvent('spikeoutput')],
+                                to="refractory_regime") ],
+        )
+
+    refractory_regime = al.Regime(
+        transitions = [al.On("t >= t_spike + t_ref",
+                                to='subthreshold_regime')],
+        name="refractory_regime"
+        )
+
+    analog_ports = [al.SendPort("V"),
+             al.ReducePort("Isyn",reduce_op="+")]
+
+    c1 = al.ComponentClass("LeakyIAF", regimes = [subthreshold_regime, refractory_regime], analog_ports=analog_ports)
+
+    return c1
+"""

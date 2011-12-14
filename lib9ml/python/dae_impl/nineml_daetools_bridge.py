@@ -13,6 +13,14 @@ from units_parser import UnitsParser
 from daetools.pyDAE import *
 
 def addIdentifiers(model, parent, dictIdentifiers):
+    """
+    :param model:
+    :param parent:
+    :param dictIdentifiers:
+        
+    :rtype: python dictionary (modified dictIdentifiers argument)
+    :raises: RuntimeError
+    """
     for o in model.Parameters:
         relName = daeGetRelativeName(parent, o)
         #print('CanonicalName: {0}, RelName: {1}'.format(o.CanonicalName, relName))
@@ -55,6 +63,17 @@ def random_exponential(L):
     raise RuntimeError('Not implemented function: random.exponential')
 
 def getNineMLDictionaries(model):
+    """
+    Returns a tuple of two dictionaries needed to parse NineML mathematical and logical expressions:
+    
+    * 'identifier_name' : daetools adouble object
+    * 'function_name' : callable-object that returns adouble object
+    
+    :param model: daeModel-derived object
+        
+    :rtype: python tuple (dictionary Identifiers, dictionary Functions)
+    :raises:
+    """
     dictIdentifiers = {}
     dictFunctions   = {}
 
@@ -98,6 +117,17 @@ def getNineMLDictionaries(model):
     return dictIdentifiers, dictFunctions
 
 def getAnalogPortsDictionaries(model):
+    """
+    Returns a tuple of two dictionaries needed to parse inputs for the analogue ports:
+    
+    * 'identifier_name' : daetools adouble object
+    * 'function_name' : callable-object that returns adouble object
+    
+    :param model: daeModel-derived object
+        
+    :rtype: python tuple (dictionary Identifiers, dictionary Functions)
+    :raises:
+    """
     dictIdentifiers = {}
     dictFunctions   = {}
 
@@ -134,6 +164,15 @@ def getAnalogPortsDictionaries(model):
     return dictIdentifiers, dictFunctions
 
 def printComponent(c, name, indent_string = '  ', level = 0):
+    """
+    :param c: AL Component object
+    :param name: string
+    :param indent_string: string
+    :param level: integer
+        
+    :rtype: None
+    :raises:
+    """
     indent = level*indent_string
     print(indent + '+ COMPONENT: [{0}], class: [{1}]'.format(name, c.__class__.__name__))
 
@@ -196,6 +235,14 @@ def printComponent(c, name, indent_string = '  ', level = 0):
         printComponent(subc, name, indent_string, level+1)
 
 def findObjectInModel(model, name, **kwargs):
+    """
+    :param model: daeModel-derived object
+    :param name: string
+    :param kwargs: list of boolean flags determining the type of objects to look for
+        
+    :rtype: python object (depends on kwargs argument)
+    :raises: RuntimeError
+    """
     look_for_domains     = kwargs.get('look_for_domains',     False)
     look_for_parameters  = kwargs.get('look_for_parameters',  False)
     look_for_variables   = kwargs.get('look_for_variables',   False)
@@ -241,13 +288,25 @@ def findObjectInModel(model, name, **kwargs):
     return None
 
 def getObjectFromNamespaceAddress(rootModel, address, **kwargs):
+    """
+    :param rootModel: daeModel-derived object
+    :param address: AL NamespaceAddress object
+    :param kwargs: list of boolean flags determining the type of objects to look for
+        
+    :rtype: python object (depends on kwargs argument)
+    :raises: RuntimeError
+    """
     canonicalName = '.'.join(address.loctuple)
     return getObjectFromCanonicalName(rootModel, canonicalName, **kwargs)
 
 def getObjectFromCanonicalName(rootModel, canonicalName, **kwargs):
     """
-    rootModel: daModel object
-    canonicalName: a 'path' to the object ('model1.model2.object')
+    :param rootModel: daeModel-derived object
+    :param canonicalName: a 'path' to the object ('model1.model2.object')
+    :param kwargs: list of boolean flags determining the type of objects to look for
+        
+    :rtype: python object (depends on kwargs argument)
+    :raises: RuntimeError
     """
     relativeName = daeGetRelativeName(rootModel.CanonicalName, canonicalName)
     #print('  relativeName = {0} for root = {1} and canonicalName = {2}'.format(relativeName, rootModel.CanonicalName, canonicalName))
@@ -267,11 +326,29 @@ def getObjectFromCanonicalName(rootModel, canonicalName, **kwargs):
     return findObjectInModel(root, objectName, **kwargs)
 
 def fixObjectName(name):
+    """
+    Replaces spaces from the 'name' argument and returns the modified string.
+    
+    :param name: string
+        
+    :rtype: string
+    :raises:
+    """
     new_name = name.replace(' ', '_')
     return new_name
 
 class ninemlAnalogPort(daePort):
+    """
+    """
     def __init__(self, Name, PortType, Model, Description = ''):
+        """
+        :param Name: string
+        :param PortType: daetools port type (eInlet, eOutlet, eInletOutlet)
+        :param Model: daeModel-derived object
+        :param Description: string
+            
+        :raises: RuntimeError
+        """
         daePort.__init__(self, Name, PortType, Model, Description)
 
         # NineML ports always contain only one variable, and that variable is referred to by the port name
@@ -279,19 +356,33 @@ class ninemlAnalogPort(daePort):
         self.value = daeVariable("value", no_t, self, "")
 
 class ninemlReduceAnalogPort(object):
+    """
+    """
     def __init__(self, name, model):
+        """
+        :param name: string
+        :param model: daeModel-derived object
+            
+        :raises: RuntimeError
+        """
         self.Ports        = []
         self.Name         = name
         self.Model        = model
         self.portVariable = daeVariable(self.Name, no_t, self.Model, "")
 
     def addPort(self):
+        """
+        :raises: RuntimeError
+        """
         name = '{0}_{1}'.format(self.Name, len(self.Ports))
         port = ninemlAnalogPort(name, eInletPort, self.Model, '')
         self.Ports.append(port)
         return port
 
     def generateEquation(self):
+        """
+        :raises: RuntimeError
+        """
         eq = self.Model.CreateEquation(self.Name, "")
         varSum = adouble()
         for p in self.Ports:
@@ -299,9 +390,20 @@ class ninemlReduceAnalogPort(object):
         eq.Residual = self.portVariable() - varSum
 
 class nineml_daetools_bridge(daeModel):
+    """
+    """
+    
     ninemlSTNRegimesName = 'NineML_Regimes_STN'
 
     def __init__(self, Name, ninemlComponent, Parent = None, Description = ""):
+        """
+        :param Name: string
+        :param ninemlComponent: AL component object
+        :param Parent: daeModel-derived object
+        :param Description: string
+            
+        :raises: RuntimeError
+        """
         daeModel.__init__(self, Name, Parent, Description)
 
         self.ninemlComponent = ninemlComponent
@@ -358,6 +460,10 @@ class nineml_daetools_bridge(daeModel):
             nineml_daetools_bridge.connectPorts(portFrom, portTo, self)
             
     def DeclareEquations(self):
+        """
+        :rtype: None
+        :raises: RuntimeError
+        """
         # Create the epression parser and set its Identifiers/Functions dictionaries
         dictIdentifiers, dictFunctions = getNineMLDictionaries(self)
         parser = ExpressionParser(dictIdentifiers, dictFunctions)
@@ -405,7 +511,7 @@ class nineml_daetools_bridge(daeModel):
                 #print map_statevars_timederivs
 
                 for var_name, rhs in list(map_statevars_timederivs.items()):
-                    variable = self.findVariable(var_name)
+                    variable = self._findVariable(var_name)
                     if variable == None:
                         raise RuntimeError('Cannot find state variable {0}'.format(var_name))
 
@@ -479,7 +585,7 @@ class nineml_daetools_bridge(daeModel):
                     raise RuntimeError('Cannot find state variable {0}'.format(analog_port.Name))
                 eq.Residual = analog_port.value() - var_to()
 
-    def findVariable(self, name):
+    def _findVariable(self, name):
         for var in self.nineml_state_variables:
             if var.Name == name:
                 return var
@@ -487,6 +593,15 @@ class nineml_daetools_bridge(daeModel):
 
     @classmethod
     def connectPorts(cls, portInlet, portOutlet, parent_model):
+        """
+        :param cls: nineml_daetools_bridge class
+        :param portInlet: ninemlAnalogPort|ninemlReduceAnalogPort object
+        :param portOutlet: ninemlAnalogPort|ninemlReduceAnalogPort object
+        :param parent_model: daeModel-derived object
+            
+        :rtype: None
+        :raises: RuntimeError
+        """
         portFrom = None
         portTo   = None
 
@@ -508,6 +623,15 @@ class nineml_daetools_bridge(daeModel):
 
     @classmethod
     def connectEventPorts(cls, portFrom, portTo, parent_model):
+        """
+        :param cls: nineml_daetools_bridge class
+        :param portFrom: daeEventPort object
+        :param portTo: daeEventPort object
+        :param parent_model: daeModel-derived object
+            
+        :rtype: None
+        :raises: RuntimeError
+        """
         if (portFrom.Type != eOutletPort) or (portTo.Type != eInletPort):
             raise RuntimeError('Cannot connect event ports: incompatible types')
         
@@ -518,11 +642,14 @@ class nineml_daetools_bridge(daeModel):
         """
         Connects the source and the target models via single event port.
         There must be a single outlet port in the source model and a single inlet port in the target model. 
-        Arguments:
-         - source: nineml_daetools_bridge object (neurone)
-         - target: nineml_daetools_bridge object (target)
-         - parent_model: daeModel object (typically a network object)
-        Returns nothing.
+        
+        :param cls: nineml_daetools_bridge class
+        :param source: nineml_daetools_bridge object (neurone)
+        :param target: nineml_daetools_bridge object (target)
+        :param parent_model: daeModel object (typically a network object)
+            
+        :rtype: None
+        :raises: RuntimeError
         """
         if (len(source.nineml_event_ports) != 1) or (source.nineml_event_ports[0].Type != pyCore.eOutletPort):
             raise RuntimeError('The source neurone [{0}] must have a single outlet event port'.format(source.Name))
@@ -543,12 +670,16 @@ class nineml_daetools_bridge(daeModel):
         The function iterates over the source ports and tries to find its match in the target ports.
         If a match is found it connects them. If a match is not found, or if an incompatible pair 
         of ports has been found it throws an exception.
-        [ACHTUNG, ACHTUNG!! It is assumed that sources do not have reduce ports (tamba/lamba?)]
-        Arguments:
-         - source: nineml_daetools_bridge object (synapse)
-         - target: nineml_daetools_bridge object (neurone)
-         - parent_model: nineml_daetools_bridge object (typically a network object)
-        Returns nothing.
+        
+        **ACHTUNG, ACHTUNG!!** It is assumed that sources do not have reduce ports [tamba/lamba?]
+        
+        :param cls: nineml_daetools_bridge class
+        :param- source: nineml_daetools_bridge object (synapse)
+        :param target: nineml_daetools_bridge object (neurone)
+        :param parent_model: nineml_daetools_bridge object (typically a network object)
+            
+        :rtype: None
+        :raises: RuntimeError
         """
         for source_port in source.nineml_analog_ports:
             matching_port_found = False
