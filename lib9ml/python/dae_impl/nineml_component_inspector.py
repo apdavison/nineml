@@ -36,6 +36,15 @@ def updateDictionary(dictOld, dictNew):
                 dictOld[key] = new_value
 
 def updateTree(item, dictNew):
+    """
+    Updates tree item with a new value located in the dictionary 'dictNew'.
+    
+    :param item: treeItem object
+    :param dictNew: dictionary 'canonical name' : value
+        
+    :rtype: 
+    :raises:
+    """
     key = item.canonicalName
     if key in dictNew:
         if item.itemType == treeItem.typeFloat:
@@ -57,6 +66,10 @@ def updateTree(item, dictNew):
         updateTree(child, dictNew)
 
 class treeItem:
+    """
+    Tree-like class used to store hierarchical values from a single or a hierarchical AL Component.
+    It is used to generate various types of GUI and get inputs for daetools simulations.
+    """
     typeNoValue = -1
     typeFloat   =  0
     typeInteger =  1
@@ -65,6 +78,18 @@ class treeItem:
     typeList    =  4
 
     def __init__(self, parent, name, value, data, itemType = typeNoValue):
+        """
+        Initializes a tree item.
+        
+        :param parent: a parent treeItem object
+        :param name: string
+        :param value: string | float | integer | boolean | string-list object
+        :param data: object-specific data
+        :param itemType: type of the item (typeNoValue, typeFloat, typeInteger, typeString, typeBoolean, typeList)
+            
+        :rtype: 
+        :raises:
+        """
         self.parent   = parent
         self.children = []
         self.name     = name
@@ -76,6 +101,12 @@ class treeItem:
 
     @property
     def canonicalName(self):
+        """
+        Returns a canonical name of the item ('root.parent1.parent2.[...].item_name').
+        
+        :rtype: string
+        :raises:
+        """
         if self.parent:
             return self.parent.canonicalName + '.' + self.name
         else:
@@ -83,6 +114,12 @@ class treeItem:
 
     @property
     def level(self):
+        """
+        A level of the item (used to calculate an indent, for instance). Root item's level is 0.
+        
+        :rtype: integer
+        :raises:
+        """
         if self.parent:
             return self.parent.level + 1
         else:
@@ -90,12 +127,24 @@ class treeItem:
 
     @property
     def hasChildren(self):
+        """
+        True if the item has got child items.
+        
+        :rtype: boolean
+        :raises:
+        """
         if len(self.children) == 0:
             return False
         else:
             return True
             
     def getDictionary(self):
+        """
+        Recursively fills a dictionary 'canonical name':value with values (including all child-items).
+        
+        :rtype: python dictionary
+        :raises:
+        """
         dictItems = {}
         if self.itemType != treeItem.typeNoValue:
             dictItems[self.canonicalName] = self.value
@@ -113,6 +162,17 @@ class treeItem:
         return res
 
 def getConnectedAnalogPorts(root_model_name, component, connected_ports):
+    """
+    Recursively iterates over all port connections and returns a list of tuples:
+    (canonical_name, AL Component object, list_of_connected_port_canonical_names).
+    
+    :param root_model_name: string
+    :param component: AL Component object
+    :param connected_ports: list of python tuples
+        
+    :rtype: list of python tuples (modified 'connected_ports' argument)
+    :raises:
+    """
     rootName = root_model_name
     if rootName != '':
         rootName += '.'
@@ -128,15 +188,26 @@ def getConnectedAnalogPorts(root_model_name, component, connected_ports):
 
 def getValueFromDictionary(canonicalName, dictValues, defaultValue, excludeRootName = False):
     """
-    if excludeRootName:
-        names = canonicalName.split('.')
-        if len(names) == 1:
-            key = names[0]
-        else:
-            key = '.'.join(names[1:])
-    else:
-        key = canonicalName
-    """    
+    Recursively iterates over all port connections and returns a list of tuples:
+    (canonical_name, AL Component object, list_of_connected_port_canonical_names).
+    
+    :param canonicalName: string
+    :param dictValues: python dictionary 'canonical name':value
+    :param defaultValue: string | float | integer | boolean | string-list object
+    :param excludeRootName: booleans
+        
+    :rtype: string | float | integer | boolean | string-list object
+    :raises:
+    """
+    #if excludeRootName:
+    #    names = canonicalName.split('.')
+    #    if len(names) == 1:
+    #        key = names[0]
+    #    else:
+    #        key = '.'.join(names[1:])
+    #else:
+    #    key = canonicalName
+        
     key = canonicalName
     
     #print('canonicalName = {0} -> key = {1}'.format(canonicalName, key))
@@ -147,20 +218,41 @@ def getValueFromDictionary(canonicalName, dictValues, defaultValue, excludeRootN
 
 def isValueInList(canonicalName, listValues, excludeRootName = False):
     """
-    if excludeRootName:
-        names = canonicalName.split('.')
-        if len(names) == 1:
-            key = names[0]
-        else:
-            key = '.'.join(names[1:])
-    else:
-        key = canonicalName
+    Detects if the item with 'canonicalName' is in the list.
+    
+    :param canonicalName: string
+    :param listValues: python list
+    :param excludeRootName: booleans
+        
+    :rtype: Boolean
+    :raises:
     """
+    #if excludeRootName:
+    #    names = canonicalName.split('.')
+    #    if len(names) == 1:
+    #        key = names[0]
+    #    else:
+    #        key = '.'.join(names[1:])
+    #else:
+    #    key = canonicalName
+    
     key = canonicalName
     #print('canonicalName = {0} -> key = {1}'.format(canonicalName, key))
     return (key in listValues)
 
 def collectParameters(nodeItem, component, dictParameters, initialValues = {}):
+    """
+    Recursively looks for parameters in the 'component' and all its sub-nodes and
+    adds a new treeItem object to the parent item 'nodeItem'.
+    
+    :param nodeItem: parent treeItem object
+    :param component: AL Component object
+    :param dictParameters: python dictionary 'canonical name' : value
+    :param initialValues: python dictionary
+        
+    :rtype:
+    :raises:
+    """
     for obj in component.parameters:
         objName = nodeItem.canonicalName + '.' + obj.name
         value   = getValueFromDictionary(objName, initialValues, 0.0, True)
@@ -172,6 +264,18 @@ def collectParameters(nodeItem, component, dictParameters, initialValues = {}):
         collectParameters(subnodeItem, subcomponent, dictParameters, initialValues)
 
 def collectStateVariables(nodeItem, component, dictStateVariables, initialValues = {}):
+    """
+    Recursively looks for state variables in the 'component' and all its sub-nodes and
+    adds a new treeItem object to the parent item 'nodeItem'.
+    
+    :param nodeItem: parent treeItem object
+    :param component: AL Component object
+    :param dictStateVariables: python dictionary 'canonical name' : value
+    :param initialValues: python dictionary
+        
+    :rtype:
+    :raises:
+    """
     for obj in component.state_variables:
         objName = nodeItem.canonicalName + '.' + obj.name
         value   = getValueFromDictionary(objName, initialValues, 0.0, True)
@@ -183,6 +287,18 @@ def collectStateVariables(nodeItem, component, dictStateVariables, initialValues
         collectStateVariables(subnodeItem, subcomponent, dictStateVariables, initialValues)
 
 def collectRegimes(nodeItem, component, dictRegimes, activeRegimes = {}):
+    """
+    Recursively looks for regimes in the 'component' and all its sub-nodes and
+    adds a new treeItem object to the parent item 'nodeItem'.
+    
+    :param nodeItem: parent treeItem object
+    :param component: AL Component object
+    :param dictRegimes: python dictionary 'canonical name' : string
+    :param activeRegimes: python dictionary
+        
+    :rtype:
+    :raises:
+    """
     available_regimes = []
     active_regime     = None
 
@@ -208,6 +324,18 @@ def collectRegimes(nodeItem, component, dictRegimes, activeRegimes = {}):
         collectRegimes(subnodeItem, subcomponent, dictRegimes, activeRegimes)
 
 def collectAnalogPorts(nodeItem, component, dictAnalogPortsExpressions, connected_ports, expressions = {}):
+    """
+    Recursively looks for analogue ports in the 'component' and all its sub-nodes and
+    adds a new treeItem object to the parent item 'nodeItem'.
+    
+    :param nodeItem: parent treeItem object
+    :param component: AL Component object
+    :param dictAnalogPortsExpressions: python dictionary 'canonical name' : string
+    :param expressions: python dictionary
+        
+    :rtype:
+    :raises:
+    """
     for obj in component.analog_ports:
         if (obj.mode == 'recv') or (obj.mode == 'reduce'):
             objName = nodeItem.canonicalName + '.' + obj.name
@@ -221,6 +349,18 @@ def collectAnalogPorts(nodeItem, component, dictAnalogPortsExpressions, connecte
         collectAnalogPorts(subnodeItem, subcomponent, dictAnalogPortsExpressions, connected_ports, expressions)
 
 def collectEventPorts(nodeItem, component, dictEventPortsExpressions, expressions = {}):
+    """
+    Recursively looks for event ports in the 'component' and all its sub-nodes and
+    adds a new treeItem object to the parent item 'nodeItem'.
+    
+    :param nodeItem: parent treeItem object
+    :param component: AL Component object
+    :param dictEventPortsExpressions: python dictionary 'canonical name' : string
+    :param initialValues: python dictionary
+        
+    :rtype:
+    :raises:
+    """
     for obj in component.event_ports:
         if (obj.mode == 'recv') or (obj.mode == 'reduce'):
             objName = nodeItem.canonicalName + '.' + obj.name
@@ -233,6 +373,18 @@ def collectEventPorts(nodeItem, component, dictEventPortsExpressions, expression
         collectEventPorts(subnodeItem, subcomponent, dictEventPortsExpressions, expressions)
 
 def collectVariablesToReport(nodeItem, component, dictVariablesToReport, variables_to_report = {}):
+    """
+    Recursively looks for variables marked for inclusion in the report in the 'component' 
+    and all its sub-nodes and adds a new treeItem object to the parent item 'nodeItem'.
+    
+    :param nodeItem: parent treeItem object
+    :param component: AL Component object
+    :param dictStateVariables: python dictionary 'canonical name' : value
+    :param initialValues: python dictionary
+        
+    :rtype:
+    :raises:
+    """
     for obj in component.aliases:
         objName = nodeItem.canonicalName + '.' + obj.lhs
         checked = getValueFromDictionary(objName, variables_to_report, False, True)
@@ -245,7 +397,8 @@ def collectVariablesToReport(nodeItem, component, dictVariablesToReport, variabl
         dictVariablesToReport[objName] = checked
         item = treeItem(nodeItem, obj.name, checked, None, treeItem.typeBoolean)
 
-    # Get crashes with this included
+    # ACHTUNG, ACHTUNG!!!
+    # It crashes with this included
     """
     for obj in component.analog_ports:
         objName = nodeItem.canonicalName + '.' + obj.name
@@ -260,6 +413,16 @@ def collectVariablesToReport(nodeItem, component, dictVariablesToReport, variabl
         collectVariablesToReport(subnodeItem, subcomponent, dictVariablesToReport, variables_to_report)
 
 def addItem(treeWidget, parent, item):
+    """
+    Adds new QTreeWidgetItem to the 'parent' tree item.
+    
+    :param treeWidget: QTreeWidget object
+    :param parent: QTreeWidgetItem object
+    :param item: treeItem object
+        
+    :rtype: QTreeWidgetItem object
+    :raises:
+    """
     widgetItem = QtGui.QTreeWidgetItem(parent, [item.name, ''])
 
     # Item's data is always the tree item object
@@ -287,12 +450,33 @@ def addItem(treeWidget, parent, item):
     return widgetItem
     
 def addItemsToTree(treeWidget, parent, tree_item):
+    """
+    Recursively adds the whole tree of treeItems to QTreeWidget tree.
+    
+    :param treeWidget: QTreeWidget object
+    :param parent: QTreeWidgetItem object
+    :param tree_item: treeItem object
+        
+    :rtype: 
+    :raises:
+    """
     new_parent = addItem(treeWidget, parent, tree_item)
     for child in tree_item.children:
         addItemsToTree(treeWidget, new_parent, child)
 
 class nineml_component_qtGUI(QtGui.QDialog):
+    """
+    Qt dialog form to get the inputs from the user.
+    """
     def __init__(self, inspector):
+        """
+        Initializes the Qt GUI with the data from the nineml_component_inspector object.
+        
+        :param inspector: nineml_component_inspector object
+            
+        :rtype: 
+        :raises:
+        """
         QtGui.QDialog.__init__(self)
         self.ui = Ui_ninemlTester()
         self.ui.setupUi(self)
@@ -344,6 +528,15 @@ class nineml_component_qtGUI(QtGui.QDialog):
         self.done(QtGui.QDialog.Rejected)
 
     def slotTreeItemChanged(self, item, column):
+        """
+        Validates and updates QTreeWidgetItem 'item' with the data entered by the user.
+        
+        :param item: QTreeWidgetItem object
+        :param column: integer
+            
+        :rtype: 
+        :raises:
+        """
         if column == 1:
             data = item.data(1, QtCore.Qt.UserRole)
             if not data:
@@ -389,6 +582,16 @@ class nineml_component_qtGUI(QtGui.QDialog):
                     tree_item.value = False
 
     def slotEventPortsItemDoubleClicked(self, item, column):
+        """
+        Shows the input dialog when QTreeWidgetItem 'item' is double-clicked, 
+        validates the input, and updates the treeItem with the data entered by the user.
+        
+        :param item: QTreeWidgetItem object
+        :param column: integer
+            
+        :rtype: 
+        :raises:
+        """
         if column == 1:
             data      = item.data(1, QtCore.Qt.UserRole)
             tree_item = data.toPyObject()
@@ -401,6 +604,16 @@ class nineml_component_qtGUI(QtGui.QDialog):
                 tree_item.value = str(new_expression)
 
     def slotAnalogPortsItemDoubleClicked(self, item, column):
+        """
+        Shows the input dialog when QTreeWidgetItem 'item' is double-clicked, 
+        validates the input, and updates the treeItem with the data entered by the user.
+        
+        :param item: QTreeWidgetItem object
+        :param column: integer
+            
+        :rtype: 
+        :raises:
+        """
         if column == 1:
             data      = item.data(1, QtCore.Qt.UserRole)
             tree_item = data.toPyObject()
@@ -413,6 +626,16 @@ class nineml_component_qtGUI(QtGui.QDialog):
                 tree_item.value = str(new_expression)
 
     def slotRegimesItemDoubleClicked(self, item, column):
+        """
+        Shows the input dialog when QTreeWidgetItem 'item' is double-clicked, 
+        validates the input, and updates the treeItem with the data entered by the user.
+        
+        :param item: QTreeWidgetItem object
+        :param column: integer
+            
+        :rtype: 
+        :raises:
+        """
         if column == 1:
             data      = item.data(1, QtCore.Qt.UserRole)
             tree_item = data.toPyObject()
@@ -425,6 +648,17 @@ class nineml_component_qtGUI(QtGui.QDialog):
                 tree_item.value = str(active_state)
 
 def latex_table(header_flags, header_items, rows_items, caption = ''):
+    """
+    Creates Latex table based on the given input arguments and returns it as a string.
+    
+    :param header_flags: python string list
+    :param header_items: python string list
+    :param rows_items: python list of string lists
+    :param caption: string
+        
+    :rtype: string
+    :raises:
+    """
     table_template = """
 \\begin{{table}}[placement=!h]
 {3}
@@ -451,6 +685,19 @@ def latex_table(header_flags, header_items, rows_items, caption = ''):
     return table_template.format(flags, header, rows, title)
 
 def latex_regime_table(header_flags, regime, odes, _on_conditions, _on_events, caption = ''):
+    """
+    Creates Latex representation of regimes based on the given input arguments and returns it as a string.
+    
+    :param header_flags: python string list
+    :param regime: string
+    :param odes: python string list
+    :param _on_conditions: python string list
+    :param _on_events: python string list
+    :param caption: string
+        
+    :rtype: string
+    :raises:
+    """
     table_template = """
 \\begin{{table}}[placement=!h]
 {3}
@@ -484,6 +731,24 @@ def latex_regime_table(header_flags, regime, odes, _on_conditions, _on_events, c
     return table_template.format(flags, regime, rows, title)
 
 class nineml_component_inspector:
+    """
+    Analyses the AL Component object and provides various sorts of services:
+    
+    * Creates html or latex report
+    * Generates pyQt desktop graphical user interface (GUI) form to enable users to enter the data necessary for a simulation
+    * Generates html GUI form to enable users to enter the data necessary for a simulation
+
+    GUI forms consist of seven parts:
+    
+    * Simulation-related runtime data: time horizon, reporting interval etc.
+    * A tree-like structure that shows the parameters and input fields to enter their values.
+    * A tree-like structure that shows state-variables and input fields to enter their values (initial conditions).
+    * A tree-like structure that shows unconnected input/reduce analogue ports and input fields to enter their values. The values allowed are simple numbers or time-dependent functions that may contain numbers, basic mathematical functions, constants (such as p, e etc.) and time. Other identifiers may be added subject to the users needs (like variables, parameters, ports and aliases found in the component and some additional functions like step-change, impulse-change functions etc.).
+    * A tree-like structure that shows inlet event ports and input fields to enter their values.  The values allowed at the moment are limited to a sequence of floating point numbers representing incoming event moments.
+    * A tree-like structure that shows all regimes and allows specification of initially active states.
+    * A tree-like structure that shows all variables, aliases and ports where users can select variables/aliases/ports to be included in the report. This produces a table: (time, value) and a plot: variable value = f(t)) for every selected item and these data are incorporated into a tex/pdf report.        
+    """
+    
     categoryParameters              = '___PARAMETERS___'
     categoryInitialConditions       = '___INITIAL_CONDITIONS___'
     categoryActiveStates            = '___ACTIVE_STATES___'
@@ -496,7 +761,12 @@ class nineml_component_inspector:
     end_itemize   = '\\end{itemize}\n\n'
 
     def __init__(self):
-        # NineML component
+        """
+        Initializes the inspector object.
+            
+        :rtype:
+        :raises:
+        """
         self.ninemlComponent = None
 
         self.timeHorizon       = 0.0
@@ -521,6 +791,22 @@ class nineml_component_inspector:
         self.treeAnalogPorts        = None
 
     def inspect(self, component, **kwargs):
+        """
+        Inspects the AL Component object and creates 7 treeItem tree objects:
+        
+        * treeParameters
+        * treeInitialConditions
+        * treeActiveStates
+        * treeEventPorts 
+        * treeVariablesToReport
+        * treeAnalogPorts
+        
+        :param component: AL Component object
+        :param kwargs: python dictionaries with the initial values
+            
+        :rtype:
+        :raises:
+        """
         if isinstance(component, nineml.abstraction_layer.ComponentClass):
             self.ninemlComponent = component
         elif isinstance(component, basestring):
@@ -587,6 +873,12 @@ class nineml_component_inspector:
         return '\n'.join(res)
 
     def jsonData(self):
+        """
+        Returns the trees data as a JSON string.
+        
+        :rtype: string
+        :raises:
+        """
         data = {}
         data['timeHorizon']               = self.timeHorizon
         data['reportingInterval']         = self.reportingInterval
@@ -667,6 +959,14 @@ class nineml_component_inspector:
         model.write(filename)
         
     def updateData(self, **kwargs):
+        """
+        Updates the trees data with the dictionaries in the 'kwargs' argument.
+        
+        :param kwargs: python dictionaries with the values
+            
+        :rtype:
+        :raises: RuntimeError
+        """
         _parameters               = kwargs.get('parameters',               {})
         _initial_conditions       = kwargs.get('initial_conditions',       {})
         _active_regimes           = kwargs.get('active_regimes',           {})
@@ -699,6 +999,12 @@ class nineml_component_inspector:
         updateDictionary(self.variables_to_report,      _variables_to_report)
 
     def updateTrees(self):
+        """
+        Self-update of the trees data.
+            
+        :rtype:
+        :raises:
+        """
         updateTree(self.treeParameters,         self.parameters)
         updateTree(self.treeInitialConditions,  self.initial_conditions)
         updateTree(self.treeActiveStates,       self.active_regimes)
@@ -707,6 +1013,14 @@ class nineml_component_inspector:
         updateTree(self.treeVariablesToReport,  self.variables_to_report)
 
     def getComponentXMLSourceCode(self, flatten = True):
+        """
+        Mickey mice function to get the xml source of the AL component.
+        
+        :param flatten: boolean
+            
+        :rtype: string
+        :raises: IOError
+        """
         f = StringIO()
         nineml.al.writers.XMLWriter.write(self.ninemlComponent, f, flatten)
         xmlSource = f.getvalue()
@@ -716,11 +1030,29 @@ class nineml_component_inspector:
         return self.ninemlComponent
 
     def writeComponentToXMLFile(self, filename, flatten = True):
+        """
+        Mickey mice function to write the AL component to a file.
+        
+        :param filename: string
+        :param flatten: boolean
+            
+        :rtype:
+        :raises: IOError
+        """
         if not self.ninemlComponent or not isinstance(self.ninemlComponent, nineml.abstraction_layer.ComponentClass):
             raise RuntimeError('Invalid input NineML component')
         nineml.al.writers.XMLWriter.write(self.ninemlComponent, filename, flatten)
 
     def generateHTMLForm(self):
+        """
+        Generates HTML form (used in the nineml-webapp) for the AL component.
+        
+        :param filename: string
+        :param flatten: boolean
+            
+        :rtype:
+        :raises: RuntimeError
+        """
         if not self.ninemlComponent or not isinstance(self.ninemlComponent, nineml.abstraction_layer.ComponentClass):
             raise RuntimeError('Invalid input NineML component')
         
@@ -780,6 +1112,16 @@ class nineml_component_inspector:
         return content
 
     def _generateHTMLFormTree(self, item, category = '', required = False):
+        """
+        Internal function to recursively generate a HTML form for the given treeItem root item.
+        
+        :param item: treeItem object
+        :param category: string
+        :param required: boolean
+            
+        :rtype: string
+        :raises:
+        """
         if category == '':
             inputName = item.canonicalName
         else:
@@ -826,6 +1168,12 @@ class nineml_component_inspector:
         return content
 
     def generateHTMLReport(self):
+        """
+        Generates HTML report for the AL component.
+            
+        :rtype: string
+        :raises: RuntimeError
+        """
         if not self.ninemlComponent or not isinstance(self.ninemlComponent, nineml.abstraction_layer.ComponentClass):
             raise RuntimeError('Invalid input NineML component')
 
@@ -862,6 +1210,14 @@ class nineml_component_inspector:
         return form_template.format(self.ninemlComponent.name, content)
 
     def _generateHTMLReportTree(self, item):
+        """
+        Internal function to recursively generate a HTML report for the given treeItem root item.
+        
+        :param item: treeItem object
+            
+        :rtype: string
+        :raises:
+        """
         content = '<ul>'
         if item.itemType == treeItem.typeFloat:
             content += '<li>{0} ({1})</li>'.format(item.name, item.value)
@@ -888,6 +1244,12 @@ class nineml_component_inspector:
         return content
         
     def showQtGUI(self):
+        """
+        Generates and displays Qt GUI dialog and returns the simulation input data.
+            
+        :rtype: python tuple
+        :raises: RuntimeError
+        """
         if not self.ninemlComponent or not isinstance(self.ninemlComponent, nineml.abstraction_layer.ComponentClass):
             raise RuntimeError('Invalid input NineML component')
 
@@ -923,6 +1285,14 @@ class nineml_component_inspector:
             return None
 
     def generateLatexReport(self, tests = []):
+        """
+        Generates Latex/PDF report for the AL component (optional: test data).
+        
+        :param tests: list of tuples with the test data
+            
+        :rtype: python tuple (latex_report_as_a_string, string_list_with_the_tests_data)
+        :raises: RuntimeError
+        """
         if not self.ninemlComponent or not isinstance(self.ninemlComponent, nineml.abstraction_layer.ComponentClass):
             raise RuntimeError('Invalid input NineML component')
 
@@ -945,6 +1315,15 @@ class nineml_component_inspector:
         return (''.join(content), ''.join(tests_content))
 
     def _detectUniqueComponents(self, component, unique_components):
+        """
+        Internal function to create a list of unique AL components to be included in the report.
+        
+        :param component: list of tuples with the test data
+        :param unique_components: string list of unique AL Component names
+            
+        :rtype: 
+        :raises:
+        """
         if not component.name in unique_components:
             unique_components[component.name] = component
 
@@ -952,6 +1331,15 @@ class nineml_component_inspector:
             self._detectUniqueComponents(subcomponent, unique_components)
 
     def _addTestToReport(self, content, test):
+        """
+        Internal function used to add a test to the Latex/PDF report.
+        
+        :param content: string (Latex report)
+        :param test: string with the test data
+            
+        :rtype: string
+        :raises:
+        """
         testName, testDescription, dictInputs, plots, log_output, tmpFolder = test
         
         testInputs = '\\begin{verbatim}\n'
@@ -992,11 +1380,32 @@ class nineml_component_inspector:
             tex_plot = '\\begin{center}\n\\includegraphics{' + pngPath + '}\n\\end{center}\n'
             content.append(tex_plot)
         
-    def correctName(self, name):
+        return content
+        
+    def _correctName(self, name):
+        """
+        Internal function that replaces underscores with Latex mangles underscores in the given string.
+        
+        :param name: string
+            
+        :rtype: string
+        :raises:
+        """
         return name.replace('_', '\\_')
     
     def _addComponentToReport(self, content, component, name, parser):
-        comp_name = self.correctName(name)
+        """
+        Internal function used to add a component to the Latex/PDF report.
+        
+        :param content: stringa
+        :param component: AL Component object
+        :param name: string
+        :param parser: ExpressionParser object
+            
+        :rtype: string
+        :raises:
+        """
+        comp_name = self._correctName(name)
         content.append('\\section{{NineML Component: {0}}}\n\n'.format(comp_name))
 
         # 1) Create parameters
@@ -1007,7 +1416,7 @@ class nineml_component_inspector:
             header_items = ['Name', 'Units', 'Notes']
             rows_items = []
             for param in parameters:
-                _name = self.correctName(param.name)
+                _name = self._correctName(param.name)
                 rows_items.append([_name, ' - ', ' '])
             content.append(latex_table(header_flags, header_items, rows_items))
             content.append('\n')
@@ -1020,7 +1429,7 @@ class nineml_component_inspector:
             header_items = ['Name', 'Units', 'Notes']
             rows_items = []
             for var in state_variables:
-                _name = self.correctName(var.name)
+                _name = self._correctName(var.name)
                 rows_items.append([_name, ' - ', ' '])
             content.append(latex_table(header_flags, header_items, rows_items))
             content.append('\n')
@@ -1047,7 +1456,7 @@ class nineml_component_inspector:
             header_items = ['Name', 'Type', 'Units', 'Notes']
             rows_items = []
             for port in analog_ports:
-                _name = self.correctName(port.name)
+                _name = self._correctName(port.name)
                 _type = port.mode
                 rows_items.append([_name, _type, ' - ', ' '])
             content.append(latex_table(header_flags, header_items, rows_items))
@@ -1061,7 +1470,7 @@ class nineml_component_inspector:
             header_items = ['Name', 'Type', 'Units', 'Notes']
             rows_items = []
             for port in event_ports:
-                _name = self.correctName(port.name)
+                _name = self._correctName(port.name)
                 _type = port.mode
                 rows_items.append([_name, _type, ' - ', ' '])
             content.append(latex_table(header_flags, header_items, rows_items))
@@ -1072,7 +1481,7 @@ class nineml_component_inspector:
             content.append('\\subsection*{Sub-nodes}\n\n')
             content.append(nineml_component_inspector.begin_itemize)
             for name, subcomponent in component.subnodes.items():
-                _name = self.correctName(name)
+                _name = self._correctName(name)
                 tex = nineml_component_inspector.item + _name + '\n'
                 content.append(tex)
             content.append(nineml_component_inspector.end_itemize)
@@ -1088,8 +1497,8 @@ class nineml_component_inspector:
             for port_connection in portconnections:
                 portFrom = '.'.join(port_connection[0].loctuple)
                 portTo   = '.'.join(port_connection[1].loctuple)
-                _fromname = self.correctName(portFrom)
-                _toname   = self.correctName(portTo)
+                _fromname = self._correctName(portFrom)
+                _toname   = self._correctName(portTo)
                 rows_items.append([_fromname, _toname])
             content.append(latex_table(header_flags, header_items, rows_items))
             content.append('\n')
@@ -1104,7 +1513,7 @@ class nineml_component_inspector:
                 header_items = ['ODEs', 'Transitions']
                 rows_items = []
 
-                _name = self.correctName(regime.name)
+                _name = self._correctName(regime.name)
                 _odes = []
                 _on_events = []
                 _on_conditions = []
@@ -1146,7 +1555,7 @@ class nineml_component_inspector:
 
             content.append('\\subsection*{Regimes}\n\n')
             for ir, regime in enumerate(regimes):
-                regimes_list.append(self.correctName(regime.name))
+                regimes_list.append(self._correctName(regime.name))
 
                 tex = ''
                 # 8a) Create time derivatives
@@ -1159,11 +1568,11 @@ class nineml_component_inspector:
 
                 # 8b) Create on_condition actions
                 for on_condition in regime.on_conditions:
-                    regimeFrom = self.correctName(regime.name)
+                    regimeFrom = self._correctName(regime.name)
                     if on_condition.target_regime.name == '':
                         regimeTo = regimeFrom
                     else:
-                        regimeTo = self.correctName(on_condition.target_regime.name)
+                        regimeTo = self._correctName(on_condition.target_regime.name)
                     condition  = parser.parse_to_latex(on_condition.trigger.rhs)
 
                     tex += ' \\\\ \\mbox{If } ' + condition + '\mbox{:}'
@@ -1224,6 +1633,8 @@ class nineml_component_inspector:
             
             content.append('\\newpage')
             content.append('\n')
+            
+            return content
 
 if __name__ == "__main__":
     #nineml_component = '/home/ciroki/Data/daetools/trunk/python-files/examples/iaf.xml'

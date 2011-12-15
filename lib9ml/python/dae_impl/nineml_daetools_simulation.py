@@ -313,7 +313,7 @@ class daetools_model_setup:
         self._event_ports_expressions  = kwargs.get('event_ports_expressions',  {})
 
         self.intervals = {}
-        self.debug     = True
+        self.debug     = False
         
         # Initialize reduce ports
         for portName, expression in list(self._analog_ports_expressions.items()):

@@ -14,9 +14,20 @@ from daetools.pyDAE import *
 
 def addIdentifiers(model, parent, dictIdentifiers):
     """
-    :param model:
-    :param parent:
-    :param dictIdentifiers:
+    Adds all identifiers (parameters, variables, inlet analogue ports) to the dictionary dictIdentifiers.
+    Dictionary keys are relative canonical names (relative to the 'parent' model). For instance, if
+    the canonical name of the 'model' is 'model1.model2.param1' and the canonical name of the 'parent'
+    is 'model1' then the relative name is 'model2.param1' (the equations can access that parameters
+    by using the identifier 'model2.param1').
+    Dictionary values are daetools 'adouble' objects obtained by calling the function call operator
+    of parameters (daeParameter class) and variables (daeVariable class). adouble class defines all standard 
+    mathematical and logical operators and all standard mathematical functions (sqrt, exp, log, sin, cos, ...)
+    so that the AST generated from the NineML expressions can be evaluated and equation residuals and
+    logical expressions be constructed.
+    
+    :param model: nineml_daetools_bridge object
+    :param parent: daeModel-derived object
+    :param dictIdentifiers: python dictionary 'relative name' : adouble object
         
     :rtype: python dictionary (modified dictIdentifiers argument)
     :raises: RuntimeError
@@ -66,8 +77,8 @@ def getNineMLDictionaries(model):
     """
     Returns a tuple of two dictionaries needed to parse NineML mathematical and logical expressions:
     
-    * 'identifier_name' : daetools adouble object
-    * 'function_name' : callable-object that returns adouble object
+    * dictionary dictIdentifiers: 'identifier_name' : daetools adouble object
+    * dictionary dictFunctions: 'function_name' : callable-object that returns adouble object
     
     :param model: daeModel-derived object
         
@@ -120,8 +131,8 @@ def getAnalogPortsDictionaries(model):
     """
     Returns a tuple of two dictionaries needed to parse inputs for the analogue ports:
     
-    * 'identifier_name' : daetools adouble object
-    * 'function_name' : callable-object that returns adouble object
+    * dictionary dictIdentifiers: 'identifier_name' : daetools adouble object
+    * dictionary dictFunctions: 'function_name' : callable-object that returns adouble object
     
     :param model: daeModel-derived object
         
@@ -165,6 +176,8 @@ def getAnalogPortsDictionaries(model):
 
 def printComponent(c, name, indent_string = '  ', level = 0):
     """
+    Mickey Mice function to print AL component to stdout.
+    
     :param c: AL Component object
     :param name: string
     :param indent_string: string
@@ -236,6 +249,8 @@ def printComponent(c, name, indent_string = '  ', level = 0):
 
 def findObjectInModel(model, name, **kwargs):
     """
+    Looks for and returns the object with the 'name' in the daeModel-derived object 'model'.
+    
     :param model: daeModel-derived object
     :param name: string
     :param kwargs: list of boolean flags determining the type of objects to look for
@@ -289,6 +304,8 @@ def findObjectInModel(model, name, **kwargs):
 
 def getObjectFromNamespaceAddress(rootModel, address, **kwargs):
     """
+    Recursively looks for and returns the object with the name 'address' in the toplevel daeModel-derived object 'rootModel'.
+    
     :param rootModel: daeModel-derived object
     :param address: AL NamespaceAddress object
     :param kwargs: list of boolean flags determining the type of objects to look for
@@ -301,6 +318,8 @@ def getObjectFromNamespaceAddress(rootModel, address, **kwargs):
 
 def getObjectFromCanonicalName(rootModel, canonicalName, **kwargs):
     """
+    Recursively looks for and returns the object with the name 'address' in the toplevel daeModel-derived object 'rootModel'.
+
     :param rootModel: daeModel-derived object
     :param canonicalName: a 'path' to the object ('model1.model2.object')
     :param kwargs: list of boolean flags determining the type of objects to look for
@@ -327,7 +346,7 @@ def getObjectFromCanonicalName(rootModel, canonicalName, **kwargs):
 
 def fixObjectName(name):
     """
-    Replaces spaces from the 'name' argument and returns the modified string.
+    Replaces spaces in the 'name' string with underscores and returns the modified string.
     
     :param name: string
         
@@ -339,6 +358,7 @@ def fixObjectName(name):
 
 class ninemlAnalogPort(daePort):
     """
+    Represents NineML analogue ports with a single variable (referred to with the 'value' daeVariable). 
     """
     def __init__(self, Name, PortType, Model, Description = ''):
         """
@@ -357,6 +377,11 @@ class ninemlAnalogPort(daePort):
 
 class ninemlReduceAnalogPort(object):
     """
+    A workaround around NineML reduce analogue ports (there are no reduce ports in daetools; it's done with 
+    by using multiple ports and creating equations that do some operations on their variables). 
+    Whenever a connection to a reduce ports is requested a new ninemlAnalogPort object is created and
+    connected to the requested source port. Once all connections are made a single equation that sums up
+    'value' variables from all generated ports is created and added to the model.
     """
     def __init__(self, name, model):
         """
@@ -372,6 +397,9 @@ class ninemlReduceAnalogPort(object):
 
     def addPort(self):
         """
+        Creates a new ninemlAnalogPort object (when a connection to a reduce ports is requested).
+        
+        :rtype: ninemlAnalogPort object
         :raises: RuntimeError
         """
         name = '{0}_{1}'.format(self.Name, len(self.Ports))
@@ -381,6 +409,10 @@ class ninemlReduceAnalogPort(object):
 
     def generateEquation(self):
         """
+        Creates an equation that sums up 'value' variables from all generated ports.
+        The equation is added to the parent model specified in the __init__ function.
+        
+        :rtype: ninemlAnalogPort object
         :raises: RuntimeError
         """
         eq = self.Model.CreateEquation(self.Name, "")
@@ -391,12 +423,17 @@ class ninemlReduceAnalogPort(object):
 
 class nineml_daetools_bridge(daeModel):
     """
+    A wrapper around a single or hiwerarchical AL Component object.
     """
     
+    # AL components always have a single STN with several regimes; this is a generic name for NineML STNs  
     ninemlSTNRegimesName = 'NineML_Regimes_STN'
 
     def __init__(self, Name, ninemlComponent, Parent = None, Description = ""):
         """
+        Iterates over *Parameters*, *State variables*, *Aliases*, *Analogue ports*, *Event ports*, 
+        *Sub-nodes* and *Port connections* and creates corresponding daetools objects.
+        
         :param Name: string
         :param ninemlComponent: AL component object
         :param Parent: daeModel-derived object
@@ -461,6 +498,9 @@ class nineml_daetools_bridge(daeModel):
             
     def DeclareEquations(self):
         """
+        Iterates over *aliases*, *reduce analogue ports* and *regimes*, parses mathematical and logical expressions
+        and generates daetools equation objects and state transition networks.
+        
         :rtype: None
         :raises: RuntimeError
         """
@@ -544,6 +584,8 @@ class nineml_daetools_bridge(daeModel):
                             raise RuntimeError('Cannot find event port {0}'.format(event_output.port_name))
                         triggerEvents.append( (event_port, 0) )
 
+                    # ACHTUNG!!!
+                    # Check the order of switchTo, triggerEvents and setVariableValues arguments in daetools 1.1.3+!!!
                     self.ON_CONDITION(condition, switchTo          = switchTo,
                                                  triggerEvents     = triggerEvents,
                                                  setVariableValues = setVariableValues )
@@ -553,6 +595,7 @@ class nineml_daetools_bridge(daeModel):
                     source_event_port = getObjectFromCanonicalName(self, on_event.src_port_name, look_for_eventports = True)
                     if source_event_port == None:
                         raise RuntimeError('Cannot find event port {0}'.format(on_event.src_port_name))
+                    
                     switchToStates    = []
                     triggerEvents     = []
                     setVariableValues = []
@@ -570,6 +613,8 @@ class nineml_daetools_bridge(daeModel):
                             raise RuntimeError('Cannot find event port {0}'.format(event_output.port_name))
                         triggerEvents.append( (event_port, 0) )
 
+                    # ACHTUNG!!!
+                    # Check the order of switchTo, triggerEvents and setVariableValues arguments in daetools 1.1.3+!!!
                     self.ON_EVENT(source_event_port, switchToStates    = switchToStates,
                                                      triggerEvents     = triggerEvents,
                                                      setVariableValues = setVariableValues )
@@ -594,6 +639,8 @@ class nineml_daetools_bridge(daeModel):
     @classmethod
     def connectPorts(cls, portInlet, portOutlet, parent_model):
         """
+        Connects two analogue ports and stores the connection in the 'parent_model' object.
+        
         :param cls: nineml_daetools_bridge class
         :param portInlet: ninemlAnalogPort|ninemlReduceAnalogPort object
         :param portOutlet: ninemlAnalogPort|ninemlReduceAnalogPort object
@@ -624,6 +671,8 @@ class nineml_daetools_bridge(daeModel):
     @classmethod
     def connectEventPorts(cls, portFrom, portTo, parent_model):
         """
+        Connects two event ports and stores the connection in the 'parent_model' object.
+        
         :param cls: nineml_daetools_bridge class
         :param portFrom: daeEventPort object
         :param portTo: daeEventPort object
@@ -640,8 +689,9 @@ class nineml_daetools_bridge(daeModel):
     @classmethod
     def connectModelsViaEventPort(cls, source, target, parent_model):
         """
-        Connects the source and the target models via single event port.
-        There must be a single outlet port in the source model and a single inlet port in the target model. 
+        Connects the source and the target models via single event port and stores the connection in the 
+        'parent_model' object. There must be a single outlet port in the source model and a single inlet 
+        port in the target model. 
         
         :param cls: nineml_daetools_bridge class
         :param source: nineml_daetools_bridge object (neurone)
@@ -674,7 +724,7 @@ class nineml_daetools_bridge(daeModel):
         **ACHTUNG, ACHTUNG!!** It is assumed that sources do not have reduce ports [tamba/lamba?]
         
         :param cls: nineml_daetools_bridge class
-        :param- source: nineml_daetools_bridge object (synapse)
+        :param source: nineml_daetools_bridge object (synapse)
         :param target: nineml_daetools_bridge object (neurone)
         :param parent_model: nineml_daetools_bridge object (typically a network object)
             

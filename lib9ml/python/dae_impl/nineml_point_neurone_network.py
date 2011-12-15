@@ -679,113 +679,101 @@ if __name__ == "__main__":
     
     catalog = "file:///home/ciroki/Data/NineML/nineml-model-tree/lib9ml/python/dae_impl/"
 
-    sn_parameters = {
-                     'tspike' :    (-1.0, ''),
-                     'V' :         (-0.06, ''),
-                     'gl' :        (50.0, ''),
-                     'vreset' :    (-0.06, ''),
-                     'taurefrac' : (0.008, ''),
-                     'vthresh' :   (-0.04, ''),
-                     'vrest' :     (-0.06, ''),
-                     'cm' :        (1.0, '')
-                    }
-    
-    psr_parameters = {
-                       'vrev' : (0.0, ''),
-                       'q'    : (3.0, ''),
-                       'tau'  : (5.0, ''),
-                       'g'    : (0.0, '')
+    neurone_params = {
+                       'tspike' :    ( -1.000, 's'),
+                       'V' :         ( -0.060, 'V'),
+                       'gl' :        ( 50.000, 'S/(m^2)'),
+                       'vreset' :    ( -0.060, 'V'),
+                       'taurefrac' : (  0.001, 's'),
+                       'vthresh' :   ( -0.040, 'V'),
+                       'vrest' :     ( -0.060, 'V'),
+                       'cm' :        (100.000, 'F/(m^2)')
                      }
     
-    grid2D = nineml.user_layer.Structure("2D grid", catalog + "2Dgrid.xml")
-
-    s_celltype = nineml.user_layer.SpikingNodeType("Source neurone type", catalog + "iaf.xml", sn_parameters)
-    t_celltype = nineml.user_layer.SpikingNodeType("Target neurone type", catalog + "iaf.xml", sn_parameters)
-
-    s_cells = nineml.user_layer.Population("Source population", 10, s_celltype, nineml.user_layer.PositionList(structure=grid2D))
-    t_cells = nineml.user_layer.Population("Target population", 10, s_celltype, nineml.user_layer.PositionList(structure=grid2D))
-
-    connections = [(0,0,1.0,1.0),
-                   (0,1,1.0,1.0),
-                   (0,2,1.0,1.0),
-                   (0,3,1.0,1.0),
-                   (0,5,1.0,1.0),
-                   (0,7,1.0,1.0),
-                   (1,1,1.0,1.0),
-                   (1,2,1.0,1.0),
-                   (1,5,1.0,1.0),
-                   (1,6,1.0,1.0),
-                   (1,7,1.0,1.0),
-                   (1,8,1.0,1.0),
-                   (2,0,1.0,1.0),
-                   (2,2,1.0,1.0),
-                   (2,4,1.0,1.0),
-                   (2,6,1.0,1.0),
-                   (2,9,1.0,1.0),
-                   (3,1,1.0,1.0),
-                   (3,4,1.0,1.0),
-                   (3,6,1.0,1.0),
-                   (3,8,1.0,1.0),
-                   (4,0,1.0,1.0),
-                   (4,1,1.0,1.0),
-                   (4,4,1.0,1.0),
-                   (4,5,1.0,1.0),
-                   (4,7,1.0,1.0),
-                   (4,8,1.0,1.0),
-                   (4,9,1.0,1.0),
-                   (5,1,1.0,1.0),
-                   (5,3,1.0,1.0),
-                   (5,8,1.0,1.0),
-                   (5,9,1.0,1.0),
-                   (6,6,1.0,1.0),
-                   (6,7,1.0,1.0),
-                   (6,8,1.0,1.0),
-                   (6,9,1.0,1.0),
-                   (7,0,1.0,1.0),
-                   (7,1,1.0,1.0),
-                   (7,3,1.0,1.0),
-                   (7,4,1.0,1.0),
-                   (7,8,1.0,1.0),
-                   (8,0,1.0,1.0),
-                   (8,1,1.0,1.0),
-                   (8,2,1.0,1.0),
-                   (8,6,1.0,1.0),
-                   (8,7,1.0,1.0),
-                   (8,9,1.0,1.0),
-                   (9,1,1.0,1.0),
-                   (9,3,1.0,1.0),
-                   (9,6,1.0,1.0),
-                   (9,7,1.0,1.0),
-                   (9,8,1.0,1.0),
-                   (9,9,1.0,1.0)
-                  ]
+    psr_excitatory_params = {
+                             'vrev' : ( 0.000, 'V'),
+                             'q'    : ( 0.270, 'S'),
+                             'tau'  : ( 0.005, 's'),
+                             'g'    : ( 0.000, 'A/V')
+                            }
+                     
+    psr_inhibitory_params = {
+                             'vrev' : (-0.080, 'V'),
+                             'q'    : ( 4.500, 'S'),
+                             'tau'  : ( 0.010, 's'),
+                             'g'    : ( 0.000, 'A/V')
+                            }
     
-    connection_rule = nineml.user_layer.ConnectionRule("Explicit Connections", catalog + "explicit_list_of_connections.xml")
-    setattr(connection_rule, 'connections', connections)
+    neurone_IAF = nineml.user_layer.SpikingNodeType("IAF neurones", catalog + "iaf.xml", neurone_params)
     
-    psr             = nineml.user_layer.SynapseType   ("Post-synaptic response",    catalog + "coba_synapse.xml", psr_parameters)
-    connection_type = nineml.user_layer.ConnectionType("Static weights and delays", catalog + "coba_synapse.xml", {'weight': (0.1, "nS"), 'delay': (0.3, "ms")})
+    psr_excitatory  = nineml.user_layer.SynapseType   ("COBA excitatory", catalog + "coba_synapse.xml", psr_excitatory_params)
+    psr_inhibitory  = nineml.user_layer.SynapseType   ("COBA inhibitory", catalog + "coba_synapse.xml", psr_inhibitory_params)
+    
+    grid2D          = nineml.user_layer.Structure("2D grid", catalog + "2Dgrid.xml")
+    connection_type = nineml.user_layer.ConnectionType("Static weights and delays", catalog + "static_weights_delays.xml")
+    
+    population_excitatory = nineml.user_layer.Population("Excitatory population", 4000, neurone_IAF, nineml.user_layer.PositionList(structure=grid2D))
+    population_inhibitory = nineml.user_layer.Population("Inhibitory population", 1000, neurone_IAF, nineml.user_layer.PositionList(structure=grid2D))
 
-    projection = nineml.user_layer.Projection("Projection 1", s_cells, t_cells, connection_rule, psr, connection_type)
+    connections_exc_exc = [(0,0,1.0,1.0),
+                           (9,9,1.0,1.0)
+                          ]
+    connections_exc_inh = [(0,0,1.0,1.0),
+                           (9,9,1.0,1.0)
+                          ]
+    connections_inh_inh = [(0,0,1.0,1.0),
+                           (9,9,1.0,1.0)
+                          ]
+    connections_inh_exc = [(0,0,1.0,1.0),
+                           (9,9,1.0,1.0)
+                          ]
+    connection_rule_exc_exc = nineml.user_layer.ConnectionRule("Explicit Connections exc_exc", catalog + "explicit_list_of_connections.xml")
+    connection_rule_exc_inh = nineml.user_layer.ConnectionRule("Explicit Connections exc_inh", catalog + "explicit_list_of_connections.xml")
+    connection_rule_inh_inh = nineml.user_layer.ConnectionRule("Explicit Connections inh_inh", catalog + "explicit_list_of_connections.xml")
+    connection_rule_inh_exc = nineml.user_layer.ConnectionRule("Explicit Connections inh_exc", catalog + "explicit_list_of_connections.xml")
+    
+    setattr(connection_rule_exc_exc, 'connections', connections_exc_exc)
+    setattr(connection_rule_exc_inh, 'connections', connections_exc_inh)
+    setattr(connection_rule_inh_inh, 'connections', connections_inh_inh)
+    setattr(connection_rule_inh_exc, 'connections', connections_inh_exc)
 
+    projection_exc_exc = nineml.user_layer.Projection("Projection exc_exc", population_excitatory, population_excitatory, connection_rule_exc_exc, psr_excitatory, connection_type)
+    projection_exc_inh = nineml.user_layer.Projection("Projection exc_inh", population_excitatory, population_inhibitory, connection_rule_exc_inh, psr_excitatory, connection_type)
+    projection_inh_inh = nineml.user_layer.Projection("Projection inh_inh", population_inhibitory, population_inhibitory, connection_rule_inh_inh, psr_inhibitory, connection_type)
+    projection_exc_exc = nineml.user_layer.Projection("Projection inh_exc", population_inhibitory, population_excitatory, connection_rule_inh_exc, psr_inhibitory, connection_type)
+
+    # Add everything to a single group
     network = nineml.user_layer.Group("Network")
-    network.add(s_cells)
-    network.add(t_cells)
-    network.add(projection)
+    
+    # Add populations
+    network.add(population_excitatory)
+    network.add(population_inhibitory)
+    
+    # Add projections
+    network.add(projection_exc_exc)
+    network.add(projection_exc_inh)
+    network.add(projection_inh_inh)
+    network.add(projection_exc_exc)
 
+    # Create a network and add the group to it
     model = nineml.user_layer.Model("Simple 9ML example model")
     model.add_group(network)
-    model.write("simple_example1.xml")
+    model.write("Brette et al., J. Computational Neuroscience (2007).xml")
     
     network = daetools_point_neurone_network(model)
     #print(network)
     #exit(0)
 
     # Create Log, Solver, DataReporter and Simulation object
+    from daetools.solvers import pySuperLU
+
     log          = daeLogs.daePythonStdOutLog()
     daesolver    = pyIDAS.daeIDAS()
     datareporter = pyDataReporting.daeTCPIPDataReporter()
     simulation   = nineml_daetools_network_simulation(network)
+    
+    lasolver     = pySuperLU.daeCreateSuperLUSolver()
+    daesolver.SetLASolver(lasolver)
 
     # Set the time horizon and the reporting interval
     simulation.ReportingInterval = 0.1
