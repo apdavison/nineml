@@ -11,8 +11,9 @@
 """
 
 from __future__ import print_function
-import os, sys, urllib, re, traceback
+import os, sys, urllib, re, traceback, csv
 from time import localtime, strftime
+import numpy.random
 
 import nineml
 from nineml.abstraction_layer import readers
@@ -518,8 +519,8 @@ class daetools_projection:
 
     def _createConnection(self, source_index, target_index, weight, delay, parameters, n):
         """
-        Connects a source and a target neurone via the psr component.
-        First tries to obtain the source/target neurone objects from the corresponding populations, 
+        Connects a source and a target neurone via PSR component.
+        First it tries to obtain the source/target neurone objects from the corresponding populations, 
         then creates the nineml_daetools_bridge object for the synapse component and finally tries 
         to connect event ports between the source neurone and the synapse and analogue ports between
         the synapse and the target neurone. The source neurone, the synapse and the target neurone 
@@ -548,15 +549,18 @@ class daetools_projection:
 class nineml_daetools_network_simulation(pyActivity.daeSimulation):
     """
     """
-    def __init__(self, network):
+    def __init__(self, network, rng_seed = 1234):
         """
         :rtype: None
         :raises: RuntimeError
         """
         pyActivity.daeSimulation.__init__(self)
         
-        self.m = network
+        self.m            = network
         self.model_setups = []
+        self.rng = numpy.random.RandomState()
+        self.rng.seed(rng_seed)
+
         
         event_ports_expressions = {"spikeinput": "0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90"} 
         for name, group in network._groups.items():
@@ -593,95 +597,26 @@ class nineml_daetools_network_simulation(pyActivity.daeSimulation):
         for s in self.model_setups:
             s.SetUpVariables()
 
-def pyNN_example():
+def readCSV_pyNN(filename):
     """
-    Example: Simple random network with a 1D population of Poisson spike sources projecting to a 2D population of IF_curr_alpha neurons.
-    Simple network with a 1D population of poisson spike sources projecting to a 2D population of IF_curr_exp neurons.
-
-    Andrew Davison, UNIC, CNRS
-    August 2006, November 2009
-
-    $Id: simpleRandomNetwork.py 894 2011-01-11 11:36:46Z apdavison $
+    Reads pyNN .conn files and returns a list of connections: [(int, int, float, float), ...]
     """
-
-    import socket
-
-    from pyNN.utility import get_script_args
-
-    simulator_name = "neuron" # neuron nest
-    exec("from pyNN.%s import *" % simulator_name)
-
-    from pyNN.random import NumpyRNG
-
-    no_cells1 = 10
-    no_cells2 = 10
-    seed = 764756387
-    tstop = 1000.0 # ms
-    input_rate = 100.0 # Hz
-    cell_params = {'tau_refrac': 2.0,  # ms
-                   'v_thresh':  -50.0, # mV
-                   'tau_syn_E':  2.0,  # ms
-                   'tau_syn_I':  2.0}  # ms
-    n_record = 5
-
-    node = setup(timestep=0.025, min_delay=1.0, max_delay=1.0, debug=True, quit_on_end=False)
-    print( "Process with rank %d running on %s" % (node, socket.gethostname()) )
-
-
-    rng = NumpyRNG(seed=seed, parallel_safe=True)
-
-    print( "[%d] Creating populations" % node )
-    n_spikes = int(2*tstop*input_rate/1000.0)
-    spike_times = numpy.add.accumulate(rng.next(n_spikes, 'exponential',
-                                                [1000.0/input_rate], mask_local=False))
-    print( "[%d] spike_times: [%s]" % (node, str(spike_times)) )
-
-    input_population  = Population(no_cells1, SpikeSourceArray, {'spike_times': spike_times }, label="input")
-    output_population = Population(no_cells2, IF_curr_exp, cell_params, label="output")
-    print( "[%d] input_population cells: %s" % (node, input_population.local_cells) )
-    print( "[%d] output_population cells: %s" % (node, output_population.local_cells) )
-
-    print( "[%d] Connecting populations" % node )
-    connector = FixedProbabilityConnector(0.5, weights=1.0)
-    projection = Projection(input_population, output_population, connector, rng=rng)
-
-    file_stem = "Results/simpleRandomNetwork_np%d_%s" % (num_processes(), simulator_name)
-    projection.saveConnections('%s.conn' % file_stem)
-
-    input_population.record()
-    output_population.record()
-    output_population.sample(n_record, rng).record_v()
-
-    print( "[%d] Running simulation" % node )
-    run(tstop)
-
-    print( "[%d] Writing spikes to disk" % node )
-    output_population.printSpikes('%s_output.ras' % file_stem)
-    input_population.printSpikes('%s_input.ras' % file_stem)
-    print( "[%d] Writing Vm to disk" % node )
-    output_population.print_v('%s.v' % file_stem)
-
-    print( "[%d] Finishing" % node )
-    end()
-    print( "[%d] Done" % node )
-
-
-if __name__ == "__main__":
-    #import numpy
-    #numpy.random.seed(1234)
-
-    #sources_ex = numpy.random.random_integers(0, 20, 10)
-    #sources_in = numpy.random.random_integers(0, 20, 10)
-    #print(sources_ex)
-    #print(sources_in)
-    #pyNN_example()
-    #exit(1)
+    connections_out = []
+    connections = list(csv.reader(open(filename, 'rb'), delimiter='\t'))
+    for connection in connections:
+        s = int(float(connection[0]))
+        t = int(float(connection[1]))
+        w = float(connection[2])
+        d = float(connection[3])
+        connections_out.append((s, t, w, d))
+    return connections_out
     
+if __name__ == "__main__":
     catalog = "file:///home/ciroki/Data/NineML/nineml-model-tree/lib9ml/python/dae_impl/"
 
     neurone_params = {
                        'tspike' :    ( -1.000, 's'),
-                       'V' :         ( -0.060, 'V'),
+                       'V' :         ( -0.045, 'V'),
                        'gl' :        ( 50.000, 'S/(m^2)'),
                        'vreset' :    ( -0.060, 'V'),
                        'taurefrac' : (  0.001, 's'),
@@ -692,41 +627,38 @@ if __name__ == "__main__":
     
     psr_excitatory_params = {
                              'vrev' : ( 0.000, 'V'),
-                             'q'    : ( 0.270, 'S'),
+                             'q'    : ( 4.E-9, 'S'),
                              'tau'  : ( 0.005, 's'),
                              'g'    : ( 0.000, 'A/V')
                             }
                      
     psr_inhibitory_params = {
-                             'vrev' : (-0.080, 'V'),
-                             'q'    : ( 4.500, 'S'),
-                             'tau'  : ( 0.010, 's'),
-                             'g'    : ( 0.000, 'A/V')
+                             'vrev' : ( -0.080, 'V'),
+                             'q'    : ( 51.E-9, 'S'),
+                             'tau'  : (  0.010, 's'),
+                             'g'    : (  0.000, 'A/V')
                             }
     
     neurone_IAF = nineml.user_layer.SpikingNodeType("IAF neurones", catalog + "iaf.xml", neurone_params)
     
-    psr_excitatory  = nineml.user_layer.SynapseType   ("COBA excitatory", catalog + "coba_synapse.xml", psr_excitatory_params)
-    psr_inhibitory  = nineml.user_layer.SynapseType   ("COBA inhibitory", catalog + "coba_synapse.xml", psr_inhibitory_params)
+    psr_excitatory  = nineml.user_layer.SynapseType("COBA excitatory", catalog + "coba_synapse.xml", psr_excitatory_params)
+    psr_inhibitory  = nineml.user_layer.SynapseType("COBA inhibitory", catalog + "coba_synapse.xml", psr_inhibitory_params)
     
     grid2D          = nineml.user_layer.Structure("2D grid", catalog + "2Dgrid.xml")
     connection_type = nineml.user_layer.ConnectionType("Static weights and delays", catalog + "static_weights_delays.xml")
     
-    population_excitatory = nineml.user_layer.Population("Excitatory population", 4000, neurone_IAF, nineml.user_layer.PositionList(structure=grid2D))
-    population_inhibitory = nineml.user_layer.Population("Inhibitory population", 1000, neurone_IAF, nineml.user_layer.PositionList(structure=grid2D))
+    population_excitatory = nineml.user_layer.Population("Excitatory population", 80, neurone_IAF, nineml.user_layer.PositionList(structure=grid2D))
+    population_inhibitory = nineml.user_layer.Population("Inhibitory population", 20, neurone_IAF, nineml.user_layer.PositionList(structure=grid2D))
 
-    connections_exc_exc = [(0,0,1.0,1.0),
-                           (9,9,1.0,1.0)
-                          ]
-    connections_exc_inh = [(0,0,1.0,1.0),
-                           (9,9,1.0,1.0)
-                          ]
-    connections_inh_inh = [(0,0,1.0,1.0),
-                           (9,9,1.0,1.0)
-                          ]
-    connections_inh_exc = [(0,0,1.0,1.0),
-                           (9,9,1.0,1.0)
-                          ]
+    connections_exc_exc = readCSV_pyNN('e2e.conn')
+    connections_exc_inh = readCSV_pyNN('e2i.conn')
+    connections_inh_inh = readCSV_pyNN('i2i.conn')
+    connections_inh_exc = readCSV_pyNN('i2e.conn')
+    #print(connections_exc_exc)
+    #print(connections_exc_inh)
+    #print(connections_inh_inh)
+    #print(connections_inh_exc)
+
     connection_rule_exc_exc = nineml.user_layer.ConnectionRule("Explicit Connections exc_exc", catalog + "explicit_list_of_connections.xml")
     connection_rule_exc_inh = nineml.user_layer.ConnectionRule("Explicit Connections exc_inh", catalog + "explicit_list_of_connections.xml")
     connection_rule_inh_inh = nineml.user_layer.ConnectionRule("Explicit Connections inh_inh", catalog + "explicit_list_of_connections.xml")

@@ -10,6 +10,7 @@ from time import localtime, strftime, time
 from daetools.pyDAE import *
 from nineml_daetools_bridge import *
 from nineml_tex_report import *
+import numpy.random
 
 import matplotlib as mpl
 # There were some problems in webapp; 'Agg' is a workaround
@@ -311,6 +312,8 @@ class daetools_model_setup:
         self._variables_to_report      = kwargs.get('variables_to_report',      {})
         self._analog_ports_expressions = kwargs.get('analog_ports_expressions', {})
         self._event_ports_expressions  = kwargs.get('event_ports_expressions',  {})
+        
+        self._random_number_generator  = kwargs.get('random_number_generator',  None)
 
         self.intervals = {}
         self.debug     = False
@@ -332,6 +335,40 @@ class daetools_model_setup:
             elif isinstance(port, ninemlAnalogPort):
                 pass
 
+    def _getValue(self, obj, value, name):
+        """
+        Internal function used to set parameters values and initial conditions.
+        
+        :rtype: None
+        :raises: RuntimeError
+        """
+        _value, _units = value
+        
+        #dictFunctions['random.uniform']     = random_uniform
+        #dictFunctions['random.normal']      = random_normal
+        #dictFunctions['random.binomial']    = random_binomial
+        #dictFunctions['random.poisson']     = random_poisson
+        #dictFunctions['random.exponential'] = random_exponential
+        
+        if isinstance(value, tuple):
+            if isinstance(_value, (float, int, long)): # Simple number
+                return float(_value)
+            
+            elif isinstance(_value, str): # Some function
+                #if _value == 'random.uniform':
+                #    parameter.SetValue(_value)
+                #else: # Something is wrong
+                #    raise RuntimeError('Invalid parameter: {0} value type specified: {1}-{2}'.format(name, value, type(value)))
+                raise RuntimeError('Not implemented')
+            
+            else: # Something is wrong
+                raise RuntimeError('Invalid parameter: {0} value type specified: {1}-{2}'.format(name, value, type(value)))
+        
+        elif isinstance(value, (float, int, long)):
+            parameter.SetValue(value)
+        else:
+            raise RuntimeError('Invalid parameter: {0} value type specified: {1}-{2}'.format(name, value, type(value)))
+
     def SetUpParametersAndDomains(self):
         """
         Sets the parameter values. Called automatically by the simulation.
@@ -351,13 +388,8 @@ class daetools_model_setup:
             if self.debug:
                 print('  --> Set the parameter: {0} to: {1}'.format(paramName, value))
             
-            # This needs some processing, units checking and converting
-            if isinstance(value, tuple):
-                parameter.SetValue(value[0])
-            elif isinstance(value, (float, int, long)):
-                parameter.SetValue(value)
-            else:
-                raise RuntimeError('Invalid parameter: {0} value type specified: {1}-{2}'.format(paramName, value, type(value)))
+            v = self._getValue(parameter, value, paramName)
+            parameter.SetValue(v)
 
     def SetUpVariables(self):
         """
@@ -378,13 +410,8 @@ class daetools_model_setup:
             if self.debug:
                 print('  --> Set the variable: {0} to: {1}'.format(varName, value))
             
-            # This needs some processing, units checking and converting
-            if isinstance(value, tuple):
-                variable.SetInitialCondition(value[0])
-            elif isinstance(value, (float, int, long)):
-                variable.SetInitialCondition(value)
-            else:
-                raise RuntimeError('Invalid variable: {0} initial condition specified: {1}'.format(varName, value))
+            v = self._getValue(variable, value, varName)
+            variable.SetInitialCondition(v)
 
         for portName, expression in list(self._analog_ports_expressions.items()):
             if not self.keysAsCanonicalNames:
