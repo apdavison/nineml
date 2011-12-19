@@ -2,6 +2,7 @@
 
 from __future__ import print_function
 import os, json, numpy, tempfile, shutil
+import numpy.random
 import nineml
 from nineml.abstraction_layer.testing_utils import RecordValue, TestableComponent
 from nineml.abstraction_layer import ComponentClass
@@ -301,9 +302,6 @@ class daetools_model_setup:
         self.model                = model
         self.keysAsCanonicalNames = keysAsCanonicalNames
 
-        dictIdentifiers, dictFunctions      = getAnalogPortsDictionaries(self.model)
-        self.analog_ports_expression_parser = ExpressionParser(dictIdentifiers, dictFunctions)
-
         # Is there a problem if these dictionaries contain unicode strings?
         # (if the input originated from the web form)
         self._parameters               = kwargs.get('parameters',               {})
@@ -313,7 +311,8 @@ class daetools_model_setup:
         self._analog_ports_expressions = kwargs.get('analog_ports_expressions', {})
         self._event_ports_expressions  = kwargs.get('event_ports_expressions',  {})
         
-        self._random_number_generator  = kwargs.get('random_number_generator',  None)
+        self._analog_ports_expression_parser = kwargs.get('analog_ports_expression_parser', None)
+        self._values_expression_parser       = kwargs.get('values_expression_parser',       None)
 
         self.intervals = {}
         self.debug     = False
@@ -337,35 +336,32 @@ class daetools_model_setup:
 
     def _getValue(self, obj, value, name):
         """
-        Internal function used to set parameters values and initial conditions.
+        Internal function used to get a value of parameters values and initial conditions.
+        It can handle simple numbers and tuples (value, units). Thge *value* can be a 
+        simple number or an expression involving other parameters, variables and functions
+        (including random functions).
         
-        :rtype: None
+        :rtype: float
         :raises: RuntimeError
         """
-        _value, _units = value
-        
-        #dictFunctions['random.uniform']     = random_uniform
-        #dictFunctions['random.normal']      = random_normal
-        #dictFunctions['random.binomial']    = random_binomial
-        #dictFunctions['random.poisson']     = random_poisson
-        #dictFunctions['random.exponential'] = random_exponential
-        
         if isinstance(value, tuple):
+            if len(value) != 2:
+                raise RuntimeError('The value for: {0} must be a tuple in the format (float, units): {1}'.format(name, value))
+            
+            _value, _units = value
+            
             if isinstance(_value, (float, int, long)): # Simple number
                 return float(_value)
             
-            elif isinstance(_value, str): # Some function
-                #if _value == 'random.uniform':
-                #    parameter.SetValue(_value)
-                #else: # Something is wrong
-                #    raise RuntimeError('Invalid parameter: {0} value type specified: {1}-{2}'.format(name, value, type(value)))
-                raise RuntimeError('Not implemented')
+            elif isinstance(_value, str): # An expression
+                return float(self._values_expression_parser.parse_and_evaluate(_value))
             
             else: # Something is wrong
                 raise RuntimeError('Invalid parameter: {0} value type specified: {1}-{2}'.format(name, value, type(value)))
         
         elif isinstance(value, (float, int, long)):
-            parameter.SetValue(value)
+            return float(value)
+        
         else:
             raise RuntimeError('Invalid parameter: {0} value type specified: {1}-{2}'.format(name, value, type(value)))
 
@@ -373,9 +369,50 @@ class daetools_model_setup:
         """
         Sets the parameter values. Called automatically by the simulation.
         
+        It requires two passes through the list of parameters:
+        
+         #. Set the values that are simple numerical values.
+         #. Set the values that require parsing and (probably) depend on the values of
+            parameters with the simple numerical values.
+        
         :rtype: None
         :raises: RuntimeError
         """
+        
+        numerical_values = {}
+        expression_values = {}
+        
+        # First create two dictionaries (numerical_values, expression_values)
+        for paramName, value in list(self._parameters.items()):
+            if not self.keysAsCanonicalNames:
+                paramName = self.model.CanonicalName + '.' + paramName
+            parameter = getObjectFromCanonicalName(self.model, paramName, look_for_parameters = True)
+            if parameter == None:
+                if self.debug:
+                    print('Warning: Could not locate parameter {0}'.format(paramName))
+                continue
+            
+            if (isinstance(value, (long, int, float)) or (isinstance(value, tuple) and isinstance(value[0], (long, int, float)))):
+                print('{0} has numerical value'.format(paramName))
+                numerical_values[paramName] = parameter, value
+            else:
+                print('{0} has expression as its value'.format(paramName))
+                expression_values[paramName] = parameter, value
+                
+        
+        # First set the parameters with simple numerical values
+        for paramName, (parameter, value) in list(numerical_values.items()):
+            v = self._getValue(parameter, value, paramName)
+            parameter.SetValue(v)
+        
+        # Then set the parameters with expressions as values
+        for paramName, (parameter, expression) in list(expression_values.items()):
+            v = self._getValue(parameter, expression, paramName)
+            parameter.SetValue(v)
+        
+        """
+        The old code:
+        
         for paramName, value in list(self._parameters.items()):
             if not self.keysAsCanonicalNames:
                 paramName = self.model.CanonicalName + '.' + paramName
@@ -390,14 +427,54 @@ class daetools_model_setup:
             
             v = self._getValue(parameter, value, paramName)
             parameter.SetValue(v)
-
+        """
+        
     def SetUpVariables(self):
         """
         Sets the initial conditions and other stuff. Called automatically by the simulation.
         
+        It requires two passes through the list of variables:
+        
+         #. Set the initial conditions that are simple numerical values.
+         #. Set the initial conditions that require parsing and (probably) depend on the values of
+            parameters/variables with the simple numerical values.
+        
         :rtype: None
         :raises: RuntimeError
         """
+        numerical_values = {}
+        expression_values = {}
+
+        # First create two dictionaries (numerical_values, expression_values)
+        for varName, value in list(self._initial_conditions.items()):
+            if not self.keysAsCanonicalNames:
+                varName = self.model.CanonicalName + '.' + varName
+            variable = getObjectFromCanonicalName(self.model, varName, look_for_variables = True)
+            if variable == None:
+                if self.debug:
+                    print('Warning: Could not locate variable {0}'.format(varName))
+                continue
+            
+            if (isinstance(value, (long, int, float)) or (isinstance(value, tuple) and isinstance(value[0], (long, int, float)))):
+                print('{0} has numerical initial condition'.format(varName))
+                numerical_values[varName] = variable, value
+            else:
+                print('{0} has expression as its initial condition'.format(varName))
+                expression_values[varName] = variable, value
+        
+        # First set the parameters with simple numerical values
+        for varName, (variable, value) in list(numerical_values.items()):
+            v = self._getValue(variable, value, varName)
+            variable.SetInitialCondition(v)
+        
+        # Then set the parameters with expressions as values
+        for varName, (variable, expression) in list(expression_values.items()):
+            v = self._getValue(variable, expression, varName)
+            variable.SetInitialCondition(v)
+        
+        """
+        The old code:
+        
         for varName, value in list(self._initial_conditions.items()):
             if not self.keysAsCanonicalNames:
                 varName = self.model.CanonicalName + '.' + varName
@@ -412,7 +489,8 @@ class daetools_model_setup:
             
             v = self._getValue(variable, value, varName)
             variable.SetInitialCondition(v)
-
+        """
+        
         for portName, expression in list(self._analog_ports_expressions.items()):
             if not self.keysAsCanonicalNames:
                 portName = self.model.CanonicalName + '.' + portName
@@ -424,7 +502,7 @@ class daetools_model_setup:
                     print('Warning: Could not locate port {0}'.format(portName))
                 continue
             
-            value = float(self.analog_ports_expression_parser.parse_and_evaluate(expression))
+            value = float(self._analog_ports_expression_parser.parse_and_evaluate(expression))
             if isinstance(port, ninemlAnalogPort):
                 port.value.AssignValue(value)
             elif isinstance(port, ninemlReduceAnalogPort):
@@ -579,20 +657,20 @@ if __name__ == "__main__":
     timeHorizon       = 1
     reportingInterval = 0.001
     parameters = {
-        "iaf_1coba.iaf.gl": 50.0, 
-        "iaf_1coba.cobaExcit.vrev": 0.0, 
-        "iaf_1coba.cobaExcit.q": 3.0, 
-        "iaf_1coba.iaf.vreset": -0.06, 
-        "iaf_1coba.cobaExcit.tau": 5.0, 
-        "iaf_1coba.iaf.taurefrac": 0.008, 
-        "iaf_1coba.iaf.vthresh": -0.04, 
-        "iaf_1coba.iaf.vrest": -0.06, 
-        "iaf_1coba.iaf.cm": 1.0
+        "iaf_1coba.iaf.gl":         (50.000, ""), 
+        "iaf_1coba.cobaExcit.vrev": ( 0.000, ""), 
+        "iaf_1coba.cobaExcit.q":    ( 3.000, ""), 
+        "iaf_1coba.iaf.vreset":     (-0.060, ""), 
+        "iaf_1coba.cobaExcit.tau":  ( 5.000, ""), 
+        "iaf_1coba.iaf.taurefrac":  ( 0.008, ""), 
+        "iaf_1coba.iaf.vthresh":    (-0.040, ""), 
+        "iaf_1coba.iaf.vrest":      (-0.060, ""), 
+        "iaf_1coba.iaf.cm":         ("1.0001 + cobaExcit.q - 3", "")
     } 
     initial_conditions = {
-        "iaf_1coba.iaf.tspike": -1e+99, 
-        "iaf_1coba.iaf.V": -0.06, 
-        "iaf_1coba.cobaExcit.g": 0.0
+        "iaf_1coba.iaf.tspike":  (-1.00, ""), 
+        "iaf_1coba.iaf.V":       (-0.06, ""), 
+        "iaf_1coba.cobaExcit.g": ( 0.00, "")
     }
     variables_to_report = {
         "iaf_1coba.cobaExcit.I": True, 
@@ -616,15 +694,23 @@ if __name__ == "__main__":
     log          = daeBaseLog()
     daesolver    = daeIDAS()
 
+    rng = numpy.random.RandomState()
+    rng.seed(1234)
+    
     model = nineml_daetools_bridge(nineml_comp.name, nineml_comp, None, '')
-    simulation = nineml_daetools_simulation(model, timeHorizon              = timeHorizon,
-                                                   reportingInterval        = reportingInterval,
-                                                   parameters               = parameters,
-                                                   initial_conditions       = initial_conditions,
-                                                   active_regimes           = active_regimes,
-                                                   analog_ports_expressions = analog_ports_expressions,
-                                                   event_ports_expressions  = event_ports_expressions,
-                                                   variables_to_report      = variables_to_report)
+    analog_ports_expression_parser = getAnalogPortsExpressionParser(model, rng)
+    values_expression_parser       = getParametersValuesInitialConditionsExpressionParser(model, rng)
+    
+    simulation = nineml_daetools_simulation(model, timeHorizon                    = timeHorizon,
+                                                   reportingInterval              = reportingInterval,
+                                                   parameters                     = parameters,
+                                                   initial_conditions             = initial_conditions,
+                                                   active_regimes                 = active_regimes,
+                                                   analog_ports_expressions       = analog_ports_expressions,
+                                                   event_ports_expressions        = event_ports_expressions,
+                                                   variables_to_report            = variables_to_report,
+                                                   analog_ports_expression_parser = analog_ports_expression_parser,
+                                                   values_expression_parser       = values_expression_parser)
     datareporter = ninemlTesterDataReporter()
 
     # Set the time horizon and the reporting interval
@@ -639,6 +725,13 @@ if __name__ == "__main__":
     # Initialize the simulation
     simulation.Initialize(daesolver, datareporter, log)
 
+    for name, val in list(values_expression_parser.dictIdentifiers.items()):
+        print('{0} : {1} ({2})'.format(name, repr(val), float(val)))
+    
+    expr = 'random.uniform(15, 16) + random.uniform(10, 20)'
+    res = values_expression_parser.parse_and_evaluate(expr)
+    print('{0} = {1}'.format(expr, res))
+    
     # Solve at time=0 (initialization)
     simulation.SolveInitial()
 
@@ -646,6 +739,8 @@ if __name__ == "__main__":
     simulation.Run()
     simulation.Finalize()
 
+    exit(0)
+    
     inspector = nineml_component_inspector()
     inspector.inspect(nineml_comp)
 

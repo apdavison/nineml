@@ -1,5 +1,6 @@
 from __future__ import print_function
 from pprint import pformat
+import numpy.random
 import os, sys, re, math, json, traceback, os.path, tempfile, shutil, cgi, unicodedata, StringIO
 import cPickle as pickle
 from time import localtime, strftime, time
@@ -27,7 +28,7 @@ try:
 
     from daetools.pyDAE import pyCore, pyActivity, pyDataReporting, pyIDAS, daeLogs
     from nineml_component_inspector import nineml_component_inspector
-    from nineml_daetools_bridge import nineml_daetools_bridge
+    from nineml_daetools_bridge import nineml_daetools_bridge, getAnalogPortsExpressionParser, getParametersValuesInitialConditionsExpressionParser
     from nineml_tex_report import createLatexReport, createPDF
     from nineml_daetools_simulation import daeSimulationInputData, nineml_daetools_simulation, ninemlTesterDataReporter
     from nineml_webapp_common import createErrorPage, getSetupDataForm, createSetupDataPage, getInitialPage, createResultPage, createDownloadResults
@@ -577,14 +578,22 @@ class nineml_webapp:
             daesolver    = pyIDAS.daeIDAS()
             datareporter = ninemlTesterDataReporter()
             model        = nineml_daetools_bridge(nineml_component.name, nineml_component)
-            simulation   = nineml_daetools_simulation(model, timeHorizon              = simulation_data.timeHorizon,
-                                                             reportingInterval        = simulation_data.reportingInterval,
-                                                             parameters               = simulation_data.parameters,
-                                                             initial_conditions       = simulation_data.initial_conditions,
-                                                             active_regimes           = simulation_data.active_regimes,
-                                                             analog_ports_expressions = simulation_data.analog_ports_expressions,
-                                                             event_ports_expressions  = simulation_data.event_ports_expressions,
-                                                             variables_to_report      = simulation_data.variables_to_report)
+            
+            rng = numpy.random.RandomState()
+            
+            analog_ports_expression_parser = getAnalogPortsExpressionParser(model, rng)
+            values_expression_parser       = getParametersValuesInitialConditionsExpressionParser(model, rng)
+            
+            simulation   = nineml_daetools_simulation(model, timeHorizon                    = simulation_data.timeHorizon,
+                                                             reportingInterval              = simulation_data.reportingInterval,
+                                                             parameters                     = simulation_data.parameters,
+                                                             initial_conditions             = simulation_data.initial_conditions,
+                                                             active_regimes                 = simulation_data.active_regimes,
+                                                             analog_ports_expressions       = simulation_data.analog_ports_expressions,
+                                                             event_ports_expressions        = simulation_data.event_ports_expressions,
+                                                             variables_to_report            = simulation_data.variables_to_report,
+                                                             analog_ports_expression_parser = analog_ports_expression_parser,
+                                                             values_expression_parser       = values_expression_parser)
 
             # Set the time horizon and the reporting interval
             simulation.ReportingInterval = simulation_data.reportingInterval
@@ -616,6 +625,7 @@ class nineml_webapp:
             return True, (testName, testDescription, dictInputs, plots, log_output)
             
         except Exception as e:
+            print(str(e), file=sys.stderr)
             if log:
                 log_output = '<pre>{0}</pre>'.format(log.JoinMessages('\n'))
             return False, (testName, testDescription, dictInputs, None, log_output, str(e))

@@ -13,11 +13,11 @@ You should have received a copy of the GNU General Public License along with thi
 software; if not, see <http://www.gnu.org/licenses/>.
 ********************************************************************************"""
 
-import os, sys, operator, math, numbers
+import os, sys, operator, math, numbers, inspect
 from copy import copy, deepcopy
 
 class Node(object):
-    def evaluate(self, dictIdentifiers, dictFunctions):
+    def evaluate(self, dictIdentifiers, dictFunctions, rng = None):
         pass
 
 class ConstantNode(Node):
@@ -33,7 +33,7 @@ class ConstantNode(Node):
     def toLatex(self):
         return str(self.Value)
 
-    def evaluate(self, dictIdentifiers, dictFunctions):
+    def evaluate(self, dictIdentifiers, dictFunctions, rng = None):
         return self.Value
 
 class AssignmentNode(Node):
@@ -50,8 +50,8 @@ class AssignmentNode(Node):
     def toLatex(self):
         return '{0} = {1}'.format(self.identifier.toLatex(), self.expression.toLatex())
 
-    def evaluate(self, dictIdentifiers, dictFunctions):
-        value = self.expression.Node.evaluate(dictIdentifiers, dictFunctions)
+    def evaluate(self, dictIdentifiers, dictFunctions, rng = None):
+        value = self.expression.Node.evaluate(dictIdentifiers, dictFunctions, rng)
         dictIdentifiers[self.identifier.Node.Name] = value
         return value
 
@@ -68,11 +68,18 @@ class IdentifierNode(Node):
     def toLatex(self):
         return self.Name
 
-    def evaluate(self, dictIdentifiers, dictFunctions):
-        if self.Name in dictIdentifiers:
+    def evaluate(self, dictIdentifiers, dictFunctions, rng = None):
+        if not self.Name in dictIdentifiers:
+            raise RuntimeError('Identifier {0} not found in the identifiers dictionary'.format(self.Name))
+        
+        value = dictIdentifiers[self.Name]
+        if hasattr(value, '__float__'):
+            # If it is a simple number or an object that emulate a number-type behaviour
+            return float(value)
+        else:
+            # It's an ordinary object; just return its name
             return dictIdentifiers[self.Name]
 
-        raise RuntimeError('Identifier {0} not found in the identifiers dictionary'.format(self.Name))
 
 class StandardFunctionNode(Node):
     functions = ['sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'sinh', 'cosh', 'tanh', 'asinh', 'acosh', 'atanh',
@@ -99,15 +106,15 @@ class StandardFunctionNode(Node):
         else:
             return '{0} \\left( {1} \\right)'.format(self.Function, self.Node.toLatex())
             
-    def evaluate(self, dictIdentifiers, dictFunctions):
-        if self.Function in dictFunctions:
-            fun = dictFunctions[self.Function]
-            if not hasattr(fun, '__call__'):
-                raise RuntimeError('The function {0} in the dictionary is not a callable object'.format(self.Function))
-            argument0 = self.Node.evaluate(dictIdentifiers, dictFunctions)
-            return fun(argument0)
-        else:
+    def evaluate(self, dictIdentifiers, dictFunctions, rng = None):
+        if not self.Function in dictFunctions:
             raise RuntimeError('The function {0} not found in the functions dictionary'.format(self.Function))
+        
+        fun = dictFunctions[self.Function]
+        if not hasattr(fun, '__call__'):
+            raise RuntimeError('The function {0} in the dictionary is not a callable object'.format(self.Function))
+        argument0 = self.Node.evaluate(dictIdentifiers, dictFunctions, rng)
+        return fun(argument0)
 
 class NonstandardFunctionNode(Node):
     def __init__(self, function, argument_list = []):
@@ -146,15 +153,25 @@ class NonstandardFunctionNode(Node):
                 argument_list += ', ' + node.toLatex()
         return '{0} \\left( {1} \\right)'.format(self.Function, argument_list)
 
-    def evaluate(self, dictIdentifiers, dictFunctions):
+    def evaluate(self, dictIdentifiers, dictFunctions, rng = None):
         if self.Function in dictFunctions:
             fun = dictFunctions[self.Function]
             if not hasattr(fun, '__call__'):
                 raise RuntimeError('The function {0} in the dictionary is not a callable object'.format(self.Function))
+            
             argument_list = ()
             for node in self.ArgumentsNodeList:
-                argument_list = argument_list + (node.evaluate(dictIdentifiers, dictFunctions), )
-            return fun(*argument_list)
+                argument_list = argument_list + (node.evaluate(dictIdentifiers, dictFunctions, rng), )
+            
+            # A workaround for random.xxxxxx functions
+            (args, varargs, keywords, defaults) = inspect.getargspec(fun)
+            if len(argument_list) != len(args):
+                raise RuntimeError('The number of provided arguments ({0}) of function [{1}] does not match the number of required asrguments ({2})'.format(len(argument_list), self.Function, len(args)))
+                
+            if keywords:
+                return fun(*argument_list, rng = rng)
+            else:
+                return fun(*argument_list)
         else:
             raise RuntimeError('The function {0} not found in the functions dictionary'.format(self.Function))
 
@@ -205,11 +222,11 @@ class UnaryNode(Node):
         else:
             return self.enclose(True)
             
-    def evaluate(self, dictIdentifiers, dictFunctions):
+    def evaluate(self, dictIdentifiers, dictFunctions, rng = None):
         if self.Operator == UnaryNode.opMinus:
-            return (-self.Node.evaluate(dictIdentifiers, dictFunctions))
+            return (-self.Node.evaluate(dictIdentifiers, dictFunctions, rng))
         elif self.Operator == UnaryNode.opPlus:
-            return self.Node.evaluate(dictIdentifiers, dictFunctions)
+            return self.Node.evaluate(dictIdentifiers, dictFunctions, rng)
         else:
             raise RuntimeError("Not supported unary operator: {0}".format(self.Operator))
 
@@ -331,27 +348,27 @@ class BinaryNode(Node):
 
             return '{0} {1} {2}'.format(left, self.Operator, right)
             
-    def evaluate(self, dictIdentifiers, dictFunctions):
+    def evaluate(self, dictIdentifiers, dictFunctions, rng = None):
         if self.Operator == BinaryNode.opPlus:
-            return self.lNode.evaluate(dictIdentifiers, dictFunctions) + self.rNode.evaluate(dictIdentifiers, dictFunctions)
+            return self.lNode.evaluate(dictIdentifiers, dictFunctions, rng) + self.rNode.evaluate(dictIdentifiers, dictFunctions, rng)
 
         elif self.Operator == BinaryNode.opMinus:
-            return self.lNode.evaluate(dictIdentifiers, dictFunctions) - self.rNode.evaluate(dictIdentifiers, dictFunctions)
+            return self.lNode.evaluate(dictIdentifiers, dictFunctions, rng) - self.rNode.evaluate(dictIdentifiers, dictFunctions, rng)
 
         elif self.Operator == BinaryNode.opMulti:
-            return self.lNode.evaluate(dictIdentifiers, dictFunctions) * self.rNode.evaluate(dictIdentifiers, dictFunctions)
+            return self.lNode.evaluate(dictIdentifiers, dictFunctions, rng) * self.rNode.evaluate(dictIdentifiers, dictFunctions, rng)
 
         elif self.Operator == BinaryNode.opDivide:
-            return self.lNode.evaluate(dictIdentifiers, dictFunctions) / self.rNode.evaluate(dictIdentifiers, dictFunctions)
+            return self.lNode.evaluate(dictIdentifiers, dictFunctions, rng) / self.rNode.evaluate(dictIdentifiers, dictFunctions, rng)
 
         elif self.Operator == BinaryNode.opPower:
-            return self.lNode.evaluate(dictIdentifiers, dictFunctions) ** self.rNode.evaluate(dictIdentifiers, dictFunctions)
+            return self.lNode.evaluate(dictIdentifiers, dictFunctions, rng) ** self.rNode.evaluate(dictIdentifiers, dictFunctions, rng)
 
         else:
             raise RuntimeError("Not supported binary operator: {0}".format(self.Operator))
 
 class ConditionNode(object):
-    def evaluate(self, dictIdentifiers, dictFunctions):
+    def evaluate(self, dictIdentifiers, dictFunctions, rng = None):
         pass
 
 """
@@ -368,9 +385,9 @@ class ConditionUnaryNode(ConditionNode):
     def __str__(self):
         return '({0} {1})'.format(self.Operator, str(self.Node))
 
-    def evaluate(self, dictIdentifiers, dictFunctions):
+    def evaluate(self, dictIdentifiers, dictFunctions, rng = None):
         if self.Operator == ConditionUnaryNode.opNot:
-            return operator.not_(self.Node.evaluate(dictIdentifiers, dictFunctions))
+            return operator.not_(self.Node.evaluate(dictIdentifiers, dictFunctions, rng))
         else:
             raise RuntimeError("Not supported logical unary operator: {0}".format(self.Operator))
 """
@@ -410,19 +427,19 @@ class ConditionBinaryNode(ConditionNode):
         else:
             raise RuntimeError("Not supported logical binary operator: {0}".format(self.Operator))
 
-    def evaluate(self, dictIdentifiers, dictFunctions):
+    def evaluate(self, dictIdentifiers, dictFunctions, rng = None):
         if self.Operator == ConditionBinaryNode.opEQ:
-            return self.lNode.evaluate(dictIdentifiers, dictFunctions) == self.rNode.evaluate(dictIdentifiers, dictFunctions)
+            return self.lNode.evaluate(dictIdentifiers, dictFunctions, rng) == self.rNode.evaluate(dictIdentifiers, dictFunctions, rng)
         elif self.Operator == ConditionBinaryNode.opNE:
-            return self.lNode.evaluate(dictIdentifiers, dictFunctions) != self.rNode.evaluate(dictIdentifiers, dictFunctions)
+            return self.lNode.evaluate(dictIdentifiers, dictFunctions, rng) != self.rNode.evaluate(dictIdentifiers, dictFunctions, rng)
         elif self.Operator == ConditionBinaryNode.opLT:
-            return self.lNode.evaluate(dictIdentifiers, dictFunctions) < self.rNode.evaluate(dictIdentifiers, dictFunctions)
+            return self.lNode.evaluate(dictIdentifiers, dictFunctions, rng) < self.rNode.evaluate(dictIdentifiers, dictFunctions, rng)
         elif self.Operator == ConditionBinaryNode.opLE:
-            return self.lNode.evaluate(dictIdentifiers, dictFunctions) <= self.rNode.evaluate(dictIdentifiers, dictFunctions)
+            return self.lNode.evaluate(dictIdentifiers, dictFunctions, rng) <= self.rNode.evaluate(dictIdentifiers, dictFunctions, rng)
         elif self.Operator == ConditionBinaryNode.opGT:
-            return self.lNode.evaluate(dictIdentifiers, dictFunctions) > self.rNode.evaluate(dictIdentifiers, dictFunctions)
+            return self.lNode.evaluate(dictIdentifiers, dictFunctions, rng) > self.rNode.evaluate(dictIdentifiers, dictFunctions, rng)
         elif self.Operator == ConditionBinaryNode.opGE:
-            return self.lNode.evaluate(dictIdentifiers, dictFunctions) >= self.rNode.evaluate(dictIdentifiers, dictFunctions)
+            return self.lNode.evaluate(dictIdentifiers, dictFunctions, rng) >= self.rNode.evaluate(dictIdentifiers, dictFunctions, rng)
         else:
             raise RuntimeError("Not supported logical binary operator: {0}".format(self.Operator))
 
@@ -449,11 +466,11 @@ class ConditionExpressionNode(ConditionNode):
         else:
             raise RuntimeError("Not supported logical binary operator: {0}".format(self.Operator))
 
-    def evaluate(self, dictIdentifiers, dictFunctions):
+    def evaluate(self, dictIdentifiers, dictFunctions, rng = None):
         if self.Operator == ConditionExpressionNode.opAnd:
-            return self.lNode.evaluate(dictIdentifiers, dictFunctions) & self.rNode.evaluate(dictIdentifiers, dictFunctions)
+            return self.lNode.evaluate(dictIdentifiers, dictFunctions, rng) & self.rNode.evaluate(dictIdentifiers, dictFunctions, rng)
         elif self.Operator == ConditionExpressionNode.opOr:
-            return self.lNode.evaluate(dictIdentifiers, dictFunctions) | self.rNode.evaluate(dictIdentifiers, dictFunctions)
+            return self.lNode.evaluate(dictIdentifiers, dictFunctions, rng) | self.rNode.evaluate(dictIdentifiers, dictFunctions, rng)
         else:
             raise RuntimeError("Not supported logical operator: {0}".format(self.Operator))
 

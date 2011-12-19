@@ -277,7 +277,7 @@ def p_postfix_expression_3(p):
 
 def p_postfix_expression_4(p):
     '''postfix_expression : postfix_expression LPAREN argument_expression_list RPAREN'''
-    print(str(p[1]) + '(' + str(p[3]) + ')')
+    #print(str(p[1]) + '(' + str(p[3]) + ')')
     p[0] = Number(NonstandardFunctionNode(str(p[1]), p[3]))
 
 # primary-expression
@@ -337,12 +337,13 @@ class ExpressionParser:
     Dictionary 'dictFunctions' should contain pairs of the following type:
         function-name:callable-object (ie. 'exp':math.exp, 'Foo':user-defined-function-with-arbitrary-number-of-arguments)
     """
-    def __init__(self, dictIdentifiers = None, dictFunctions = None):
-        self.lexer  = lex.lex()
-        self.parser = yacc.yacc(debug=False, write_tables = 0)
-        self.parseResult = None
-        self.dictIdentifiers = dictIdentifiers
-        self.dictFunctions   = dictFunctions
+    def __init__(self, dictIdentifiers = None, dictFunctions = None, randomNumberGenerator = None):
+        self.lexer                 = lex.lex()
+        self.parser                = yacc.yacc(debug=False, write_tables = 0)
+        self.parseResult           = None
+        self.dictIdentifiers       = dictIdentifiers
+        self.dictFunctions         = dictFunctions
+        self.randomNumberGenerator = randomNumberGenerator
 
     def parse_and_evaluate(self, expression):
         self.parse(expression)
@@ -379,7 +380,7 @@ class ExpressionParser:
         else:
             raise RuntimeError('Invalid parse result type')
 
-        result = node.evaluate(self.dictIdentifiers, self.dictFunctions)
+        result = node.evaluate(self.dictIdentifiers, self.dictFunctions, self.randomNumberGenerator)
         return result
 
 def testExpression(expression, expected_res, do_evaluation = True):
