@@ -279,12 +279,11 @@ class ninemlRNG(object):
 
         return rng
         
-def getEquationsExpressionParser(model, random_number_generator = None):
+def getEquationsExpressionParser(model):
     """
     Returns the ExpressionParser object needed to parse NineML mathematical and logical expressions.
     
     :param model: daeModel-derived object
-    :param NumPy RandomState object (the Mersenne Twister pseudo-random number generator)
         
     :rtype: ExpressionParser object
     :raises:
@@ -335,17 +334,16 @@ def getEquationsExpressionParser(model, random_number_generator = None):
     #print(dictIdentifiers)
     #print(dictFunctions)
 
-    expression_parser = ExpressionParser(dictIdentifiers, dictFunctions, random_number_generator)
+    expression_parser = ExpressionParser(dictIdentifiers, dictFunctions)
     
     return expression_parser
 
-def getParametersValuesInitialConditionsExpressionParser(model, random_number_generator = None):
+def getParametersValuesInitialConditionsExpressionParser(model):
     """
     Returns the ExpressionParser object needed to parse the expressions for parameters' values 
     and initial conditions:    
     
     :param model: daeModel-derived object
-    :param NumPy RandomState object (the Mersenne Twister pseudo-random number generator)
         
     :rtype: ExpressionParser object
     :raises:
@@ -395,15 +393,14 @@ def getParametersValuesInitialConditionsExpressionParser(model, random_number_ge
     #print(dictIdentifiers)
     #print(dictFunctions)
 
-    expression_parser = ExpressionParser(dictIdentifiers, dictFunctions, random_number_generator)
+    expression_parser = ExpressionParser(dictIdentifiers, dictFunctions)
     return expression_parser
     
-def getAnalogPortsExpressionParser(model, random_number_generator = None):
+def getAnalogPortsExpressionParser(model):
     """
     Returns the ExpressionParser object needed to parse inputs for the analogue ports:
     
     :param model: daeModel-derived object
-    :param NumPy RandomState object (the Mersenne Twister pseudo-random number generator)
         
     :rtype: ExpressionParser object
     :raises:
@@ -443,7 +440,7 @@ def getAnalogPortsExpressionParser(model, random_number_generator = None):
     #print(dictIdentifiers)
     #print(dictFunctions)
 
-    expression_parser = ExpressionParser(dictIdentifiers, dictFunctions, random_number_generator)
+    expression_parser = ExpressionParser(dictIdentifiers, dictFunctions)
     return expression_parser
 
 def printComponent(c, name, indent_string = '  ', level = 0):

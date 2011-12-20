@@ -629,7 +629,7 @@ class nineml_daetools_simulation(daeSimulation):
             self.ReportData(self.CurrentTime)
    
 if __name__ == "__main__":
-    rng = ninemlRNG(ninemlRNG.uniform, min_value = 10, max_value = 20, seed = 1234)
+    rng = ninemlRNG(ninemlRNG.uniform, lowerBound = 10, upperBound = 20, seed = 1234)
     random_number_generators = { 'uniform(10, 20)' : rng }
     print(rng.next())
     
