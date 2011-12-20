@@ -6,7 +6,8 @@ import nineml
 from nineml.abstraction_layer.testing_utils import RecordValue, TestableComponent
 from nineml.abstraction_layer import ComponentClass
 from nineml.abstraction_layer.testing_utils import std_pynn_simulation
-import os, sys, math, random
+import os, sys, math
+import numpy.random
 from time import localtime, strftime, time
 from expression_parser import ExpressionParser
 from units_parser import UnitsParser
@@ -127,6 +128,7 @@ def addIdentifiersValues(model, parent, dictIdentifiers):
 
     return dictIdentifiers
     
+'''
 def random_uniform(min_value, max_value, **kwargs):
     """
     Keyword argument *rng* is tipically the *numpy.RandomState* object.
@@ -181,7 +183,102 @@ def random_exponential(beta, **kwargs):
     
     res = rng.exponential(beta)
     return float(res[0])
+'''
 
+class ninemlRNG(object):
+    uniform     = 0
+    normal      = 1
+    binomial    = 2
+    poisson     = 3
+    exponential = 4
+    
+    def __init__(self, distribution, **kwargs):
+        self.distribution = distribution
+        self.rng          = numpy.random.RandomState()
+        self.seed         = kwargs.get('seed', None)
+        if self.seed:
+            self.rng.seed(self.seed)
+        
+        if self.distribution == ninemlRNG.uniform:
+            self.lowerBound = kwargs.get('lowerBound')
+            self.upperBound = kwargs.get('upperBound')
+        
+        elif self.distribution == ninemlRNG.normal:
+            self.centre = kwargs.get('centre')
+            self.width  = kwargs.get('width')
+        
+        elif self.distribution == ninemlRNG.binomial:
+            self.n = kwargs.get('n')
+            self.p = kwargs.get('p')
+        
+        elif self.distribution == ninemlRNG.poisson:
+            self.lamb = kwargs.get('lamb')
+        
+        elif self.distribution == ninemlRNG.exponential:
+            self.beta = kwargs.get('beta')
+        
+        else:
+            raise RuntimeError('Unsupported random distribution: {0}'.format(str(distribution)))
+   
+    def next(self):
+        res = [0.0]
+        if self.distribution == ninemlRNG.uniform:
+            res = self.rng.uniform(self.lowerBound, self.upperBound, 1)
+        
+        elif self.distribution == ninemlRNG.normal:
+            res = self.rng.normal(self.centre, self.width)
+        
+        elif self.distribution == ninemlRNG.binomial:
+            res = self.rng.binomial(self.n, self.p)
+        
+        elif self.distribution == ninemlRNG.poisson:
+            res = self.rng.poisson(self.lamb)
+        
+        elif self.distribution == ninemlRNG.exponential:
+            res = self.rng.exponential(self.beta)
+        
+        return float(res[0])
+        
+    @classmethod
+    def create_rng(cls, al_component, parameters):
+        """
+        Creates numpy RNG based on the AL Component object and parameters from the UL component. 
+        
+        :param cls: ninemlRNG class
+        :param al_component: AL Component object
+        :param parameters: python dictionary 'name' : (value, units)
+        
+        :rtype: ninemlRNG object
+        :raises: RuntimeError
+        """
+        if al_component.name == 'uniform_distribution':
+            lowerBound = parameters['lowerBound']
+            upperBound = parameters['upperBound']
+            rng = ninemlRNG(ninemlRNG.uniform, lowerBound = lowerBound, upperBound = upperBound, seed = None)
+        
+        elif al_component.name == 'normal_distribution':
+            centre = parameters['centre']
+            width  = parameters['width']
+            rng = ninemlRNG(ninemlRNG.normal, centre = centre, width = width, seed = None)
+        
+        elif al_component.name == 'binomial_distribution':
+            n = parameters['n']
+            p = parameters['p']
+            rng = ninemlRNG(ninemlRNG.binomial, n = n, p = p, seed = None)
+        
+        elif al_component.name == 'poisson_distribution':
+            lamb = parameters['lamb']
+            rng = ninemlRNG(ninemlRNG.poisson, lamb = lamb, seed = None)
+        
+        elif al_component.name == 'exponential_distribution':
+            beta = parameters['beta']
+            rng = ninemlRNG(ninemlRNG.exponential, beta = beta, seed = None)
+        
+        else:
+            raise RuntimeError('Unsupported random distribution component: {0}'.format(al_component.name))
+
+        return rng
+        
 def getEquationsExpressionParser(model, random_number_generator = None):
     """
     Returns the ExpressionParser object needed to parse NineML mathematical and logical expressions.
@@ -224,11 +321,15 @@ def getEquationsExpressionParser(model, random_number_generator = None):
     dictFunctions['pow']   = Pow
 
     # Random distributions, non-standard functions
-    dictFunctions['random.uniform']     = random_uniform
-    dictFunctions['random.normal']      = random_normal
-    dictFunctions['random.binomial']    = random_binomial
-    dictFunctions['random.poisson']     = random_poisson
-    dictFunctions['random.exponential'] = random_exponential
+    #
+    # ACHTUNG, ACHTUNG!!!
+    # Should these functions be a part of equations? daetools does not support them!!!!!
+    #
+    # dictFunctions['random.uniform']     = random_uniform
+    # dictFunctions['random.normal']      = random_normal
+    # dictFunctions['random.binomial']    = random_binomial
+    # dictFunctions['random.poisson']     = random_poisson
+    # dictFunctions['random.exponential'] = random_exponential
 
     dictIdentifiers = addIdentifiers(model, model, dictIdentifiers)
     #print(dictIdentifiers)
@@ -280,11 +381,15 @@ def getParametersValuesInitialConditionsExpressionParser(model, random_number_ge
     dictFunctions['pow']   = math.pow
 
     # NineML distributions, non-standard functions
-    dictFunctions['random.uniform']     = random_uniform
-    dictFunctions['random.normal']      = random_normal
-    dictFunctions['random.binomial']    = random_binomial
-    dictFunctions['random.poisson']     = random_poisson
-    dictFunctions['random.exponential'] = random_exponential
+    #
+    # ACHTUNG, ACHTUNG!!!
+    # Can these functions be a part of a value expression? The most likely not!!!
+    #
+    # dictFunctions['random.uniform']     = random_uniform
+    # dictFunctions['random.normal']      = random_normal
+    # dictFunctions['random.binomial']    = random_binomial
+    # dictFunctions['random.poisson']     = random_poisson
+    # dictFunctions['random.exponential'] = random_exponential
 
     dictIdentifiers = addIdentifiersValues(model, model, dictIdentifiers)
     #print(dictIdentifiers)
@@ -793,7 +898,7 @@ class nineml_daetools_bridge(daeModel):
                 eq = self.CreateEquation(analog_port.Name + '_portequation', "")
                 var_to = findObjectInModel(self, analog_port.Name, look_for_variables = True)
                 if var_to == None:
-                    raise RuntimeError('Cannot find state variable {0}'.format(analog_port.Name))
+                    raise RuntimeError('Cannot find variable/alias {0}'.format(analog_port.Name))
                 eq.Residual = analog_port.value() - var_to()
 
     def _findVariable(self, name):

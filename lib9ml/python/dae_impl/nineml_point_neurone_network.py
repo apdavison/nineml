@@ -21,7 +21,7 @@ from nineml.abstraction_layer.testing_utils import TestableComponent
 
 from daetools.pyDAE import pyCore, pyActivity, pyDataReporting, pyIDAS, daeLogs
 from nineml_component_inspector import nineml_component_inspector
-from nineml_daetools_bridge import nineml_daetools_bridge, findObjectInModel, fixObjectName, printComponent
+from nineml_daetools_bridge import nineml_daetools_bridge, ninemlRNG, findObjectInModel, fixObjectName, printComponent
 from nineml_tex_report import createLatexReport, createPDF
 from nineml_daetools_simulation import daeSimulationInputData, nineml_daetools_simulation, ninemlTesterDataReporter, daetools_model_setup
 
@@ -53,42 +53,60 @@ def create_nineml_daetools_bridge(name, al_component, parent = None, description
 
 def create_al_from_ul_component(ul_component):
     """
-    Creates AL component referenced in the given UL component.
-    Returns the AL Component object. If the url does not point to the xml file with AL components
-    (for instance it is an explicit connections file) - the function returns None.
-    This is a case when loading ExplicitConnections rule or the url cannot be resolved.
-    However, the function always checks if the url is valid and throws an exception if it ain't.
+    Creates AL component referenced in the given UL component and does some additional
+    processing depending on its type. Returns the AL Component object. 
+    It always checks if the url is valid and throws an exception if it ain't.
     
     :param ul_component: UL Component object
     
     :rtype: AL Component object
     :raises: RuntimeError 
     """
-    try:
-        al_component = None
-        al_component = nineml.abstraction_layer.readers.XMLReader.read(ul_component.definition.url) 
     
-    except Exception as e1:
-        # Double-check all this below...
-        # Getting an exception can occur for two reasons:
-        #  1. The component at the specified URL does not exist
-        #  2. The component exists but the parser cannot parse it
-        # If the parser couldn't load it try to see if the url is valid and then die miserably
-        try:
-            f = urllib.urlopen(ul_component.definition.url)
-            raise RuntimeError('The component: {0} failed to parse: {1}'.format(ul_component.name, str(e1)))
-        
-        except Exception as e2:
-            raise RuntimeError('Cannot resolve the component: {0}, definition url: {1}, error: {2}'.format(ul_component.name, ul_component.definition.url, str(e2)))
-        
-        #exc_type, exc_value, exc_traceback = sys.exc_info()
-        #strTraceBack = ''.join(traceback.format_tb(exc_traceback))
-        #print('********************************************************')
-        #print('EXCEPTION', str(e), ul_component.definition.url)
-        #print(strTraceBack)
-        #print('********************************************************')
+    # Getting an exception can occur for two reasons:
+    #  1. The component at the specified URL does not exist
+    #  2. The component exists but the parser cannot parse it
+    try:
+        # First check if the component exists; if not - raise an exception.
+        f = urllib.urlopen(ul_component.definition.url)
+    
+    except Exception as e:
+        raise RuntimeError('Cannot resolve the component: {0}, definition url: {1}, error: {2}'.format(ul_component.name, ul_component.definition.url, str(e)))
+    
+    try:
+        # Try to load the component
+        al_component = nineml.abstraction_layer.readers.XMLReader.read(ul_component.definition.url) 
+        parameters   = fixParametersDictionary(ul_component.parameters)
+    
+    except Exception as e:
+        raise RuntimeError('The component: {0} failed to parse: {1}'.format(ul_component.name, str(e)))
 
-    return al_component
+    # Do the additional processing, depending on the component's type
+    component_data = []
+    try:
+        if isinstance(ul_component, nineml.user_layer.ConnectionRule):
+            pass
+        
+        elif isinstance(ul_component, nineml.user_layer.ConnectionType):
+            pass
+        
+        elif isinstance(ul_component, nineml.user_layer.SpikingNodeType):
+            pass
+        
+        elif isinstance(ul_component, nineml.user_layer.SynapseType):
+            pass
+        
+        elif isinstance(ul_component, nineml.user_layer.RandomDistribution):
+            rng = ninemlRNG.create_rng(al_component, parameters)
+            component_data.append(rng)
+
+        else:
+            RuntimeError('Unsupported UL Component type: {0}, component name: {1}'.format(type(ul_component), ul_component.name))
+    
+    except Exception as e:
+        raise RuntimeError('The component: {0} failed to parse: {1}'.format(ul_component.name, str(e)))
+    
+    return (al_component, component_data)
 
 class explicit_connections_generator_interface:
     """
@@ -229,6 +247,16 @@ class daetools_point_neurone_network(pyCore.daeModel):
             raise RuntimeError('Component [{0}] does not exist in the network'.format(name)) 
         return self._components[name][1]
     
+    def getComponentData(self, name):
+        """
+        :param name: string
+        :rtype: python array (depends on a component type)
+        :raises: RuntimeError, IndexError
+        """
+        if not name in self._components:
+            raise RuntimeError('Component [{0}] does not exist in the network'.format(name)) 
+        return self._components[name][2]
+
     def getComponentParameters(self, name):
         """
         :param name: string
@@ -282,8 +310,8 @@ class daetools_point_neurone_network(pyCore.daeModel):
         :rtype:        
         :raises: RuntimeError
         """
-        al_component = create_al_from_ul_component(ul_component) 
-        self._components[name] = (al_component, ul_component)
+        al_component, component_data = create_al_from_ul_component(ul_component) 
+        self._components[name] = (al_component, ul_component, component_data)
 
 class daetools_group:
     """
@@ -549,7 +577,7 @@ class daetools_projection:
 class nineml_daetools_network_simulation(pyActivity.daeSimulation):
     """
     """
-    def __init__(self, network, rng_seed = 1234):
+    def __init__(self, network):
         """
         :rtype: None
         :raises: RuntimeError
@@ -558,9 +586,6 @@ class nineml_daetools_network_simulation(pyActivity.daeSimulation):
         
         self.m            = network
         self.model_setups = []
-        self.rng = numpy.random.RandomState()
-        self.rng.seed(rng_seed)
-
         
         event_ports_expressions = {"spikeinput": "0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90"} 
         for name, group in network._groups.items():
@@ -568,17 +593,19 @@ class nineml_daetools_network_simulation(pyActivity.daeSimulation):
             for name, population in group._populations.items():
                 for neurone in population._neurones:
                     initial_values = population._parameters
-                    setup = daetools_model_setup(neurone, False, parameters              = initial_values, 
-                                                                 initial_conditions      = initial_values,
-                                                                 event_ports_expressions = event_ports_expressions)
+                    setup = daetools_model_setup(neurone, False, parameters               = initial_values, 
+                                                                 initial_conditions       = initial_values,
+                                                                 event_ports_expressions  = event_ports_expressions,
+                                                                 random_number_generators = {})
                     self.model_setups.append(setup)
         
             for name, projection in group._projections.items():
                 # Setup synapses 
                 initial_values = projection._psr_parameters
                 for s, synapse, t in projection._generated_connections:
-                    setup = daetools_model_setup(synapse, False, parameters         = initial_values, 
-                                                                 initial_conditions = initial_values)
+                    setup = daetools_model_setup(synapse, False, parameters               = initial_values, 
+                                                                 initial_conditions       = initial_values,
+                                                                 random_number_generators = {})
                     self.model_setups.append(setup)
 
     def SetUpParametersAndDomains(self):
@@ -614,9 +641,15 @@ def readCSV_pyNN(filename):
 if __name__ == "__main__":
     catalog = "file:///home/ciroki/Data/NineML/nineml-model-tree/lib9ml/python/dae_impl/"
 
+    rnd_uniform = {
+                    'lowerBound': (-0.060, "dimensionless"),
+                    'upperBound': (-0.040, "dimensionless")
+                  }
+    uniform_distribution = nineml.user_layer.RandomDistribution("uniform(-0.060, -0.040)", catalog + "uniform_distribution.xml", rnd_uniform)
+    
     neurone_params = {
                        'tspike' :    ( -1.000, 's'),
-                       'V' :         ( -0.045, 'V'),
+                       'V' :         (uniform_distribution, 'V'),
                        'gl' :        ( 50.000, 'S/(m^2)'),
                        'vreset' :    ( -0.060, 'V'),
                        'taurefrac' : (  0.001, 's'),
@@ -725,51 +758,3 @@ if __name__ == "__main__":
     # Run
     simulation.Run()
     simulation.Finalize()
-
-"""
-class IF_cond_exp(StandardCellType):
-    Leaky integrate and fire model with fixed threshold and 
-    exponentially-decaying post-synaptic conductance.
-    
-    default_parameters = {
-        'v_rest'     : -65.0,   # Resting membrane potential in mV. 
-        'cm'         : 1.0,     # Capacity of the membrane in nF
-        'tau_m'      : 20.0,    # Membrane time constant in ms.
-        'tau_refrac' : 0.1,     # Duration of refractory period in ms.
-        'tau_syn_E'  : 5.0,     # Decay time of the excitatory synaptic conductance in ms.
-        'tau_syn_I'  : 5.0,     # Decay time of the inhibitory synaptic conductance in ms.
-        'e_rev_E'    : 0.0,     # Reversal potential for excitatory input in mV
-        'e_rev_I'    : -70.0,   # Reversal potential for inhibitory input in mV
-        'v_thresh'   : -50.0,   # Spike threshold in mV.
-        'v_reset'    : -65.0,   # Reset potential after a spike in mV.
-        'i_offset'   : 0.0,     # Offset current in nA
-    }
-    recordable = ['spikes', 'v', 'gsyn']
-    default_initial_values = {
-        'v': -65.0, #'v_rest',
-    }
-
-Leaky_iaf:
-def get_component():
-    subthreshold_regime = al.Regime(
-        name="subthreshold_regime",
-        time_derivatives =[ "dV/dt = (-gL*(V-vL) + Isyn)/C",],
-        transitions = [al.On("V> theta",
-                                do=["t_spike = t", "V = V_reset",
-                                    al.OutputEvent('spikeoutput')],
-                                to="refractory_regime") ],
-        )
-
-    refractory_regime = al.Regime(
-        transitions = [al.On("t >= t_spike + t_ref",
-                                to='subthreshold_regime')],
-        name="refractory_regime"
-        )
-
-    analog_ports = [al.SendPort("V"),
-             al.ReducePort("Isyn",reduce_op="+")]
-
-    c1 = al.ComponentClass("LeakyIAF", regimes = [subthreshold_regime, refractory_regime], analog_ports=analog_ports)
-
-    return c1
-"""

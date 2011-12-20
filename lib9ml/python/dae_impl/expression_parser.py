@@ -337,13 +337,12 @@ class ExpressionParser:
     Dictionary 'dictFunctions' should contain pairs of the following type:
         function-name:callable-object (ie. 'exp':math.exp, 'Foo':user-defined-function-with-arbitrary-number-of-arguments)
     """
-    def __init__(self, dictIdentifiers = None, dictFunctions = None, randomNumberGenerator = None):
+    def __init__(self, dictIdentifiers = None, dictFunctions = None):
         self.lexer                 = lex.lex()
         self.parser                = yacc.yacc(debug=False, write_tables = 0)
         self.parseResult           = None
         self.dictIdentifiers       = dictIdentifiers
         self.dictFunctions         = dictFunctions
-        self.randomNumberGenerator = randomNumberGenerator
 
     def parse_and_evaluate(self, expression):
         self.parse(expression)
@@ -380,7 +379,7 @@ class ExpressionParser:
         else:
             raise RuntimeError('Invalid parse result type')
 
-        result = node.evaluate(self.dictIdentifiers, self.dictFunctions, self.randomNumberGenerator)
+        result = node.evaluate(self.dictIdentifiers, self.dictFunctions)
         return result
 
 def testExpression(expression, expected_res, do_evaluation = True):
