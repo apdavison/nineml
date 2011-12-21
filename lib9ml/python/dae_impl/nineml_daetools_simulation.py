@@ -629,11 +629,18 @@ class nineml_daetools_simulation(daeSimulation):
             self.ReportData(self.CurrentTime)
    
 if __name__ == "__main__":
-    rng = ninemlRNG(ninemlRNG.uniform, lowerBound = 10, upperBound = 20, seed = 1234)
-    random_number_generators = { 'uniform(10, 20)' : rng }
-    print(rng.next())
+    """
+    # Parser tests for equations with random numbers (should appear only in StateAssignment blocks):
+    parser = getEquationsExpressionParser(None)
+    print('uniform     =', parser.parse_and_evaluate('1.0 + random.uniform(0.0, 15)'))
+    print('normal      =', parser.parse_and_evaluate('1.0 + random.normal()'))
+    print('binomial    =', parser.parse_and_evaluate('1.0 + random.binomial(1.0, 0.5)'))
+    print('poisson     =', parser.parse_and_evaluate('1.0 + random.poisson(2.3)'))
+    print('exponential =', parser.parse_and_evaluate('1.0 + random.exponential(2.0)'))
+    exit(0)
+    """
     
-    timeHorizon       = 1
+    timeHorizon       = 1.000
     reportingInterval = 0.001
     parameters = {
         "iaf_1coba.iaf.gl":         (50.000, ""), 
@@ -687,7 +694,7 @@ if __name__ == "__main__":
                                                    variables_to_report            = variables_to_report,
                                                    analog_ports_expression_parser = analog_ports_expression_parser,
                                                    values_expression_parser       = values_expression_parser,
-                                                   random_number_generators       = random_number_generators )
+                                                   random_number_generators       = {} )
     datareporter = ninemlTesterDataReporter()
 
     # Set the time horizon and the reporting interval

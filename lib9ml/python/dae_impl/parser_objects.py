@@ -164,9 +164,19 @@ class NonstandardFunctionNode(Node):
                 argument_list = argument_list + (node.evaluate(dictIdentifiers, dictFunctions), )
             
             (args, varargs, keywords, defaults) = inspect.getargspec(fun)
-            if len(argument_list) != len(args):
-                raise RuntimeError('The number of provided arguments ({0}) of the function [{1}] does not match the number of required asrguments ({2})'.format(len(argument_list), self.Function, len(args)))
-                
+            #print(args, varargs, keywords, defaults)
+            
+            no_args          = len(argument_list)
+            no_required_args = 0
+            no_default_args  = 0
+            if args:
+                no_required_args = len(args)
+            if defaults:
+                no_default_args = len(defaults)
+            
+            if (no_args > no_required_args) or (no_args < no_required_args-no_default_args):
+                raise RuntimeError('The number of provided arguments ({0}) of the function [{1}] does not match the number of expected arguments: {1}({2})'.format(no_args, self.Function, ', '.join(args)))
+            
             return fun(*argument_list)
         
         else:

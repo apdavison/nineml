@@ -51,15 +51,18 @@ def create_nineml_daetools_bridge(name, al_component, parent = None, description
     """
     return nineml_daetools_bridge(fixObjectName(name), al_component, parent, description)
 
-def create_al_from_ul_component(ul_component):
+def create_al_from_ul_component(ul_component, random_number_generators):
     """
     Creates AL component referenced in the given UL component and does some additional
     processing depending on its type. Returns the AL Component object. 
     It always checks if the url is valid and throws an exception if it ain't.
     
-    :param ul_component: UL Component object
+    Achtung!! Check if the component-data are needed at all.
     
-    :rtype: AL Component object
+    :param ul_component: UL Component object
+    :param random_number_generators: python dictionary 'UL Component name' : ninemlRNG object (numpy RandomState based)
+    
+    :rtype: tuple (AL Component object, list component_data)
     :raises: RuntimeError 
     """
     
@@ -81,7 +84,8 @@ def create_al_from_ul_component(ul_component):
     except Exception as e:
         raise RuntimeError('The component: {0} failed to parse: {1}'.format(ul_component.name, str(e)))
 
-    # Do the additional processing, depending on the component's type
+    # Do the additional processing, depending on the component's type.
+    # Should be completed (if needed) in the future.
     component_data = []
     try:
         if isinstance(ul_component, nineml.user_layer.ConnectionRule):
@@ -96,10 +100,18 @@ def create_al_from_ul_component(ul_component):
         elif isinstance(ul_component, nineml.user_layer.SynapseType):
             pass
         
+        elif isinstance(ul_component, nineml.user_layer.CurrentSourceType):
+            pass
+        
+        elif isinstance(ul_component, nineml.user_layer.Structure):
+            pass
+        
         elif isinstance(ul_component, nineml.user_layer.RandomDistribution):
-            rng = ninemlRNG.create_rng(al_component, parameters)
-            component_data.append(rng)
-
+            # Add a new RNG with the name of the UL component as a key
+            if not ul_component.name in random_number_generators:
+                rng = ninemlRNG.create_rng(al_component, parameters)
+                random_number_generators[ul_component.name] = rng
+        
         else:
             RuntimeError('Unsupported UL Component type: {0}, component name: {1}'.format(type(ul_component), ul_component.name))
     
@@ -210,6 +222,7 @@ class daetools_point_neurone_network(pyCore.daeModel):
         self._model       = model
         self._components  = {}
         self._groups      = {}
+        self._rngs        = {}
         
         for name, ul_component in list(model.components.items()):
             self._handleComponent(name, ul_component)
@@ -277,6 +290,10 @@ class daetools_point_neurone_network(pyCore.daeModel):
             raise RuntimeError('Group [{0}] does not exist in the network'.format(name)) 
         return self._groups[name]
 
+    @property
+    def randomNumberGenerators(self):
+        return self._rngs
+        
     def DeclareEquations(self):
         """
         Does nothing.
@@ -310,7 +327,7 @@ class daetools_point_neurone_network(pyCore.daeModel):
         :rtype:        
         :raises: RuntimeError
         """
-        al_component, component_data = create_al_from_ul_component(ul_component) 
+        al_component, component_data = create_al_from_ul_component(ul_component, self._rngs) 
         self._components[name] = (al_component, ul_component, component_data)
 
 class daetools_group:
@@ -587,7 +604,11 @@ class nineml_daetools_network_simulation(pyActivity.daeSimulation):
         self.m            = network
         self.model_setups = []
         
+        # What's this?
         event_ports_expressions = {"spikeinput": "0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90"} 
+        
+        random_number_generators = network.randomNumberGenerators
+        
         for name, group in network._groups.items():
             # Setup neurones in populations
             for name, population in group._populations.items():
@@ -596,7 +617,7 @@ class nineml_daetools_network_simulation(pyActivity.daeSimulation):
                     setup = daetools_model_setup(neurone, False, parameters               = initial_values, 
                                                                  initial_conditions       = initial_values,
                                                                  event_ports_expressions  = event_ports_expressions,
-                                                                 random_number_generators = {})
+                                                                 random_number_generators = random_number_generators)
                     self.model_setups.append(setup)
         
             for name, projection in group._projections.items():
@@ -605,7 +626,7 @@ class nineml_daetools_network_simulation(pyActivity.daeSimulation):
                 for s, synapse, t in projection._generated_connections:
                     setup = daetools_model_setup(synapse, False, parameters               = initial_values, 
                                                                  initial_conditions       = initial_values,
-                                                                 random_number_generators = {})
+                                                                 random_number_generators = random_number_generators)
                     self.model_setups.append(setup)
 
     def SetUpParametersAndDomains(self):
@@ -659,15 +680,15 @@ if __name__ == "__main__":
                      }
     
     psr_excitatory_params = {
-                             'vrev' : ( 0.000, 'V'),
-                             'q'    : ( 4.E-9, 'S'),
-                             'tau'  : ( 0.005, 's'),
-                             'g'    : ( 0.000, 'A/V')
+                             'vrev' : (  0.000, 'V'),
+                             'q'    : (0.27E-9, 'S'),
+                             'tau'  : (  0.005, 's'),
+                             'g'    : ( 10.000, 'A/V')
                             }
                      
     psr_inhibitory_params = {
                              'vrev' : ( -0.080, 'V'),
-                             'q'    : ( 51.E-9, 'S'),
+                             'q'    : ( 4.5E-9, 'S'),
                              'tau'  : (  0.010, 's'),
                              'g'    : (  0.000, 'A/V')
                             }
@@ -691,7 +712,7 @@ if __name__ == "__main__":
     #print(connections_exc_inh)
     #print(connections_inh_inh)
     #print(connections_inh_exc)
-
+    
     connection_rule_exc_exc = nineml.user_layer.ConnectionRule("Explicit Connections exc_exc", catalog + "explicit_list_of_connections.xml")
     connection_rule_exc_inh = nineml.user_layer.ConnectionRule("Explicit Connections exc_inh", catalog + "explicit_list_of_connections.xml")
     connection_rule_inh_inh = nineml.user_layer.ConnectionRule("Explicit Connections inh_inh", catalog + "explicit_list_of_connections.xml")
@@ -705,29 +726,27 @@ if __name__ == "__main__":
     projection_exc_exc = nineml.user_layer.Projection("Projection exc_exc", population_excitatory, population_excitatory, connection_rule_exc_exc, psr_excitatory, connection_type)
     projection_exc_inh = nineml.user_layer.Projection("Projection exc_inh", population_excitatory, population_inhibitory, connection_rule_exc_inh, psr_excitatory, connection_type)
     projection_inh_inh = nineml.user_layer.Projection("Projection inh_inh", population_inhibitory, population_inhibitory, connection_rule_inh_inh, psr_inhibitory, connection_type)
-    projection_exc_exc = nineml.user_layer.Projection("Projection inh_exc", population_inhibitory, population_excitatory, connection_rule_inh_exc, psr_inhibitory, connection_type)
+    projection_inh_exc = nineml.user_layer.Projection("Projection inh_exc", population_inhibitory, population_excitatory, connection_rule_inh_exc, psr_inhibitory, connection_type)
 
     # Add everything to a single group
-    network = nineml.user_layer.Group("Network")
+    group = nineml.user_layer.Group("Group 1")
     
     # Add populations
-    network.add(population_excitatory)
-    network.add(population_inhibitory)
+    group.add(population_excitatory)
+    group.add(population_inhibitory)
     
     # Add projections
-    network.add(projection_exc_exc)
-    network.add(projection_exc_inh)
-    network.add(projection_inh_inh)
-    network.add(projection_exc_exc)
+    group.add(projection_exc_exc)
+    group.add(projection_exc_inh)
+    group.add(projection_inh_inh)
+    group.add(projection_inh_exc)
 
     # Create a network and add the group to it
     model = nineml.user_layer.Model("Simple 9ML example model")
-    model.add_group(network)
+    model.add_group(group)
     model.write("Brette et al., J. Computational Neuroscience (2007).xml")
     
     network = daetools_point_neurone_network(model)
-    #print(network)
-    #exit(0)
 
     # Create Log, Solver, DataReporter and Simulation object
     from daetools.solvers import pySuperLU
@@ -741,7 +760,7 @@ if __name__ == "__main__":
     daesolver.SetLASolver(lasolver)
 
     # Set the time horizon and the reporting interval
-    simulation.ReportingInterval = 0.1
+    simulation.ReportingInterval = 0.01
     simulation.TimeHorizon       = 1.0
 
     # Connect data reporter

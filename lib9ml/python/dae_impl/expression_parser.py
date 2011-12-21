@@ -280,6 +280,11 @@ def p_postfix_expression_4(p):
     #print(str(p[1]) + '(' + str(p[3]) + ')')
     p[0] = Number(NonstandardFunctionNode(str(p[1]), p[3]))
 
+def p_postfix_expression_5(p):
+    '''postfix_expression : postfix_expression LPAREN RPAREN'''
+    #print(str(p[1]) + '()')
+    p[0] = Number(NonstandardFunctionNode(str(p[1]), []))
+
 # primary-expression
 def p_primary_expression(p):
     '''primary_expression :  identifier

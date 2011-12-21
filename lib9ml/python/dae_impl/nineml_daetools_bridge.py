@@ -58,6 +58,9 @@ def addIdentifiers(model, parent, dictIdentifiers):
     :rtype: python dictionary (modified dictIdentifiers argument)
     :raises: RuntimeError
     """
+    if not model:
+        return dictIdentifiers
+    
     for o in model.Parameters:
         relName = daeGetRelativeName(parent, o)
         #print('CanonicalName: {0}, RelName: {1}'.format(o.CanonicalName, relName))
@@ -102,6 +105,9 @@ def addIdentifiersValues(model, parent, dictIdentifiers):
     :rtype: python dictionary (modified dictIdentifiers argument)
     :raises: RuntimeError
     """
+    if not model:
+        return dictIdentifiers
+    
     for o in model.Parameters:
         relName = daeGetRelativeName(parent, o)
         #print('CanonicalName: {0}, RelName: {1}'.format(o.CanonicalName, relName))
@@ -128,63 +134,6 @@ def addIdentifiersValues(model, parent, dictIdentifiers):
 
     return dictIdentifiers
     
-'''
-def random_uniform(min_value, max_value, **kwargs):
-    """
-    Keyword argument *rng* is tipically the *numpy.RandomState* object.
-    """
-    rng = kwargs.get('rng', None)
-    if rng == None:
-        raise RuntimeError('The function random.uniform expects a single kwarg: random number generator (rng)')
-    
-    res = rng.uniform(min_value, max_value, 1)
-    return float(res[0])
-
-def random_normal(centre, width, **kwargs):
-    """
-    Keyword argument *rng* is tipically the *numpy.RandomState* object.
-    """
-    rng = kwargs.get('rng', None)
-    if rng == None:
-        raise RuntimeError('The function random.normal expects a single kwarg: random number generator (rng)')
-    
-    res = rng.normal(centre, width)
-    return float(res[0])
-
-def random_binomial(n, p, **kwargs):
-    """
-    Keyword argument *rng* is tipically the *numpy.RandomState* object.
-    """
-    rng = kwargs.get('rng', None)
-    if rng == None:
-        raise RuntimeError('The function random.binomial expects a single kwarg: random number generator (rng)')
-    
-    res = rng.binomial(n, p)
-    return float(res[0])
-
-def random_poisson(lam, **kwargs):
-    """
-    Keyword argument *rng* is tipically the *numpy.RandomState* object.
-    """
-    rng = kwargs.get('rng', None)
-    if rng == None:
-        raise RuntimeError('The function random.poisson expects a single kwarg: random number generator (rng)')
-    
-    res = rng.poisson(lam)
-    return float(res[0])
-
-def random_exponential(beta, **kwargs):
-    """
-    Keyword argument *rng* is tipically the *numpy.RandomState* object.
-    """
-    rng = kwargs.get('rng', None)
-    if rng == None:
-        raise RuntimeError('The function random.exponential expects a single kwarg: random number generator (rng)')
-    
-    res = rng.exponential(beta)
-    return float(res[0])
-'''
-
 class ninemlRNG(object):
     uniform     = 0
     normal      = 1
@@ -252,32 +201,54 @@ class ninemlRNG(object):
         :raises: RuntimeError
         """
         if al_component.name == 'uniform_distribution':
-            lowerBound = parameters['lowerBound']
-            upperBound = parameters['upperBound']
+            lowerBound = parameters['lowerBound'][0]
+            upperBound = parameters['upperBound'][0]
             rng = ninemlRNG(ninemlRNG.uniform, lowerBound = lowerBound, upperBound = upperBound, seed = None)
         
         elif al_component.name == 'normal_distribution':
-            centre = parameters['centre']
-            width  = parameters['width']
+            centre = parameters['centre'][0]
+            width  = parameters['width'][0]
             rng = ninemlRNG(ninemlRNG.normal, centre = centre, width = width, seed = None)
         
         elif al_component.name == 'binomial_distribution':
-            n = parameters['n']
-            p = parameters['p']
+            n = parameters['n'][0]
+            p = parameters['p'][0]
             rng = ninemlRNG(ninemlRNG.binomial, n = n, p = p, seed = None)
         
         elif al_component.name == 'poisson_distribution':
-            lamb = parameters['lamb']
+            lamb = parameters['lamb'][0]
             rng = ninemlRNG(ninemlRNG.poisson, lamb = lamb, seed = None)
         
         elif al_component.name == 'exponential_distribution':
-            beta = parameters['beta']
+            beta = parameters['beta'][0]
             rng = ninemlRNG(ninemlRNG.exponential, beta = beta, seed = None)
         
         else:
             raise RuntimeError('Unsupported random distribution component: {0}'.format(al_component.name))
 
         return rng
+
+_global_rng_ = numpy.random.RandomState()
+
+def random_uniform(lowerBound = 0.0, upperBound = 1.0):
+    res = _global_rng_.uniform(lowerBound, upperBound, 1)
+    return float(res[0])
+
+def random_normal(centre = 0.0, width = 1.0):
+    res = _global_rng_.normal(centre, width)
+    return float(res)
+
+def random_binomial(n, p):
+    res = _global_rng_.binomial(n, p)
+    return float(res)
+
+def random_poisson(lam = 1.0):
+    res = _global_rng_.poisson(lam)
+    return float(res)
+
+def random_exponential(beta = 1.0):
+    res = _global_rng_.exponential(beta)
+    return float(res)
         
 def getEquationsExpressionParser(model):
     """
@@ -291,9 +262,11 @@ def getEquationsExpressionParser(model):
     dictIdentifiers = {}
     dictFunctions   = {}
 
-    dictIdentifiers['t']  = model.time()
     dictIdentifiers['pi'] = math.pi
     dictIdentifiers['e']  = math.e
+    if model:
+        dictIdentifiers['t'] = model.time()
+        dictIdentifiers      = addIdentifiers(model, model, dictIdentifiers)
 
     # Standard math. functions (single argument)
     dictFunctions['sin']   = Sin
@@ -320,17 +293,13 @@ def getEquationsExpressionParser(model):
     dictFunctions['pow']   = Pow
 
     # Random distributions, non-standard functions
-    #
-    # ACHTUNG, ACHTUNG!!!
-    # Should these functions be a part of equations? daetools does not support them!!!!!
-    #
-    # dictFunctions['random.uniform']     = random_uniform
-    # dictFunctions['random.normal']      = random_normal
-    # dictFunctions['random.binomial']    = random_binomial
-    # dictFunctions['random.poisson']     = random_poisson
-    # dictFunctions['random.exponential'] = random_exponential
+    # Achtung!! Should be used only in StateAssignments statements
+    dictFunctions['random.uniform']     = random_uniform
+    dictFunctions['random.normal']      = random_normal
+    dictFunctions['random.binomial']    = random_binomial
+    dictFunctions['random.poisson']     = random_poisson
+    dictFunctions['random.exponential'] = random_exponential
 
-    dictIdentifiers = addIdentifiers(model, model, dictIdentifiers)
     #print(dictIdentifiers)
     #print(dictFunctions)
 
@@ -353,6 +322,8 @@ def getParametersValuesInitialConditionsExpressionParser(model):
 
     dictIdentifiers['pi'] = math.pi
     dictIdentifiers['e']  = math.e
+    if model:
+        dictIdentifiers = addIdentifiers(model, model, dictIdentifiers)
 
     # Standard math. functions (single argument)
     dictFunctions['sin']   = math.sin
@@ -378,18 +349,6 @@ def getParametersValuesInitialConditionsExpressionParser(model):
     # Non-standard functions (multiple arguments)
     dictFunctions['pow']   = math.pow
 
-    # NineML distributions, non-standard functions
-    #
-    # ACHTUNG, ACHTUNG!!!
-    # Can these functions be a part of a value expression? The most likely not!!!
-    #
-    # dictFunctions['random.uniform']     = random_uniform
-    # dictFunctions['random.normal']      = random_normal
-    # dictFunctions['random.binomial']    = random_binomial
-    # dictFunctions['random.poisson']     = random_poisson
-    # dictFunctions['random.exponential'] = random_exponential
-
-    dictIdentifiers = addIdentifiersValues(model, model, dictIdentifiers)
     #print(dictIdentifiers)
     #print(dictFunctions)
 
@@ -408,9 +367,10 @@ def getAnalogPortsExpressionParser(model):
     dictIdentifiers = {}
     dictFunctions   = {}
 
-    dictIdentifiers['t']  = model.time()
     dictIdentifiers['pi'] = math.pi
     dictIdentifiers['e']  = math.e
+    if model:
+        dictIdentifiers = addIdentifiers(model, model, dictIdentifiers)
 
     # Standard math. functions (single argument)
     dictFunctions['sin']   = math.sin
@@ -436,7 +396,6 @@ def getAnalogPortsExpressionParser(model):
     # Non-standard functions (multiple arguments)
     dictFunctions['pow']   = math.pow
 
-    dictIdentifiers = addIdentifiers(model, model, dictIdentifiers)
     #print(dictIdentifiers)
     #print(dictFunctions)
 
