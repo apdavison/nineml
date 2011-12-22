@@ -60,20 +60,21 @@ def test_hierachical_iaf_1coba():
     timeHorizon =  1.0
     reportingInterval = 0.001 
     initial_conditions = {
-        "iaf_1coba.iaf.tspike": -1e+99, 
-        "iaf_1coba.iaf.V": -0.06, 
+        "iaf_1coba.iaf.tspike": -1.0, 
+        "iaf_1coba.iaf.V": -0.060, 
         "iaf_1coba.cobaExcit.g": 0.0
     }
     parameters = {
-        "iaf_1coba.iaf.gl": 50.0, 
+        "iaf_1coba.iaf.gl": 1E-8, 
+        "iaf_1coba.iaf.vreset": -0.060, 
+        "iaf_1coba.iaf.taurefrac": 0.001, 
+        "iaf_1coba.iaf.vthresh": -0.040, 
+        "iaf_1coba.iaf.vrest": -0.060, 
+        "iaf_1coba.iaf.cm": 0.2E-9,
+        
         "iaf_1coba.cobaExcit.vrev": 0.0, 
-        "iaf_1coba.cobaExcit.q": 3.0, 
-        "iaf_1coba.iaf.vreset": -0.06, 
-        "iaf_1coba.cobaExcit.tau": 5.0, 
-        "iaf_1coba.iaf.taurefrac": 0.008, 
-        "iaf_1coba.iaf.vthresh": -0.04, 
-        "iaf_1coba.iaf.vrest": -0.06, 
-        "iaf_1coba.iaf.cm": 1.0
+        "iaf_1coba.cobaExcit.q": 4.0E-9, 
+        "iaf_1coba.cobaExcit.tau": 0.005
     } 
     variables_to_report = {
         "iaf_1coba.cobaExcit.I": True, 
@@ -108,18 +109,18 @@ def test_coba_synapse():
     timeHorizon = 1
     reportingInterval = 0.001
     parameters = {
-        'CobaSyn.q' : 3.0,
-        'CobaSyn.tau' : 5.0,
+        'CobaSyn.q' : 4.0E-9,
+        'CobaSyn.tau' : 0.005,
         'CobaSyn.vrev' : 0.0
     }
     initial_conditions = {
-        'CobaSyn.g' : 0.0,
+        'CobaSyn.g' : 1E-8,
     }
     analog_ports_expressions = {
         'CobaSyn.V' : -0.050
     }
     event_ports_expressions = {
-        'CobaSyn.spikeinput' : '0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90'
+        'CobaSyn.spikeinput' : '' #'0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90'
     }
     active_regimes = {
         'CobaSyn' : 'cobadefaultregime'
@@ -148,19 +149,19 @@ def test_iaf():
     timeHorizon = 1
     reportingInterval = 0.001
     parameters = {
-        'iaf.cm' : 1,
-        'iaf.gl' : 50,
-        'iaf.taurefrac' : 0.008,
+        'iaf.cm' : 0.2E-9,
+        'iaf.gl' : 1E-8,
+        'iaf.taurefrac' : 0.001,
         'iaf.vreset' : -0.060,
         'iaf.vrest' : -0.060,
         'iaf.vthresh' : -0.040
     }
     initial_conditions = {
-        'iaf.V' : -0.060,
-        'iaf.tspike' : -1E99
+        'iaf.V' : -0.050,
+        'iaf.tspike' : -1.0
     }
     analog_ports_expressions = {
-        'iaf.ISyn' : 1.2
+        'iaf.ISyn' : 0.0
     }
     event_ports_expressions = {}
     active_regimes = {
@@ -232,12 +233,11 @@ if __name__ == "__main__":
             # Create Log, DAESolver, DataReporter and Simulation object
             log          = daePythonStdOutLog()
             daesolver    = daeIDAS()
-            datareporter = ninemlTesterDataReporter()
+            datareporter = daeTCPIPDataReporter() #ninemlTesterDataReporter()
             model        = nineml_daetools_bridge(inspector.ninemlComponent.name, inspector.ninemlComponent)
             
-            rng = numpy.random.RandomState()
-            analog_ports_expression_parser = getAnalogPortsExpressionParser(model, rng)
-            values_expression_parser       = getParametersValuesInitialConditionsExpressionParser(model, rng)
+            analog_ports_expression_parser = getAnalogPortsExpressionParser(model)
+            values_expression_parser       = getParametersValuesInitialConditionsExpressionParser(model)
 
             simulation  = nineml_daetools_simulation(model, timeHorizon                    = simulation_data.timeHorizon,
                                                             reportingInterval              = simulation_data.reportingInterval,
@@ -261,11 +261,18 @@ if __name__ == "__main__":
 
             # Initialize the simulation
             simulation.Initialize(daesolver, datareporter, log)
+            
             # Solve at time=0 (initialization)
             simulation.SolveInitial()
+            
+            #simulation.m.SaveModelReport(simulation.m.Name + ".xml")
+            #simulation.m.SaveRuntimeModelReport(simulation.m.Name + "-rt.xml")
+            
             # Run
             simulation.Run()
             simulation.Finalize()
+            
+            sys.exit()
             
             dictInputs = {}
             dictInputs['parameters']                = simulation_data.parameters

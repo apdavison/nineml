@@ -78,6 +78,7 @@ Erev_inh = -80.   # (mV)
 area  = area*1e-8                     # convert to cm²
 cm    = cm*area*1000                  # convert to nF
 Rm    = 1e-6/(g_leak*area)            # membrane resistance in MΩ
+print 'g_leak*area =', g_leak*area
 assert tau_m == cm*Rm                 # just to check
 n_exc = int(round((n*r_ei/(1+r_ei)))) # number of excitatory cells
 n_inh = n - n_exc   
@@ -93,6 +94,8 @@ elif benchmark == "CUBA":
     w_exc = 1e-3*Gexc*(Erev_exc - v_mean) # (nA) weight of excitatory synapses
     w_inh = 1e-3*Ginh*(Erev_inh - v_mean) # (nA)
     assert w_exc > 0; assert w_inh < 0
+print 'w_exc =', w_exc
+print 'w_inh =', w_inh
 
 # === Build the network ========================================================
 
@@ -114,6 +117,7 @@ cell_params = {
     'tau_m'      : tau_m,    'tau_syn_E'  : tau_exc,  'tau_syn_I'  : tau_inh,
     'v_rest'     : E_leak,   'v_reset'    : v_reset,  'v_thresh'   : v_thresh,
     'cm'         : cm,       'tau_refrac' : t_refrac}
+print cell_params
 
 if (benchmark == "COBA"):
     cell_params['e_rev_E'] = Erev_exc
@@ -148,6 +152,7 @@ if (benchmark == "COBA"):
     connections['ext2e'] = Projection(ext_stim, exc_cells, ext_conn, target='excitatory')
     connections['ext2i'] = Projection(ext_stim, inh_cells, ext_conn, target='excitatory')
 
+"""
 connections['e2e'].saveConnections('e2e.conn')
 connections['e2i'].saveConnections('e2i.conn')
 connections['i2e'].saveConnections('i2e.conn')
@@ -155,6 +160,7 @@ connections['i2i'].saveConnections('i2i.conn')
 if (benchmark == "COBA"):
     connections['ext2e'].saveConnections('ext2e.conn')
     connections['ext2i'].saveConnections('ext2i.conn')
+"""
 
 # === Setup recording ==========================================================
 print "%s Setting up recording..." % node_id

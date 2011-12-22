@@ -2,7 +2,7 @@
 
 from __future__ import print_function
 import os, json, numpy, tempfile, shutil
-import numpy.random
+import numpy, numpy.random
 import nineml
 from nineml.abstraction_layer.testing_utils import RecordValue, TestableComponent
 from nineml.abstraction_layer import ComponentClass
@@ -640,30 +640,54 @@ if __name__ == "__main__":
     exit(0)
     """
     
+    """
+    Brette et al. 2007
+    
+    neurone_params = {
+                       'tspike' :    ( -1.000, 's'),
+                       'V' :         (uniform_distribution, 'V'),
+                       'gl' :        ( 1.0E-8, 'S'),
+                       'vreset' :    ( -0.060, 'V'),
+                       'taurefrac' : (  0.001, 's'),
+                       'vthresh' :   ( -0.040, 'V'),
+                       'vrest' :     ( -0.060, 'V'),
+                       'cm' :        ( 0.2E-9, 'F')
+                     }
+    
+    psr_excitatory_params = {
+                             'vrev' : (  0.000, 'V'),
+                             'q'    : ( 4.0E-9, 'S'),
+                             'tau'  : (  0.005, 's'),
+                             'g'    : (  0.000, 'S')
+                            }
+    """
     timeHorizon       = 1.000
     reportingInterval = 0.001
     parameters = {
-        "iaf_1coba.iaf.gl":         (50.000, ""), 
-        "iaf_1coba.cobaExcit.vrev": ( 0.000, ""), 
-        "iaf_1coba.cobaExcit.q":    ( 3.000, ""), 
-        "iaf_1coba.iaf.vreset":     (-0.060, ""), 
-        "iaf_1coba.cobaExcit.tau":  ( 5.000, ""), 
-        "iaf_1coba.iaf.taurefrac":  ( 0.008, ""), 
-        "iaf_1coba.iaf.vthresh":    (-0.040, ""), 
-        "iaf_1coba.iaf.vrest":      (-0.060, ""), 
-        "iaf_1coba.iaf.cm":         ( 1.000, "")
+        "iaf_1coba.iaf.gl":         (   1E-8, "S"), 
+        "iaf_1coba.iaf.vreset":     ( -0.060, "V"), 
+        "iaf_1coba.iaf.taurefrac":  (  0.001, "s"), 
+        "iaf_1coba.iaf.vthresh":    ( -0.040, "V"), 
+        "iaf_1coba.iaf.vrest":      ( -0.060, "V"), 
+        "iaf_1coba.iaf.cm":         ( 0.2E-9, "F"),
+        
+        "iaf_1coba.cobaExcit.vrev": (  0.000, "V"), 
+        "iaf_1coba.cobaExcit.q":    ( 4.0E-9, "S"), 
+        "iaf_1coba.cobaExcit.tau":  (  0.005, "s"), 
     } 
     initial_conditions = {
         "iaf_1coba.iaf.tspike":  (-1.00, ""), 
-        "iaf_1coba.iaf.V":       (-0.06, ""), 
+        "iaf_1coba.iaf.V":       (-0.045, ""), 
         "iaf_1coba.cobaExcit.g": ( 0.00, "")
     }
     variables_to_report = {
         "iaf_1coba.cobaExcit.I": True, 
         "iaf_1coba.iaf.V": True
     } 
+    spike_times = [str(t) for t in numpy.arange(0, 0.20, 0.005)]
+    print(spike_times)
     event_ports_expressions = {
-        "iaf_1coba.cobaExcit.spikeinput": "0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90"
+        "iaf_1coba.cobaExcit.spikeinput": '' #', '.join(spike_times)
     } 
     active_regimes = {
         "iaf_1coba.cobaExcit": "cobadefaultregime", 
@@ -695,7 +719,7 @@ if __name__ == "__main__":
                                                    analog_ports_expression_parser = analog_ports_expression_parser,
                                                    values_expression_parser       = values_expression_parser,
                                                    random_number_generators       = {} )
-    datareporter = ninemlTesterDataReporter()
+    datareporter = daeTCPIPDataReporter() #ninemlTesterDataReporter()
 
     # Set the time horizon and the reporting interval
     simulation.ReportingInterval = reportingInterval

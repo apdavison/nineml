@@ -671,26 +671,26 @@ if __name__ == "__main__":
     neurone_params = {
                        'tspike' :    ( -1.000, 's'),
                        'V' :         (uniform_distribution, 'V'),
-                       'gl' :        ( 50.000, 'S/(m^2)'),
+                       'gl' :        ( 1.0E-8, 'S'),
                        'vreset' :    ( -0.060, 'V'),
                        'taurefrac' : (  0.001, 's'),
                        'vthresh' :   ( -0.040, 'V'),
                        'vrest' :     ( -0.060, 'V'),
-                       'cm' :        (100.000, 'F/(m^2)')
+                       'cm' :        ( 0.2E-9, 'F')
                      }
     
     psr_excitatory_params = {
                              'vrev' : (  0.000, 'V'),
-                             'q'    : (0.27E-9, 'S'),
+                             'q'    : ( 4.0E-9, 'S'),
                              'tau'  : (  0.005, 's'),
-                             'g'    : ( 10.000, 'A/V')
+                             'g'    : (  0.000, 'S')
                             }
                      
     psr_inhibitory_params = {
                              'vrev' : ( -0.080, 'V'),
-                             'q'    : ( 4.5E-9, 'S'),
+                             'q'    : (51.0E-9, 'S'),
                              'tau'  : (  0.010, 's'),
-                             'g'    : (  0.000, 'A/V')
+                             'g'    : (  0.000, 'S')
                             }
     
     neurone_IAF = nineml.user_layer.SpikingNodeType("IAF neurones", catalog + "iaf.xml", neurone_params)

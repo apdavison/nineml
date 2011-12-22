@@ -584,6 +584,8 @@ def fixObjectName(name):
     new_name = name.replace(' ', '_')
     return new_name
 
+dae_nineml_t = daeVariableType("dae_nineml_t", "-", -1.0e+20, 1.0e+20, 0.0, 1e-12)
+
 class ninemlAnalogPort(daePort):
     """
     Represents NineML analogue ports with a single variable (referred to with the 'value' daeVariable). 
@@ -601,7 +603,7 @@ class ninemlAnalogPort(daePort):
 
         # NineML ports always contain only one variable, and that variable is referred to by the port name
         # Here we name this variable 'value'
-        self.value = daeVariable("value", no_t, self, "")
+        self.value = daeVariable("value", dae_nineml_t, self, "")
 
 class ninemlReduceAnalogPort(object):
     """
@@ -621,7 +623,7 @@ class ninemlReduceAnalogPort(object):
         self.Ports        = []
         self.Name         = name
         self.Model        = model
-        self.portVariable = daeVariable(self.Name, no_t, self.Model, "")
+        self.portVariable = daeVariable(self.Name, dae_nineml_t, self.Model, "")
 
     def addPort(self):
         """
@@ -681,12 +683,12 @@ class nineml_daetools_bridge(daeModel):
         # 2) Create state-variables (diff. variables)
         self.nineml_state_variables = []
         for var in self.ninemlComponent.state_variables:
-            self.nineml_state_variables.append( daeVariable(var.name, no_t, self, "") )
+            self.nineml_state_variables.append( daeVariable(var.name, dae_nineml_t, self, "") )
 
         # 3) Create alias variables (algebraic)
         self.nineml_aliases = []
         for alias in self.ninemlComponent.aliases:
-            self.nineml_aliases.append( daeVariable(alias.lhs, no_t, self, "") )
+            self.nineml_aliases.append( daeVariable(alias.lhs, dae_nineml_t, self, "") )
 
         # 4) Create analog-ports and reduce-ports
         self.nineml_analog_ports = []
