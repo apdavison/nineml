@@ -673,26 +673,32 @@ class nineml_daetools_bridge(daeModel):
         """
         daeModel.__init__(self, Name, Parent, Description)
 
-        self.ninemlComponent = ninemlComponent
+        self.ninemlComponent        = ninemlComponent
+        self.nineml_parameters      = []
+        self.nineml_state_variables = []
+        self.nineml_aliases         = []
+        self.nineml_analog_ports    = []
+        self.nineml_reduce_ports    = []
+        self.nineml_event_ports     = []
+        self.ninemlSubComponents    = []
 
+        # AL component may be None (useful in certain cases); therefore do not raise an exception
+        if not self.ninemlComponent:
+            return
+        
         # 1) Create parameters
-        self.nineml_parameters = []
         for param in self.ninemlComponent.parameters:
             self.nineml_parameters.append( daeParameter(param.name, eReal, self, "") )
 
         # 2) Create state-variables (diff. variables)
-        self.nineml_state_variables = []
         for var in self.ninemlComponent.state_variables:
             self.nineml_state_variables.append( daeVariable(var.name, dae_nineml_t, self, "") )
 
         # 3) Create alias variables (algebraic)
-        self.nineml_aliases = []
         for alias in self.ninemlComponent.aliases:
             self.nineml_aliases.append( daeVariable(alias.lhs, dae_nineml_t, self, "") )
 
         # 4) Create analog-ports and reduce-ports
-        self.nineml_analog_ports = []
-        self.nineml_reduce_ports = []
         for analog_port in self.ninemlComponent.analog_ports:
             if analog_port.mode == 'send':
                 self.nineml_analog_ports.append( ninemlAnalogPort(analog_port.name, eOutletPort, self, "") )
@@ -704,7 +710,6 @@ class nineml_daetools_bridge(daeModel):
                 raise RuntimeError("")
 
         # 5) Create event-ports
-        self.nineml_event_ports = []
         for event_port in self.ninemlComponent.event_ports:
             if event_port.mode == 'send':
                 self.nineml_event_ports.append( daeEventPort(event_port.name, eOutletPort, self, "") )
@@ -714,7 +719,6 @@ class nineml_daetools_bridge(daeModel):
                 raise RuntimeError("")
 
         # 6) Create sub-nodes
-        self.ninemlSubComponents = []
         for name, subcomponent in list(self.ninemlComponent.subnodes.items()):
             self.ninemlSubComponents.append( nineml_daetools_bridge(name, subcomponent, self) )
 
@@ -990,5 +994,47 @@ class nineml_daetools_bridge(daeModel):
             # If not found - die miserably
             if matching_port_found == False:
                 raise RuntimeError('Cannot connect a source to a neurone: cannot find a match for the source port [{0}]'.format(source_port.Name))
+
+class daetools_spike_source(nineml_daetools_bridge):
+    """
+    Used to generate spikes according to the predefined sequence.
+    The component has no parameters
+    """
+    def __init__(self, spiketimes, Name, Parent = None, Description = ""):
+        nineml_daetools_bridge.__init__(self, Name, None, Parent, Description)
+
+        # A dummy variable
+        self.event = pyCore.daeVariable("event", no_t, self, "")
+        
+        # Add one 'send' event port
+        self.spikeoutput = pyCore.daeEventPort("spikeoutput", eOutletPort, self, "Spike outlet event port")
+        self.nineml_event_ports.append(self.spikeoutput)
+        
+        # A list of spike event times
+        self.spiketimes = list(spiketimes)
+
+    def DeclareEquations(self):
+        self.stnSpikeSource = self.STN("SpikeSource")
+
+        for i, t in enumerate(self.spiketimes):
+            self.STATE('State_{0}'.format(i))
+            eq = self.CreateEquation("event")
+            eq.Residual = self.event() - t
+            self.ON_CONDITION(self.time() >= t,  switchTo      = 'State_{0}'.format(i+1),
+                                                 triggerEvents = [(self.spikeoutput, t)])
+
+        self.STATE('State_{0}'.format(len(self.spiketimes)))
+
+        eq = self.CreateEquation("event")
+        eq.Residual = self.event()
+
+        self.END_STN()
+
+    @staticmethod
+    def createPoissonSpikeTimes(rate, duration, t0, rng_poisson, lambda_, rng_uniform):
+        n  = int(rng_poisson.poisson(lambda_, 1))
+        spiketimes = sorted(rng_uniform.uniform(t0, t0+duration, n))
+        #print(lam, n, spiketimes)
+        return spiketimes
 
 
