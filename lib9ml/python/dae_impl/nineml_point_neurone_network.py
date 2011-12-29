@@ -12,7 +12,7 @@
 
 from __future__ import print_function
 import os, sys, urllib, re, traceback, csv
-from time import localtime, strftime
+from time import localtime, strftime, time
 import numpy.random
 
 import nineml
@@ -21,7 +21,7 @@ from nineml.abstraction_layer.testing_utils import TestableComponent
 
 from daetools.pyDAE import pyCore, pyActivity, pyDataReporting, pyIDAS, daeLogs
 from nineml_component_inspector import nineml_component_inspector
-from nineml_daetools_bridge import nineml_daetools_bridge, ninemlRNG, findObjectInModel, fixObjectName, printComponent, daetools_spike_source
+from nineml_daetools_bridge import nineml_daetools_bridge, ninemlRNG, findObjectInModel, fixObjectName, printComponent, daetools_spike_source, createPoissonSpikeTimes
 from nineml_tex_report import createLatexReport, createPDF
 from nineml_daetools_simulation import daeSimulationInputData, nineml_daetools_simulation, ninemlTesterDataReporter, daetools_model_setup
 
@@ -70,7 +70,7 @@ def create_nineml_daetools_bridge(name, al_component, parent, description, rng, 
 
         lambda_ = rate * duration
 
-        spiketimes = daetools_spike_source.createPoissonSpikeTimes(rate, duration, t0, rng, lambda_, rng)
+        spiketimes = createPoissonSpikeTimes(rate, duration, t0, rng, lambda_, rng)
         return daetools_spike_source(spiketimes, name, parent, description)
     
     else:
@@ -453,6 +453,9 @@ class daetools_population:
         
         for i in range(0, ul_population.number):
             cell_name = '{0}_Neurone({1:0>4})'.format(self._name, i)
+
+            start = time()
+
             neurone = create_nineml_daetools_bridge(cell_name, 
                                                     al_component, 
                                                     network, 
@@ -460,6 +463,7 @@ class daetools_population:
                                                     network.globalRandomNumberGenerator, 
                                                     self._parameters)
             self._neurones.append(neurone)
+            print('create_nineml_daetools_bridge = {0}'.format(time() - start))
         
         try:
             self._positions = ul_population.positions.get_positions(ul_population)
@@ -604,6 +608,7 @@ class daetools_projection:
         :rtype: None
         :raises: RuntimeError
         """
+        start = time()
         source_neurone = self._source_population.getNeurone(source_index)
         target_neurone = self._target_population.getNeurone(target_index)
         
@@ -619,6 +624,7 @@ class daetools_projection:
         nineml_daetools_bridge.connectModelsViaAnaloguePorts(synapse,        target_neurone, self._network)
         
         self._generated_connections.append( (source_neurone, synapse, target_neurone) )
+        print('_createConnection {0} = {1}'.format(n, time() - start))
 
 class nineml_daetools_network_simulation(pyActivity.daeSimulation):
     """
@@ -687,8 +693,18 @@ def readCSV_pyNN(filename):
         d = float(connection[3])
         connections_out.append((s, t, w, d))
     return connections_out
+
+def profile_simulate():
+    import hotshot
+    from hotshot import stats
+    #prof = hotshot.Profile("nineml_point_neurone_network.profile")
+    #prof.runcall(simulate)
+    #prof.close()
     
-if __name__ == "__main__":
+    s = stats.load("nineml_point_neurone_network.profile")
+    s.strip_dirs().sort_stats("time").print_stats()
+
+def simulate():
     catalog = "file:///home/ciroki/Data/NineML/nineml-model-tree/lib9ml/python/dae_impl/"
 
     rnd_uniform = {
@@ -836,3 +852,8 @@ if __name__ == "__main__":
     # Run
     simulation.Run()
     simulation.Finalize()
+
+if __name__ == "__main__":
+    simulate()
+    #profile_simulate()
+    

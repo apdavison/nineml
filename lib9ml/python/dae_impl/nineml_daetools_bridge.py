@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from __future__ import print_function
+#from __future__ import print_function
 import nineml
 from nineml.abstraction_layer.testing_utils import RecordValue, TestableComponent
 from nineml.abstraction_layer import ComponentClass
@@ -584,7 +584,7 @@ def fixObjectName(name):
     new_name = name.replace(' ', '_')
     return new_name
 
-dae_nineml_t = daeVariableType("dae_nineml_t", "-", -1.0e+20, 1.0e+20, 0.0, 1e-12)
+dae_nineml_t = daeVariableType("dae_nineml_t", unit(), -1.0e+20, 1.0e+20, 0.0, 1e-12)
 
 class ninemlAnalogPort(daePort):
     """
@@ -671,7 +671,11 @@ class nineml_daetools_bridge(daeModel):
             
         :raises: RuntimeError
         """
+        start = time()
         daeModel.__init__(self, Name, Parent, Description)
+        print('daeModel.__init__ = {0}'.format(time() - start))
+
+        start = time()
 
         self.ninemlComponent        = ninemlComponent
         self.nineml_parameters      = []
@@ -688,7 +692,7 @@ class nineml_daetools_bridge(daeModel):
         
         # 1) Create parameters
         for param in self.ninemlComponent.parameters:
-            self.nineml_parameters.append( daeParameter(param.name, eReal, self, "") )
+            self.nineml_parameters.append( daeParameter(param.name, unit(), self, "") )
 
         # 2) Create state-variables (diff. variables)
         for var in self.ninemlComponent.state_variables:
@@ -729,6 +733,8 @@ class nineml_daetools_bridge(daeModel):
             portTo   = getObjectFromNamespaceAddress(self, port_connection[1], look_for_ports = True, look_for_reduceports = True)
             #print '  {0} -> {1}\n'.format(type(portFrom), type(portTo))
             nineml_daetools_bridge.connectPorts(portFrom, portTo, self)
+        
+        print('the rest = {0}'.format(time() - start))
             
     def DeclareEquations(self):
         """
@@ -818,10 +824,10 @@ class nineml_daetools_bridge(daeModel):
                         triggerEvents.append( (event_port, 0) )
 
                     # ACHTUNG!!!
-                    # Check the order of switchTo, triggerEvents and setVariableValues arguments in daetools 1.1.3+!!!
+                    # Check the order of switchTo, triggerEvents and setVariableValues arguments in daetools 1.2.0+!!!
                     self.ON_CONDITION(condition, switchTo          = switchTo,
-                                                 triggerEvents     = triggerEvents,
-                                                 setVariableValues = setVariableValues )
+                                                 setVariableValues = setVariableValues,
+                                                 triggerEvents     = triggerEvents)
 
                 # 2e) Create on_event actions
                 for on_event in regime.on_events:
@@ -849,8 +855,8 @@ class nineml_daetools_bridge(daeModel):
                     # ACHTUNG!!!
                     # Check the order of switchTo, triggerEvents and setVariableValues arguments in daetools 1.1.3+!!!
                     self.ON_EVENT(source_event_port, switchToStates    = switchToStates,
-                                                     triggerEvents     = triggerEvents,
-                                                     setVariableValues = setVariableValues )
+                                                     setVariableValues = setVariableValues,
+                                                     triggerEvents     = triggerEvents)
                                                  
             self.END_STN()
 
@@ -1030,11 +1036,10 @@ class daetools_spike_source(nineml_daetools_bridge):
 
         self.END_STN()
 
-    @staticmethod
-    def createPoissonSpikeTimes(rate, duration, t0, rng_poisson, lambda_, rng_uniform):
-        n  = int(rng_poisson.poisson(lambda_, 1))
-        spiketimes = sorted(rng_uniform.uniform(t0, t0+duration, n))
-        #print(lam, n, spiketimes)
-        return spiketimes
+def createPoissonSpikeTimes(rate, duration, t0, rng_poisson, lambda_, rng_uniform):
+    n  = int(rng_poisson.poisson(lambda_, 1))
+    spiketimes = sorted(rng_uniform.uniform(t0, t0+duration, n))
+    #print(lam, n, spiketimes)
+    return spiketimes
 
 

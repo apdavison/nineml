@@ -35,7 +35,7 @@ threads  = 1
 rngseed  = 98765
 parallel_safe = True
 
-n        = 100  # number of cells
+n        = 4000  # number of cells
 r_ei     = 4.0   # number of excitatory cells:number of inhibitory cells
 pconn    = 0.02  # connection probability
 stim_dur = 50.   # (ms) duration of random stimulation
@@ -152,15 +152,15 @@ if (benchmark == "COBA"):
     connections['ext2e'] = Projection(ext_stim, exc_cells, ext_conn, target='excitatory')
     connections['ext2i'] = Projection(ext_stim, inh_cells, ext_conn, target='excitatory')
 
-"""
-connections['e2e'].saveConnections('e2e.conn')
-connections['e2i'].saveConnections('e2i.conn')
-connections['i2e'].saveConnections('i2e.conn')
-connections['i2i'].saveConnections('i2i.conn')
+
+connections['e2e'].saveConnections('n4000/e2e.conn')
+connections['e2i'].saveConnections('n4000/e2i.conn')
+connections['i2e'].saveConnections('n4000/i2e.conn')
+connections['i2i'].saveConnections('n4000/i2i.conn')
 if (benchmark == "COBA"):
-    connections['ext2e'].saveConnections('ext2e.conn')
-    connections['ext2i'].saveConnections('ext2i.conn')
-"""
+    connections['ext2e'].saveConnections('n4000/ext2e.conn')
+    connections['ext2i'].saveConnections('n4000/ext2i.conn')
+
 
 # === Setup recording ==========================================================
 print "%s Setting up recording..." % node_id
