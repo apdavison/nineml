@@ -704,7 +704,15 @@ if __name__ == "__main__":
     log          = daeBaseLog()
     daesolver    = daeIDAS()
 
-    model = nineml_daetools_bridge(nineml_comp.name, nineml_comp, None, '')
+    parser = ExpressionParser()
+    """
+    print "Identifiers dictionary for the model: " + self.CanonicalName
+    for key, value in dictIdentifiers.items():
+        print key + ' : ' + repr(value)
+    print '\n'
+    """
+    
+    model = nineml_daetools_bridge(nineml_comp.name, nineml_comp, parser, None, '')
     analog_ports_expression_parser = getAnalogPortsExpressionParser(model)
     values_expression_parser       = getParametersValuesInitialConditionsExpressionParser(model)
     

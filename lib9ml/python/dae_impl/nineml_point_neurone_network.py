@@ -24,6 +24,7 @@ from nineml_component_inspector import nineml_component_inspector
 from nineml_daetools_bridge import nineml_daetools_bridge, ninemlRNG, findObjectInModel, fixObjectName, printComponent, daetools_spike_source, createPoissonSpikeTimes
 from nineml_tex_report import createLatexReport, createPDF
 from nineml_daetools_simulation import daeSimulationInputData, nineml_daetools_simulation, ninemlTesterDataReporter, daetools_model_setup
+from expression_parser import ExpressionParser
 
 def fixParametersDictionary(parameters):
     """
@@ -52,6 +53,8 @@ def create_nineml_daetools_bridge(name, al_component, parent, description, rng, 
     :rtype: nineml_daetools_bridge object
     :raises: RuntimeError 
     """
+    print('create_nineml_daetools_bridge: {0}'.format(name))
+    
     if al_component.name == 'SpikeSourcePoisson':
         if 'rate' in parameters:
             rate = float(parameters['rate'][0])
@@ -74,7 +77,7 @@ def create_nineml_daetools_bridge(name, al_component, parent, description, rng, 
         return daetools_spike_source(spiketimes, name, parent, description)
     
     else:
-        return nineml_daetools_bridge(fixObjectName(name), al_component, parent, description)
+        return nineml_daetools_bridge(fixObjectName(name), al_component, network.equationParser, parent, description)
 
 def create_al_from_ul_component(ul_component, random_number_generators):
     """
@@ -243,12 +246,13 @@ class daetools_point_neurone_network(pyCore.daeModel):
         name_ = fixObjectName(model.name)
         pyCore.daeModel.__init__(self, name_, None, '')
         
-        self._name        = name_
-        self._model       = model
-        self._components  = {}
-        self._groups      = {}
-        self._rngs        = {}
-        self._global_rng  = numpy.random.RandomState()
+        self._name            = name_
+        self._model           = model
+        self._components      = {}
+        self._groups          = {}
+        self._rngs            = {}
+        self._global_rng      = numpy.random.RandomState()
+        self._equation_parser = ExpressionParser()
         
         for name, ul_component in list(model.components.items()):
             self._handleComponent(name, ul_component)
@@ -307,9 +311,13 @@ class daetools_point_neurone_network(pyCore.daeModel):
         return self._groups[name]
 
     @property
+    def equationParser(self):
+        return self._equation_parser
+        
+    @property
     def randomNumberGenerators(self):
         return self._rngs
-        
+    
     @property
     def globalRandomNumberGenerator(self):
         return self._global_rng
@@ -451,6 +459,7 @@ class daetools_population:
         self._parameters = network.getComponentParameters(ul_population.prototype.name)
         al_component = network.getComponent(ul_population.prototype.name) 
         
+        """
         for i in range(0, ul_population.number):
             cell_name = '{0}_Neurone({1:0>4})'.format(self._name, i)
 
@@ -464,6 +473,8 @@ class daetools_population:
                                                     self._parameters)
             self._neurones.append(neurone)
             print('create_nineml_daetools_bridge = {0}'.format(time() - start))
+        """
+        self._neurones = [create_nineml_daetools_bridge('{0}_Neurone({1:0>4})'.format(self._name, i), al_component, network, '', network.globalRandomNumberGenerator, self._parameters) for i in range(0, ul_population.number)]
         
         try:
             self._positions = ul_population.positions.get_positions(ul_population)
@@ -762,16 +773,17 @@ def simulate():
     grid2D          = nineml.user_layer.Structure("2D grid", catalog + "2Dgrid.xml")
     connection_type = nineml.user_layer.ConnectionType("Static weights and delays", catalog + "static_weights_delays.xml")
     
-    population_excitatory = nineml.user_layer.Population("Excitatory population", 80, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
-    population_inhibitory = nineml.user_layer.Population("Inhibitory population", 20, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
-    population_poisson    = nineml.user_layer.Population("Poisson population",    20, neurone_poisson, nineml.user_layer.PositionList(structure=grid2D))
+    population_excitatory = nineml.user_layer.Population("Excitatory population", 800, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
+    population_inhibitory = nineml.user_layer.Population("Inhibitory population", 200, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
+    population_poisson    = nineml.user_layer.Population("Poisson population",     20, neurone_poisson, nineml.user_layer.PositionList(structure=grid2D))
 
-    connections_exc_exc     = readCSV_pyNN('e2e.conn')
-    connections_exc_inh     = readCSV_pyNN('e2i.conn')
-    connections_inh_inh     = readCSV_pyNN('i2i.conn')
-    connections_inh_exc     = readCSV_pyNN('i2e.conn')
-    connections_poisson_exc = readCSV_pyNN('ext2e.conn')
-    connections_poisson_inh = readCSV_pyNN('ext2i.conn')
+    connections_folder      = '' #'n1000/'
+    connections_exc_exc     = readCSV_pyNN(connections_folder + 'e2e.conn')
+    connections_exc_inh     = readCSV_pyNN(connections_folder + 'e2i.conn')
+    connections_inh_inh     = readCSV_pyNN(connections_folder + 'i2i.conn')
+    connections_inh_exc     = readCSV_pyNN(connections_folder + 'i2e.conn')
+    connections_poisson_exc = readCSV_pyNN(connections_folder + 'ext2e.conn')
+    connections_poisson_inh = readCSV_pyNN(connections_folder + 'ext2i.conn')
     #print(connections_exc_exc)
     #print(connections_exc_inh)
     #print(connections_inh_inh)
@@ -854,6 +866,9 @@ def simulate():
     simulation.Finalize()
 
 if __name__ == "__main__":
+    import psyco
+    psyco.full()
+
     simulate()
     #profile_simulate()
     
