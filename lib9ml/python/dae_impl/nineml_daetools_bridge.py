@@ -249,7 +249,10 @@ def random_poisson(lam = 1.0):
 def random_exponential(beta = 1.0):
     res = _global_rng_.exponential(beta)
     return float(res)
-        
+
+def createExpressionParser():
+    return ExpressionParser()
+
 def getEquationsExpressionDictionaries(model):
     """
     Returns two dictionaries needed to evaluate AST for NineML mathematical and logical expressions.
@@ -777,10 +780,11 @@ class nineml_daetools_bridge(daeModel):
         :rtype: None
         :raises: RuntimeError
         """
-        dictIdentifiers, dictFunctions = getEquationsExpressionDictionaries(self)
-        self.parser.dictIdentifiers = dictIdentifiers
-        self.parser.dictFunctions   = dictFunctions
-
+        #dictIdentifiers, dictFunctions = getEquationsExpressionDictionaries(self)
+        #self.parser.dictIdentifiers = dictIdentifiers
+        #self.parser.dictFunctions   = dictFunctions
+        self.parser = getEquationsExpressionParser(self)
+        
         # 1) Create aliases (algebraic equations)
         aliases = list(self.ninemlComponent.aliases)
         if len(aliases) > 0:
