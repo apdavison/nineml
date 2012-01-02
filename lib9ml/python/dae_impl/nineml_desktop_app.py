@@ -230,11 +230,13 @@ if __name__ == "__main__":
             simulation_data.event_ports_expressions  = inputs['event_ports_expressions']
             simulation_data.variables_to_report      = inputs['variables_to_report']
             
+            parser = createExpressionParser()
+            
             # Create Log, DAESolver, DataReporter and Simulation object
             log          = daePythonStdOutLog()
             daesolver    = daeIDAS()
-            datareporter = daeTCPIPDataReporter() #ninemlTesterDataReporter()
-            model        = nineml_daetools_bridge(inspector.ninemlComponent.name, inspector.ninemlComponent)
+            datareporter = ninemlTesterDataReporter() # daeTCPIPDataReporter()
+            model        = nineml_daetools_bridge(inspector.ninemlComponent.name, inspector.ninemlComponent, parser, None, '')
             
             analog_ports_expression_parser = getAnalogPortsExpressionParser(model)
             values_expression_parser       = getParametersValuesInitialConditionsExpressionParser(model)
@@ -271,8 +273,6 @@ if __name__ == "__main__":
             # Run
             simulation.Run()
             simulation.Finalize()
-            
-            sys.exit()
             
             dictInputs = {}
             dictInputs['parameters']                = simulation_data.parameters

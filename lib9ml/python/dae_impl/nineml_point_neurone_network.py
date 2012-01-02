@@ -21,9 +21,11 @@ from nineml.abstraction_layer.testing_utils import TestableComponent
 
 from daetools.pyDAE import pyCore, pyActivity, pyDataReporting, pyIDAS, daeLogs
 from nineml_component_inspector import nineml_component_inspector
-from nineml_daetools_bridge import nineml_daetools_bridge, createExpressionParser, ninemlRNG, findObjectInModel, fixObjectName, printComponent, daetools_spike_source, createPoissonSpikeTimes
 from nineml_tex_report import createLatexReport, createPDF
 from nineml_daetools_simulation import daeSimulationInputData, nineml_daetools_simulation, ninemlTesterDataReporter, daetools_model_setup
+
+from nineml_daetools_bridge import nineml_daetools_bridge, createExpressionParser, ninemlRNG, findObjectInModel
+from nineml_daetools_bridge import connectModelsViaEventPort, connectModelsViaAnaloguePorts, fixObjectName, printComponent, daetools_spike_source, createPoissonSpikeTimes
 
 def fixParametersDictionary(parameters):
     """
@@ -630,8 +632,8 @@ class daetools_projection:
                                                        self._network.globalRandomNumberGenerator,
                                                        self._psr_parameters)
         
-        nineml_daetools_bridge.connectModelsViaEventPort    (source_neurone, synapse,        self._network)
-        nineml_daetools_bridge.connectModelsViaAnaloguePorts(synapse,        target_neurone, self._network)
+        connectModelsViaEventPort    (source_neurone, synapse,        self._network)
+        connectModelsViaAnaloguePorts(synapse,        target_neurone, self._network)
         
         self._generated_connections.append( (source_neurone, synapse, target_neurone) )
         print('_createConnection {0} = {1}'.format(n, time() - start))
@@ -749,7 +751,7 @@ def simulate():
 
     psr_excitatory_params = {
                              'vrev' : (  0.000, 'V'),
-                             'q'    : ( 4.0E-9, 'S'),
+                             'q'    : ( 4.0E-8, 'S'),
                              'tau'  : (  0.005, 's'),
                              'g'    : (  0.000, 'S')
                             }

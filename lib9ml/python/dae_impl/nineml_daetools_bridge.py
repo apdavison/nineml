@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-#from __future__ import print_function
+from __future__ import print_function
 import nineml
 from nineml.abstraction_layer.testing_utils import RecordValue, TestableComponent
 from nineml.abstraction_layer import ComponentClass
@@ -686,9 +686,40 @@ class ninemlReduceAnalogPort(object):
             varSum = varSum + p.value()
         eq.Residual = self.portVariable() - varSum
 
+class parserDictionaryWrapper(object):
+    """
+    Dictionary-like class to wrap multidimensional parameters, variables, etc
+    A workaround to save a lot of time that would be spent on creating dictionaries
+    for each neurone/connection.
+    """
+    def __init__(self, dictIDs, current_index = -1):
+        """
+        :param dictIDs: python dictionary 'name' : daeVariable/daeParameter; 
+                        they should be distributed on a single domain.
+        :param current_index: integer
+        """
+        self.dictIDs       = dictIDs
+        self.current_index = current_index
+        
+    def __contains__(self, key):
+        return key in self.dictIDs
+
+    def has_key(self, key):
+        return key in self.dictIDs
+
+    def __getitem__(self, key):
+        """
+        Gets the daeVariable object at the given *key* and calls *operator ()*
+        with the index equal to the *current_index* argument.
+        """
+        if self.current_index == -1:
+            return self.dictIDs[key]
+        else:
+            return self.dictIDs[key](self.current_index)
+
 class nineml_daetools_bridge(daeModel):
     """
-    A wrapper around a single or hiwerarchical AL Component object.
+    A wrapper around a single or hierarchical AL Component object.
     """
     
     # AL components always have a single STN with several regimes; this is a generic name for NineML STNs  
@@ -768,7 +799,7 @@ class nineml_daetools_bridge(daeModel):
             portFrom = getObjectFromNamespaceAddress(self, port_connection[0], look_for_ports = True, look_for_reduceports = True)
             portTo   = getObjectFromNamespaceAddress(self, port_connection[1], look_for_ports = True, look_for_reduceports = True)
             #print '  {0} -> {1}\n'.format(type(portFrom), type(portTo))
-            nineml_daetools_bridge.connectPorts(portFrom, portTo, self)
+            connectPorts(portFrom, portTo, self)
         
         print('    the rest = {0}'.format(time() - start))
             
@@ -784,6 +815,8 @@ class nineml_daetools_bridge(daeModel):
         #self.parser.dictIdentifiers = dictIdentifiers
         #self.parser.dictFunctions   = dictFunctions
         self.parser = getEquationsExpressionParser(self)
+        self.parser.dictIdentifiers = parserDictionaryWrapper(self.parser.dictIdentifiers)
+        self.parser.dictFunctions   = parserDictionaryWrapper(self.parser.dictFunctions)
         
         # 1) Create aliases (algebraic equations)
         aliases = list(self.ninemlComponent.aliases)
@@ -907,131 +940,123 @@ class nineml_daetools_bridge(daeModel):
                 return var
         return None
 
-    @classmethod
-    def connectPorts(cls, portInlet, portOutlet, parent_model):
-        """
-        Connects two analogue ports and stores the connection in the 'parent_model' object.
-        
-        :param cls: nineml_daetools_bridge class
-        :param portInlet: ninemlAnalogPort|ninemlReduceAnalogPort object
-        :param portOutlet: ninemlAnalogPort|ninemlReduceAnalogPort object
-        :param parent_model: daeModel-derived object
-            
-        :rtype: None
-        :raises: RuntimeError
-        """
-        portFrom = None
-        portTo   = None
-
-        if isinstance(portInlet, ninemlAnalogPort):
-            portFrom = portInlet
-        elif isinstance(portInlet, ninemlReduceAnalogPort):
-            portFrom = portInlet.addPort()
-        else:
-            raise RuntimeError('invalid portFrom')
-            
-        if isinstance(portOutlet, ninemlAnalogPort):
-            portTo = portOutlet
-        elif isinstance(portOutlet, ninemlReduceAnalogPort):
-            portTo = portOutlet.addPort()
-        else:
-            raise RuntimeError('invalid portTo')
-
-        parent_model.ConnectPorts(portFrom, portTo)
-
-    @classmethod
-    def connectEventPorts(cls, portFrom, portTo, parent_model):
-        """
-        Connects two event ports and stores the connection in the 'parent_model' object.
-        
-        :param cls: nineml_daetools_bridge class
-        :param portFrom: daeEventPort object
-        :param portTo: daeEventPort object
-        :param parent_model: daeModel-derived object
-            
-        :rtype: None
-        :raises: RuntimeError
-        """
-        if (portFrom.Type != eOutletPort) or (portTo.Type != eInletPort):
-            raise RuntimeError('Cannot connect event ports: incompatible types')
-        
-        parent_model.ConnectEventPorts(portTo, portFrom)
-
-    @classmethod
-    def connectModelsViaEventPort(cls, source, target, parent_model):
-        """
-        Connects the source and the target models via single event port and stores the connection in the 
-        'parent_model' object. There must be a single outlet port in the source model and a single inlet 
-        port in the target model. 
-        
-        :param cls: nineml_daetools_bridge class
-        :param source: nineml_daetools_bridge object (neurone)
-        :param target: nineml_daetools_bridge object (target)
-        :param parent_model: daeModel object (typically a network object)
-            
-        :rtype: None
-        :raises: RuntimeError
-        """
-        if (len(source.nineml_event_ports) != 1) or (source.nineml_event_ports[0].Type != pyCore.eOutletPort):
-            raise RuntimeError('The source neurone [{0}] must have a single outlet event port'.format(source.Name))
-        
-        if (len(target.nineml_event_ports) != 1) or (target.nineml_event_ports[0].Type != pyCore.eInletPort):
-            raise RuntimeError('The target [{0}] must have a single inlet event port'.format(source.Name))
-        
-        source_port = source.nineml_event_ports[0]
-        target_port = target.nineml_event_ports[0]
-        
-        cls.connectEventPorts(source_port, target_port, parent_model)
+def connectPorts(portInlet, portOutlet, parent_model):
+    """
+    Connects two analogue ports and stores the connection in the 'parent_model' object.
     
-    @classmethod
-    def connectModelsViaAnaloguePorts(cls, source, target, parent_model):
-        """
-        Connects all analogue ports in the source model to all analogue ports in the target model 
-        and stores the connections in the parent_model.
-        The function iterates over the source ports and tries to find its match in the target ports.
-        If a match is found it connects them. If a match is not found, or if an incompatible pair 
-        of ports has been found it throws an exception.
+    :param portInlet: ninemlAnalogPort|ninemlReduceAnalogPort object
+    :param portOutlet: ninemlAnalogPort|ninemlReduceAnalogPort object
+    :param parent_model: daeModel-derived object
         
-        **ACHTUNG, ACHTUNG!!** It is assumed that sources do not have reduce ports [tamba/lamba?]
+    :rtype: None
+    :raises: RuntimeError
+    """
+    portFrom = None
+    portTo   = None
+
+    if isinstance(portInlet, ninemlAnalogPort):
+        portFrom = portInlet
+    elif isinstance(portInlet, ninemlReduceAnalogPort):
+        portFrom = portInlet.addPort()
+    else:
+        raise RuntimeError('invalid portFrom')
         
-        :param cls: nineml_daetools_bridge class
-        :param source: nineml_daetools_bridge object (synapse)
-        :param target: nineml_daetools_bridge object (neurone)
-        :param parent_model: nineml_daetools_bridge object (typically a network object)
-            
-        :rtype: None
-        :raises: RuntimeError
-        """
-        for source_port in source.nineml_analog_ports:
-            matching_port_found = False
-            
-            # 1) Look in the list of analogue ports
-            for target_port in target.nineml_analog_ports:
+    if isinstance(portOutlet, ninemlAnalogPort):
+        portTo = portOutlet
+    elif isinstance(portOutlet, ninemlReduceAnalogPort):
+        portTo = portOutlet.addPort()
+    else:
+        raise RuntimeError('invalid portTo')
+
+    parent_model.ConnectPorts(portFrom, portTo)
+
+def connectEventPorts(portFrom, portTo, parent_model):
+    """
+    Connects two event ports and stores the connection in the 'parent_model' object.
+    
+    :param portFrom: daeEventPort object
+    :param portTo: daeEventPort object
+    :param parent_model: daeModel-derived object
+        
+    :rtype: None
+    :raises: RuntimeError
+    """
+    if (portFrom.Type != eOutletPort) or (portTo.Type != eInletPort):
+        raise RuntimeError('Cannot connect event ports: incompatible types')
+    
+    parent_model.ConnectEventPorts(portTo, portFrom)
+
+def connectModelsViaEventPort(source, target, parent_model):
+    """
+    Connects the source and the target models via single event port and stores the connection in the 
+    'parent_model' object. There must be a single outlet port in the source model and a single inlet 
+    port in the target model. 
+    
+    :param source: nineml_daetools_bridge object (neurone)
+    :param target: nineml_daetools_bridge object (target)
+    :param parent_model: daeModel object (typically a network object)
+        
+    :rtype: None
+    :raises: RuntimeError
+    """
+    if (len(source.nineml_event_ports) != 1) or (source.nineml_event_ports[0].Type != pyCore.eOutletPort):
+        raise RuntimeError('The source neurone [{0}] must have a single outlet event port'.format(source.Name))
+    
+    if (len(target.nineml_event_ports) != 1) or (target.nineml_event_ports[0].Type != pyCore.eInletPort):
+        raise RuntimeError('The target [{0}] must have a single inlet event port'.format(source.Name))
+    
+    source_port = source.nineml_event_ports[0]
+    target_port = target.nineml_event_ports[0]
+    
+    connectEventPorts(source_port, target_port, parent_model)
+
+def connectModelsViaAnaloguePorts(source, target, parent_model):
+    """
+    Connects all analogue ports in the source model to all analogue ports in the target model 
+    and stores the connections in the parent_model.
+    The function iterates over the source ports and tries to find its match in the target ports.
+    If a match is found it connects them. If a match is not found, or if an incompatible pair 
+    of ports has been found it throws an exception.
+    
+    **ACHTUNG, ACHTUNG!!** It is assumed that sources do not have reduce ports [tamba/lamba?]
+    
+    :param source: nineml_daetools_bridge object (synapse)
+    :param target: nineml_daetools_bridge object (neurone)
+    :param parent_model: nineml_daetools_bridge object (typically a network object)
+        
+    :rtype: None
+    :raises: RuntimeError
+    """
+    for source_port in source.nineml_analog_ports:
+        matching_port_found = False
+        
+        # 1) Look in the list of analogue ports
+        for target_port in target.nineml_analog_ports:
+            if source_port.Name == target_port.Name:
+                if (source_port.Type == eInletPort) and (target_port.Type == eOutletPort):
+                    connectPorts(source_port, target_port, parent_model)
+                    matching_port_found = True
+                
+                elif (source_port.Type == eOutletPort) and (target_port.Type == eInletPort):
+                    connectPorts(source_port, target_port, parent_model)
+                    matching_port_found = True
+                
+                else:
+                    msg = 'Cannot connect a source to a neurone: source port [{0}] and neurone port [{1}] do not match'.format(source_port.Name, target_port.Name)
+                    raise RuntimeError(msg)
+        
+        # 2) If not connected yet, look in the list of reduce ports
+        if matching_port_found == False:
+            for target_port in target.nineml_reduce_ports:
                 if source_port.Name == target_port.Name:
-                    if (source_port.Type == eInletPort) and (target_port.Type == eOutletPort):
-                        nineml_daetools_bridge.connectPorts(source_port, target_port, parent_model)
+                    # Achtung! Reduce ports are implicitly inlet
+                    if (source_port.Type == eOutletPort):
+                        connectPorts(source_port, target_port, parent_model)
                         matching_port_found = True
-                    
-                    elif (source_port.Type == eOutletPort) and (target_port.Type == eInletPort):
-                        nineml_daetools_bridge.connectPorts(source_port, target_port, parent_model)
-                        matching_port_found = True
-                    
-                    else:
-                        msg = 'Cannot connect a source to a neurone: source port [{0}] and neurone port [{1}] do not match'.format(source_port.Name, target_port.Name)
-                        raise RuntimeError(msg)
-            
-            # 2) If not connected yet, look in the list of reduce ports
-            if matching_port_found == False:
-                for target_port in target.nineml_reduce_ports:
-                    if source_port.Name == target_port.Name:
-                        # Achtung! Reduce ports are implicitly inlet
-                        if (source_port.Type == eOutletPort):
-                            nineml_daetools_bridge.connectPorts(source_port, target_port, parent_model)
-                            matching_port_found = True
-            
-            # If not found - die miserably
-            if matching_port_found == False:
-                raise RuntimeError('Cannot connect a source to a neurone: cannot find a match for the source port [{0}]'.format(source_port.Name))
+        
+        # If not found - die miserably
+        if matching_port_found == False:
+            raise RuntimeError('Cannot connect a source to a neurone: cannot find a match for the source port [{0}]'.format(source_port.Name))
 
 class daetools_spike_source(nineml_daetools_bridge):
     """
@@ -1074,4 +1099,360 @@ def createPoissonSpikeTimes(rate, duration, t0, rng_poisson, lambda_, rng_unifor
     #print(lam, n, spiketimes)
     return spiketimes
 
+class al_component_info(object):
+    """
+    """
+    def __init__(self, name, al_component):
+        """
+        Iterates over *Parameters*, *State variables*, *Aliases*, *Analogue ports*, *Event ports*, 
+        *Sub-nodes* and *Port connections* and creates corresponding daetools objects.
+        
+        :param name: string
+        :param ninemlComponent: AL component object
+        :param Parent: daeModel-derived object
+        :param Description: string
+            
+        :raises: RuntimeError
+        """
+        self.name                    = name
+        self.al_component            = al_component
+        self.nineml_parameters       = []
+        self.nineml_state_variables  = []
+        self.nineml_aliases          = []
+        self.nineml_analog_ports     = []
+        self.nineml_reduce_ports     = []
+        self.nineml_event_ports      = []
+        self.nineml_port_connections = []
+        self.nineml_regimes          = []
+        self.nineml_subcomponents    = []
+        
+        parser = getEquationsExpressionParser(None)
 
+        # AL component may be None (useful in certain cases); therefore do not raise an exception
+        if not self.al_component:
+            return
+        
+        # 1) Create parameters
+        for param in self.al_component.parameters:
+            self.nineml_parameters.append( (param.name, unit()) )
+
+        # 2) Create state-variables (diff. variables)
+        for var in self.al_component.state_variables:
+            self.nineml_state_variables.append( (var.name, dae_nineml_t) )
+
+        # 3) Create alias variables (algebraic) and parse rhs
+        for alias in self.al_component.aliases:
+            self.nineml_aliases.append( (alias.lhs, dae_nineml_t, parser.parse(alias.rhs)) )
+
+        # 4) Create analog-ports and reduce-ports
+        for analog_port in self.al_component.analog_ports:
+            if analog_port.mode == 'send':
+                self.nineml_analog_ports.append( (analog_port.name, eOutletPort) )
+            elif analog_port.mode == 'recv':
+                self.nineml_analog_ports.append( (analog_port.name, eInletPort) )
+            elif analog_port.mode == 'reduce':
+                self.nineml_reduce_ports.append( (analog_port.name, eInletPort) )
+            else:
+                raise RuntimeError("")
+
+        # 5) Create event-ports
+        for event_port in self.al_component.event_ports:
+            if event_port.mode == 'send':
+                self.nineml_event_ports.append( (event_port.name, eOutletPort) )
+            elif event_port.mode == 'recv':
+                self.nineml_event_ports.append( (event_port.name, eInletPort) )
+            else:
+                raise RuntimeError("")
+
+        # 6) Create port connections
+        for port_connection in self.al_component.portconnections:
+            portFrom = '.'.join(port_connection[0].loctuple)
+            portTo   = '.'.join(port_connection[1].loctuple)
+            self.nineml_port_connections.append( (portFrom, portTo) )
+        
+        # 7) Create regimes
+        regimes         = list(self.al_component.regimes)
+        state_variables = list(self.al_component.state_variables)
+        if len(regimes) > 0:
+            for regime in regimes:
+                odes          = []
+                on_conditions = []
+                on_events     = []
+
+                # 7a) Sometime a time_derivative equation is not given and in that case a 
+                # derivative is equal to zero. We have to discover which variables do not 
+                # have a corresponding ODE and we do that by creating a map {'state_var' : 'RHS'} 
+                # which initially has set rhs to '0'. RHS will be set later while iterating through ODEs
+                map_statevars_timederivs = {}
+                for state_var in state_variables:
+                    map_statevars_timederivs[state_var.name] = 0
+
+                time_derivatives = list(regime.time_derivatives)
+                for time_deriv in time_derivatives:
+                    map_statevars_timederivs[time_deriv.dependent_variable] = time_deriv.rhs
+                #print map_statevars_timederivs
+
+                for var_name, rhs in list(map_statevars_timederivs.items()):
+                    if rhs == 0:
+                        odes.append( (var_name, 0) )
+                    else:
+                        odes.append( (var_name, parser.parse(rhs)) )
+                        
+                # 2d) Create on_condition actions
+                for on_condition in regime.on_conditions:
+                    condition         = parser.parse(on_condition.trigger.rhs)
+                    switchTo          = on_condition.target_regime.name
+                    triggerEvents     = []
+                    setVariableValues = []
+
+                    for state_assignment in on_condition.state_assignments:
+                        setVariableValues.append( (state_assignment.lhs, parser.parse(state_assignment.rhs)) )
+
+                    for event_output in on_condition.event_outputs:
+                        triggerEvents.append( (event_output.port_name, 0) )
+
+                    on_conditions.append( (condition, switchTo, setVariableValues, triggerEvents) )
+                
+                # 2e) Create on_event actions
+                for on_event in regime.on_events:
+                    source_event_port = on_event.src_port_name                    
+                    switchToStates    = []
+                    triggerEvents     = []
+                    setVariableValues = []
+
+                    for state_assignment in on_event.state_assignments:
+                        setVariableValues.append( (state_assignment.lhs, parser.parse(state_assignment.rhs)) )
+
+                    for event_output in on_event.event_outputs:
+                        triggerEvents.append( (event_output.port_name, 0) )
+
+                    on_events.append( (source_event_port, switchToStates, setVariableValues, triggerEvents) )
+                
+                self.nineml_regimes.append( (odes, on_conditions, on_events) )
+
+        # 8) Create sub-nodes
+        for name, subcomponent in list(self.al_component.subnodes.items()):
+            self.nineml_subcomponents.append( al_component_info(name, subcomponent) )
+
+    def __str__(self):
+        res = ''
+        res += 'name = {0}\n'.format(self.name)
+        res += 'al_component = {0}\n'.format(self.al_component)
+        res += 'nineml_parameters = {0}\n'.format(self.nineml_parameters)
+        res += 'nineml_state_variables = {0}\n'.format(self.nineml_state_variables)
+        res += 'nineml_aliases = {0}\n'.format(self.nineml_aliases)
+        res += 'nineml_analog_ports = {0}\n'.format(self.nineml_analog_ports)
+        res += 'nineml_reduce_ports = {0}\n'.format(self.nineml_reduce_ports)
+        res += 'nineml_event_ports = {0}\n'.format(self.nineml_event_ports)
+        res += 'nineml_port_connections = {0}\n'.format(self.nineml_port_connections)
+        res += 'nineml_regimes = {0}\n'.format(self.nineml_regimes)
+        for subcomponent in self.nineml_subcomponents:
+            res += 'Subcomponent: {0}\n{1}\n'.format(subcomponent.name, subcomponent)
+        return res
+    
+class dae_component(daeModel):
+    def __init__(self, info, name, parent = None, description = ''):
+        daeModel.__init__(self, name, parent, description)
+        
+        self.nineml_parameters       = {}
+        self.nineml_variables        = {}
+        self.nineml_ports            = {}
+        self.nineml_reduce_ports     = []
+        self.nineml_event_ports      = {}
+        self.nineml_port_connections = []
+        self.nineml_subcomponents    = []
+        self.nineml_equations        = {}
+        self.nineml_stn              = None
+
+        # 1) Create parameters
+        for (name, units) in info.nineml_parameters:
+            self.nineml_parameters[name] = daeParameter(name, units, self, "")
+
+        # 2) Create state-variables (diff. variables)
+        for (name, var_type) in info.nineml_state_variables:
+            self.nineml_variables[name] = daeVariable(name, var_type, self, "")
+
+        # 3) Create alias variables (algebraic)
+        for (name, var_type, node) in info.nineml_aliases:
+            self.nineml_variables[name] = daeVariable(name, var_type, self, "")
+
+        # 4a) Create analog-ports
+        for (name, port_type) in info.nineml_analog_ports:
+            self.nineml_ports[name] = ninemlAnalogPort(name, port_type, self, "")
+        
+        # 4b) Create reduce-ports
+        for (name, port_type) in info.nineml_reduce_ports:
+            self.nineml_reduce_ports.append(ninemlReduceAnalogPort(name, self))
+
+        # 5) Create event-ports
+        for (name, port_type) in info.nineml_event_ports:
+            self.nineml_event_ports[name] = daeEventPort(name, port_type, self, "")
+
+        # 6) Create sub-nodes
+        for sub_info in info.nineml_subcomponents:
+            self.nineml_subcomponents.append(dae_component(sub_info, sub_info.name, self, ''))
+
+        # 7) Create port connections
+        for (nameFrom, nameTo) in info.nineml_port_connections:
+            portFrom = getObjectFromCanonicalName(self, nameFrom, look_for_ports = True, look_for_reduceports = True)
+            portTo   = getObjectFromCanonicalName(self, nameTo,   look_for_ports = True, look_for_reduceports = True)
+            connectPorts(portFrom, portTo, self)
+    
+    def __str__(self):
+        res = ''
+        res += 'canonical_name = {0}\n'.format(self.CanonicalName)
+        res += 'nineml_parameters = {0}\n'.format(self.nineml_parameters)
+        res += 'nineml_variables = {0}\n'.format(self.nineml_variables)
+        res += 'nineml_ports = {0}\n'.format(self.nineml_ports)
+        res += 'nineml_reduce_ports = {0}\n'.format(self.nineml_reduce_ports)
+        res += 'nineml_event_ports = {0}\n'.format(self.nineml_event_ports)
+        res += 'nineml_port_connections = {0}\n'.format(self.nineml_port_connections)
+        res += 'nineml_equations = {0}\n'.format(self.nineml_equations)
+        res += 'nineml_stn = {0}\n'.format(self.nineml_stn)
+        for subcomponent in self.nineml_subcomponents:
+            res += 'Submodel: {0}\n{1}\n'.format(subcomponent.CanonicalName, subcomponent)
+        return res
+    
+    def findPort(self, name):
+        if name in self.nineml_ports:
+            return self.nineml_ports[name]
+        elif name in self.nineml_reduce_ports:
+            return self.nineml_reduce_ports[name]
+        else:
+            for (sub_name, sub_comp) in self.nineml_subcomponents:
+                port = sub_comp.findPort(name)
+                if(port):
+                    return port
+        return None
+    
+    def DeclareEquations(self):
+        pass
+        """
+        # 1) Create aliases (algebraic equations)
+        aliases = list(self.ninemlComponent.aliases)
+        if len(aliases) > 0:
+            for i, alias in enumerate(aliases):
+                eq = self.CreateEquation(alias.lhs, "")
+                eq.Residual = self.nineml_aliases[i]() - self.parser.parse_and_evaluate(alias.rhs)
+
+        # 1a) Create equations for reduce ports (algebraic equations)
+        for port in self.nineml_reduce_ports:
+            port.generateEquation()
+
+        # 2) Create regimes
+        regimes         = list(self.ninemlComponent.regimes)
+        state_variables = list(self.ninemlComponent.state_variables)
+        if len(regimes) > 0:
+            # 2a) Create STN for model
+            self.STN(nineml_daetools_bridge.ninemlSTNRegimesName)
+
+            for regime in regimes:
+                # 2b) Create State for each regime
+                self.STATE(regime.name)
+
+                # 2c) Create equations for all state variables/time derivatives
+                # Sometime a time_derivative equation is not given and in that case the derivative is equal to zero
+                # We have to discover which variables do not have a corresponding ODE and
+                # we do that by creating a map {'state_var' : 'RHS'} which initially has
+                # set rhs to '0'. RHS will be set later while iterating through ODEs
+                map_statevars_timederivs = {}
+                for state_var in state_variables:
+                    map_statevars_timederivs[state_var.name] = 0
+
+                time_derivatives = list(regime.time_derivatives)
+                for time_deriv in time_derivatives:
+                    map_statevars_timederivs[time_deriv.dependent_variable] = time_deriv.rhs
+                #print map_statevars_timederivs
+
+                for var_name, rhs in list(map_statevars_timederivs.items()):
+                    variable = self._findVariable(var_name)
+                    if variable == None:
+                        raise RuntimeError('Cannot find state variable {0}'.format(var_name))
+
+                    # Create equation
+                    eq = self.CreateEquation(var_name, "")
+
+                    # If right-hand side expression is 0 do not parse it
+                    if rhs == 0:
+                        eq.Residual = variable.dt()
+                    else:
+                        eq.Residual = variable.dt() - self.parser.parse_and_evaluate(rhs)
+
+                # 2d) Create on_condition actions
+                for on_condition in regime.on_conditions:
+                    condition         = self.parser.parse_and_evaluate(on_condition.trigger.rhs)
+                    switchTo          = on_condition.target_regime.name
+                    triggerEvents     = []
+                    setVariableValues = []
+
+                    for state_assignment in on_condition.state_assignments:
+                        variable   = getObjectFromCanonicalName(self, state_assignment.lhs, look_for_variables = True)
+                        if variable == None:
+                            raise RuntimeError('Cannot find variable {0}'.format(state_assignment.lhs))
+                        expression = self.parser.parse_and_evaluate(state_assignment.rhs)
+                        setVariableValues.append( (variable, expression) )
+
+                    for event_output in on_condition.event_outputs:
+                        event_port = getObjectFromCanonicalName(self, event_output.port_name, look_for_eventports = True)
+                        if event_port == None:
+                            raise RuntimeError('Cannot find event port {0}'.format(event_output.port_name))
+                        triggerEvents.append( (event_port, 0) )
+
+                    # ACHTUNG!!!
+                    # Check the order of switchTo, triggerEvents and setVariableValues arguments in daetools 1.2.0+!!!
+                    self.ON_CONDITION(condition, switchTo          = switchTo,
+                                                 setVariableValues = setVariableValues,
+                                                 triggerEvents     = triggerEvents)
+
+                # 2e) Create on_event actions
+                for on_event in regime.on_events:
+                    source_event_port = getObjectFromCanonicalName(self, on_event.src_port_name, look_for_eventports = True)
+                    if source_event_port == None:
+                        raise RuntimeError('Cannot find event port {0}'.format(on_event.src_port_name))
+                    
+                    switchToStates    = []
+                    triggerEvents     = []
+                    setVariableValues = []
+
+                    for state_assignment in on_event.state_assignments:
+                        variable   = getObjectFromCanonicalName(self, state_assignment.lhs, look_for_variables = True)
+                        if variable == None:
+                            raise RuntimeError('Cannot find variable {0}'.format(state_assignment.lhs))
+                        expression = self.parser.parse_and_evaluate(state_assignment.rhs)
+                        setVariableValues.append( (variable, expression) )
+
+                    for event_output in on_event.event_outputs:
+                        event_port = getObjectFromCanonicalName(self, event_output.port_name, look_for_eventports = True)
+                        if event_port == None:
+                            raise RuntimeError('Cannot find event port {0}'.format(event_output.port_name))
+                        triggerEvents.append( (event_port, 0) )
+
+                    # ACHTUNG!!!
+                    # Check the order of switchTo, triggerEvents and setVariableValues arguments in daetools 1.1.3+!!!
+                    self.ON_EVENT(source_event_port, switchToStates    = switchToStates,
+                                                     setVariableValues = setVariableValues,
+                                                     triggerEvents     = triggerEvents)
+                                                 
+            self.END_STN()
+
+        # 3) Create equations for outlet analog-ports: port.value() - variable() = 0
+        for analog_port in self.nineml_analog_ports:
+            if analog_port.Type == eOutletPort:
+                eq = self.CreateEquation(analog_port.Name + '_portequation', "")
+                var_to = findObjectInModel(self, analog_port.Name, look_for_variables = True)
+                if var_to == None:
+                    raise RuntimeError('Cannot find variable/alias {0}'.format(analog_port.Name))
+                eq.Residual = analog_port.value() - var_to()
+        """
+
+
+if __name__ == "__main__":
+    al_component  = TestableComponent('hierachical_iaf_1coba')()
+    if not al_component:
+        raise RuntimeError('Cannot load NineML component')
+    
+    info = al_component_info('hierachical_iaf_1coba', al_component)
+    print(info)
+    
+    dae_comp = dae_component(info, 'hierachical_iaf_1coba')
+    print(dae_comp)
