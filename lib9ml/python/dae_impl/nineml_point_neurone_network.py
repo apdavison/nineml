@@ -706,6 +706,16 @@ def readCSV_pyNN(filename):
         connections_out.append((s, t, w, d))
     return connections_out
 
+def unique(connections):
+    info = {}
+    for (s, t, w, d) in connections:
+        if t in info:
+            info[t] += 1
+        else:
+            info[t] = 1
+    unique_set = set(info.values())
+    print(unique_set)
+        
 def profile_simulate():
     import hotshot
     from hotshot import stats
@@ -778,19 +788,21 @@ def simulate():
     population_inhibitory = nineml.user_layer.Population("Inhibitory population", 20, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
     population_poisson    = nineml.user_layer.Population("Poisson population",    20, neurone_poisson, nineml.user_layer.PositionList(structure=grid2D))
 
-    connections_folder      = '' #'n1000/'
+    connections_folder      = 'n4000/'
     connections_exc_exc     = readCSV_pyNN(connections_folder + 'e2e.conn')
     connections_exc_inh     = readCSV_pyNN(connections_folder + 'e2i.conn')
     connections_inh_inh     = readCSV_pyNN(connections_folder + 'i2i.conn')
     connections_inh_exc     = readCSV_pyNN(connections_folder + 'i2e.conn')
     connections_poisson_exc = readCSV_pyNN(connections_folder + 'ext2e.conn')
     connections_poisson_inh = readCSV_pyNN(connections_folder + 'ext2i.conn')
-    #print(connections_exc_exc)
-    #print(connections_exc_inh)
-    #print(connections_inh_inh)
-    #print(connections_inh_exc)
-    #print(connections_poisson_exc)
-    #print(connections_poisson_inh)
+    
+    unique(connections_exc_exc)
+    unique(connections_exc_inh)
+    unique(connections_inh_inh)
+    unique(connections_inh_exc)
+    unique(connections_poisson_exc)
+    unique(connections_poisson_inh)
+    sys.exit()
     
     connection_rule_exc_exc     = nineml.user_layer.ConnectionRule("Explicit Connections exc_exc", catalog + "explicit_list_of_connections.xml")
     connection_rule_exc_inh     = nineml.user_layer.ConnectionRule("Explicit Connections exc_inh", catalog + "explicit_list_of_connections.xml")

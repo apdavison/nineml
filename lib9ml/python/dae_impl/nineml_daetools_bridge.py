@@ -642,7 +642,7 @@ class ninemlAnalogPort(daePort):
 
 class ninemlReduceAnalogPort(object):
     """
-    A workaround around NineML reduce analogue ports (there are no reduce ports in daetools; it's done with 
+    A workaround around NineML reduce analogue ports (there are no reduce ports in daetools; it's done 
     by using multiple ports and creating equations that do some operations on their variables). 
     Whenever a connection to a reduce ports is requested a new ninemlAnalogPort object is created and
     connected to the requested source port. Once all connections are made a single equation that sums up
@@ -815,8 +815,6 @@ class nineml_daetools_bridge(daeModel):
         #self.parser.dictIdentifiers = dictIdentifiers
         #self.parser.dictFunctions   = dictFunctions
         self.parser = getEquationsExpressionParser(self)
-        self.parser.dictIdentifiers = parserDictionaryWrapper(self.parser.dictIdentifiers)
-        self.parser.dictFunctions   = parserDictionaryWrapper(self.parser.dictFunctions)
         
         # 1) Create aliases (algebraic equations)
         aliases = list(self.ninemlComponent.aliases)
