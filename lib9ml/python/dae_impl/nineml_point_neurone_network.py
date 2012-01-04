@@ -24,7 +24,7 @@ from nineml_component_inspector import nineml_component_inspector
 from nineml_tex_report import createLatexReport, createPDF
 from nineml_daetools_simulation import daeSimulationInputData, nineml_daetools_simulation, ninemlTesterDataReporter, daetools_model_setup
 
-from nineml_daetools_bridge import nineml_daetools_bridge, createExpressionParser, ninemlRNG, findObjectInModel
+from nineml_daetools_bridge import nineml_daetools_bridge, getEquationsExpressionParser, ninemlRNG, findObjectInModel
 from nineml_daetools_bridge import connectModelsViaEventPort, connectModelsViaAnaloguePorts, fixObjectName, printComponent, daetools_spike_source, createPoissonSpikeTimes
 
 def fixParametersDictionary(parameters):
@@ -54,7 +54,7 @@ def create_nineml_daetools_bridge(name, al_component, network, description, rng,
     :rtype: nineml_daetools_bridge object
     :raises: RuntimeError 
     """
-    print('create_nineml_daetools_bridge: {0}'.format(name))
+    #print('create_nineml_daetools_bridge: {0}'.format(name))
     
     if al_component.name == 'SpikeSourcePoisson':
         if 'rate' in parameters:
@@ -253,7 +253,8 @@ class daetools_point_neurone_network(pyCore.daeModel):
         self._groups          = {}
         self._rngs            = {}
         self._global_rng      = numpy.random.RandomState()
-        self._equation_parser = createExpressionParser()
+        # Creates parser with no symbols for parameters and variables; that must be added later 
+        self._equation_parser = None #getEquationsExpressionParser(None)
         
         for name, ul_component in list(model.components.items()):
             self._handleComponent(name, ul_component)
@@ -621,6 +622,7 @@ class daetools_projection:
         :raises: RuntimeError
         """
         start = time()
+        
         source_neurone = self._source_population.getNeurone(source_index)
         target_neurone = self._target_population.getNeurone(target_index)
         
@@ -636,6 +638,7 @@ class daetools_projection:
         connectModelsViaAnaloguePorts(synapse,        target_neurone, self._network)
         
         self._generated_connections.append( (source_neurone, synapse, target_neurone) )
+        
         print('_createConnection {0} = {1}'.format(n, time() - start))
 
 class nineml_daetools_network_simulation(pyActivity.daeSimulation):
@@ -784,11 +787,11 @@ def simulate():
     grid2D          = nineml.user_layer.Structure("2D grid", catalog + "2Dgrid.xml")
     connection_type = nineml.user_layer.ConnectionType("Static weights and delays", catalog + "static_weights_delays.xml")
     
-    population_excitatory = nineml.user_layer.Population("Excitatory population", 80, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
-    population_inhibitory = nineml.user_layer.Population("Inhibitory population", 20, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
+    population_excitatory = nineml.user_layer.Population("Excitatory population", 800, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
+    population_inhibitory = nineml.user_layer.Population("Inhibitory population", 200, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
     population_poisson    = nineml.user_layer.Population("Poisson population",    20, neurone_poisson, nineml.user_layer.PositionList(structure=grid2D))
 
-    connections_folder      = 'n4000/'
+    connections_folder      = 'n1000/'
     connections_exc_exc     = readCSV_pyNN(connections_folder + 'e2e.conn')
     connections_exc_inh     = readCSV_pyNN(connections_folder + 'e2i.conn')
     connections_inh_inh     = readCSV_pyNN(connections_folder + 'i2i.conn')
@@ -796,13 +799,13 @@ def simulate():
     connections_poisson_exc = readCSV_pyNN(connections_folder + 'ext2e.conn')
     connections_poisson_inh = readCSV_pyNN(connections_folder + 'ext2i.conn')
     
-    unique(connections_exc_exc)
-    unique(connections_exc_inh)
-    unique(connections_inh_inh)
-    unique(connections_inh_exc)
-    unique(connections_poisson_exc)
-    unique(connections_poisson_inh)
-    sys.exit()
+    #unique(connections_exc_exc)
+    #unique(connections_exc_inh)
+    #unique(connections_inh_inh)
+    #unique(connections_inh_exc)
+    #unique(connections_poisson_exc)
+    #unique(connections_poisson_inh)
+    #sys.exit()
     
     connection_rule_exc_exc     = nineml.user_layer.ConnectionRule("Explicit Connections exc_exc", catalog + "explicit_list_of_connections.xml")
     connection_rule_exc_inh     = nineml.user_layer.ConnectionRule("Explicit Connections exc_inh", catalog + "explicit_list_of_connections.xml")

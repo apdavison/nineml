@@ -34,7 +34,11 @@ class ConstantNode(Node):
         return str(self.Value)
 
     def evaluate(self, dictIdentifiers, dictFunctions):
-        return self.Value
+        if dictFunctions:
+            if '__create_constant__' in dictFunctions:
+                return dictFunctions['__create_constant__'](self.Value)
+        else:
+            return self.Value
 
 class AssignmentNode(Node):
     def __init__(self, identifier, expression):
@@ -83,7 +87,7 @@ class IdentifierNode(Node):
 
 class StandardFunctionNode(Node):
     functions = ['sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'sinh', 'cosh', 'tanh', 'asinh', 'acosh', 'atanh',
-                 'sqrt', 'exp', 'log', 'log10', 'ceil', 'floor']
+                 'sqrt', 'exp', 'log', 'log10', 'ceil', 'floor', 'abs']
 
     def __init__(self, function, expression):
         if not (function in StandardFunctionNode.functions):
@@ -162,7 +166,7 @@ class NonstandardFunctionNode(Node):
             argument_list = ()
             for node in self.ArgumentsNodeList:
                 argument_list = argument_list + (node.evaluate(dictIdentifiers, dictFunctions), )
-            
+            print(self.Function, fun)
             (args, varargs, keywords, defaults) = inspect.getargspec(fun)
             #print(args, varargs, keywords, defaults)
             
@@ -1137,12 +1141,10 @@ class quantity(object):
         self._units = units
         self._value = float(value)
 
-    @property
-    def value(self):
+    def get_value(self):
         return self._value
 
-    @value.setter
-    def value(self, new_value):
+    def set_value(self, new_value):
         if isinstance(new_value, quantity):
             if self.units != new_value.units:
                 raise UnitsError('Cannot set a value given in: {0} to a quantity in: {1}'.format(new_value.units, self.units))
@@ -1151,6 +1153,8 @@ class quantity(object):
             self._value = float(new_value)
         else:
             raise UnitsError('Invalid argument type ({0})'.format(type(new_value)))
+    
+    value = property(get_value, set_value)    
     
     @property
     def units(self):
@@ -1324,7 +1328,7 @@ def exp(q):
     tmp.value = math.exp(q.value)
     return tmp
 
-def pow(q, n):
+def pow_(q, n):
     return q ** n
 
 def log(q):
@@ -1400,7 +1404,7 @@ def atanh(q):
     tmp.value = math.atanh(q.value)
     return tmp
 
-def abs(q):
+def abs_(q):
     tmp       = deepcopy(q)
     tmp.value = math.abs(q.value)
     return tmp

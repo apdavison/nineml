@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """********************************************************************************
-                             parser.py
+                           expression_parser.py
                  Copyright (C) Dragan Nikolic, 2011
 ***********************************************************************************
 ExpressionParser is free software; you can redistribute it and/or modify it under the
@@ -26,303 +26,25 @@ from parser_objects import NonstandardFunctionNode, StandardFunctionNode, Assign
 #                   }
 
 functions = {'exp'  : 'exp',
-             'sqrt' : 'sqrt',
-             'log'  : 'log',
-             'log10': 'log10',
-             'sin'  : 'sin',
-             'cos'  : 'cos',
-             'tan'  : 'tan',
-             'asin' : 'asin',
-             'acos' : 'acos',
-             'atan' : 'atan',
-             'sinh' : 'sinh',
-             'cosh' : 'cosh',
-             'tanh' : 'tanh',
-             'asinh': 'asinh',
-             'acosh': 'acosh',
-             'atanh': 'atanh',
-             'ceil' : 'ceil',
-             'floor': 'floor'
+            'sqrt' : 'sqrt',
+            'log'  : 'log',
+            'log10': 'log10',
+            'sin'  : 'sin',
+            'cos'  : 'cos',
+            'tan'  : 'tan',
+            'asin' : 'asin',
+            'acos' : 'acos',
+            'atan' : 'atan',
+            'sinh' : 'sinh',
+            'cosh' : 'cosh',
+            'tanh' : 'tanh',
+            'asinh': 'asinh',
+            'acosh': 'acosh',
+            'atanh': 'atanh',
+            'ceil' : 'ceil',
+            'floor': 'floor',
+            'fabs' : 'fabs'
             }
-
-tokens = [
-    'NAME', 'NUMBER', 'FLOAT',
-    'PLUS','MINUS','TIMES','DIVIDE','EXP','EQUALS',
-    'LPAREN','RPAREN','PERIOD', 'COMMA',
-    'LT', 'LE', 'GT', 'GE', 'EQ', 'NE',
-    'AND', 'OR'
-    ] + list(functions.values()) #+ list(logical_operator.values())
-
-precedence = [
-                ('left', 'PLUS', 'MINUS'),
-                ('left', 'TIMES', 'DIVIDE'),
-                ('left', 'EXP')
-             ]
-
-
-t_PLUS    = r'\+'
-t_MINUS   = r'-'
-t_TIMES   = r'\*'
-t_DIVIDE  = r'/'
-t_EXP     = r'\*\*'
-
-t_EQ = r'=='
-t_NE = r'!='
-t_GT = r'>'
-t_GE = r'>='
-t_LT = r'<'
-t_LE = r'<='
-t_AND = r'&&'
-t_OR  = r'\|\|'
-
-t_COMMA   = r','
-t_EQUALS  = r'='
-t_LPAREN  = r'\('
-t_RPAREN  = r'\)'
-t_PERIOD  = r'\.'
-
-#t_PI = r'pi'
-
-def t_NAME(t):
-    r'[a-zA-Z_][a-zA-Z_0-9]*'
-    if t.value in functions:
-        t.type = functions[t.value]
-    #elif t.value in logical_operator:
-    #    t.type = logical_operator[t.value]
-    else:
-        t.type = 'NAME'
-    return t
-
-t_NUMBER = r'\d+([uU]|[lL]|[uU][lL]|[lL][uU])?'
-t_FLOAT = r'((\d+)(\.\d+)(e(\+|-)?(\d+))? | (\d+)e(\+|-)?(\d+))([lL]|[fF])?'
-
-t_ignore = " \t"
-
-def t_newline(t):
-    r'\n+'
-    t.lexer.lineno += t.value.count("\n")
-
-def t_error(t):
-    print("Illegal character '{0}' found while parsing '{1}'".format(t.value[0], t.value))
-    #t.lexer.skip(1)
-
-# Parser rules:
-# expression:
-def p_expression_1(p):
-    'expression : assignment_expression'
-    p[0] = p[1]
-
-def p_expression_2(t):
-    'expression : expression COMMA assignment_expression'
-    p[0] = p[1] + p[3]
-
-# assigment_expression:
-def p_assignment_expression_1(p):
-    'assignment_expression : conditional_expression'
-    p[0] = p[1]
-
-def p_assignment_expression_2(p):
-    'assignment_expression : identifier EQUALS assignment_expression'
-    p[0] = AssignmentNode(p[1], p[3])
-    #'assignment_expression : shift_expression EQUALS assignment_expression'
-
-# conditional-expression
-def p_conditional_expression_1(p):
-    'conditional_expression : or_expression'
-    p[0] = p[1]
-
-# OR-expression
-def p_or_expression_1(p):
-    'or_expression : and_expression'
-    p[0] = p[1]
-
-def p_or_expression_2(p):
-    'or_expression : or_expression OR and_expression'
-    p[0] = (p[1] | p[3])
-
-# AND-expression
-def p_and_expression_1(p):
-    'and_expression : equality_expression'
-    p[0] = p[1]
-
-def p_and_expression_2(p):
-    'and_expression : and_expression AND equality_expression'
-    p[0] = (p[1] & p[3])
-
-# equality-expression:
-def p_equality_expression_1(p):
-    'equality_expression : relational_expression'
-    p[0] = p[1]
-
-def p_equality_expression_2(p):
-    'equality_expression : equality_expression EQ relational_expression'
-    p[0] = (p[1] == p[3])
-
-def p_equality_expression_3(p):
-    'equality_expression : equality_expression NE relational_expression'
-    p[0] = (p[1] != p[3])
-
-# relational-expression:
-def p_relational_expression_1(p):
-    'relational_expression : shift_expression'
-    p[0] = p[1]
-
-def p_relational_expression_2(p):
-    'relational_expression : relational_expression LT shift_expression'
-    p[0] = p[1] < p[3]
-
-def p_relational_expression_3(p):
-    'relational_expression : relational_expression GT shift_expression'
-    p[0] = p[1] > p[3]
-
-def p_relational_expression_4(p):
-    'relational_expression : relational_expression LE shift_expression'
-    p[0] = p[1] <= p[3]
-
-def p_relational_expression_5(p):
-    'relational_expression : relational_expression GE shift_expression'
-    p[0] = p[1] >= p[3]
-
-# shift-expression
-def p_shift_expression_1(p):
-    'shift_expression : additive_expression'
-    p[0] = p[1]
-
-# additive-expression
-def p_additive_expression_1(p):
-    'additive_expression : multiplicative_expression'
-    p[0] = p[1]
-
-def p_additive_expression_2(p):
-    'additive_expression : additive_expression PLUS multiplicative_expression'
-    p[0] = p[1] + p[3]
-
-def p_additive_expression_3(p):
-    'additive_expression : additive_expression MINUS multiplicative_expression'
-    p[0] = p[1] - p[3]
-
-# multiplicative-expression
-def p_multiplicative_expression_1(p):
-    'multiplicative_expression : power_expression'
-    p[0] = p[1]
-
-def p_multiplicative_expression_2(p):
-    'multiplicative_expression : multiplicative_expression DIVIDE power_expression'
-    p[0] = p[1] / p[3]
-
-def p_multiplicative_expression_3(p):
-    'multiplicative_expression : multiplicative_expression TIMES power_expression'
-    p[0] = p[1] * p[3]
-
-
-def p_power_expression_1(p):
-    'power_expression : unary_expression'
-    p[0] = p[1]
-
-def p_power_expression_2(p):
-    'power_expression : power_expression EXP unary_expression'
-    p[0] = p[1] ** p[3]
-
-# unary-expression:
-def p_unary_expression_1(p):
-    'unary_expression : postfix_expression'
-    p[0] = p[1]
-
-def p_unary_expression_2(p):
-    'unary_expression : unary_operator'
-    p[0] = p[1]
-
-# unary-operator:
-def p_unary_operator(p):
-    '''
-    unary_operator : PLUS  postfix_expression
-                   | MINUS postfix_expression
-    '''
-    if p[1] == '+':
-        p[0] = p[2]
-    elif p[1] == '-':
-        p[0] = - p[2]
-
-# postfix-expression:
-def p_postfix_expression_1(p):
-    """postfix_expression : primary_expression"""
-    p[0] = p[1]
-
-def p_postfix_expression_2(p):
-    """
-    postfix_expression : sin   LPAREN expression RPAREN
-                       | cos   LPAREN expression RPAREN
-                       | tan   LPAREN expression RPAREN
-                       | asin  LPAREN expression RPAREN
-                       | acos  LPAREN expression RPAREN
-                       | atan  LPAREN expression RPAREN
-                       | sinh  LPAREN expression RPAREN
-                       | cosh  LPAREN expression RPAREN
-                       | tanh  LPAREN expression RPAREN
-                       | asinh LPAREN expression RPAREN
-                       | acosh LPAREN expression RPAREN
-                       | atanh LPAREN expression RPAREN
-                       | exp   LPAREN expression RPAREN
-                       | sqrt  LPAREN expression RPAREN
-                       | log   LPAREN expression RPAREN
-                       | log10 LPAREN expression RPAREN
-                       | ceil  LPAREN expression RPAREN
-                       | floor LPAREN expression RPAREN
-    """
-    p[0] = Number(StandardFunctionNode(p[1], p[3]))
-
-def p_postfix_expression_3(p):
-    '''postfix_expression : postfix_expression PERIOD NAME'''
-    p[0] = Number(IdentifierNode(p[1].Node.Name + '.' + p[3]))
-
-def p_postfix_expression_4(p):
-    '''postfix_expression : postfix_expression LPAREN argument_expression_list RPAREN'''
-    #print(str(p[1]) + '(' + str(p[3]) + ')')
-    p[0] = Number(NonstandardFunctionNode(str(p[1]), p[3]))
-
-def p_postfix_expression_5(p):
-    '''postfix_expression : postfix_expression LPAREN RPAREN'''
-    #print(str(p[1]) + '()')
-    p[0] = Number(NonstandardFunctionNode(str(p[1]), []))
-
-# primary-expression
-def p_primary_expression(p):
-    '''primary_expression :  identifier
-                          |  constant
-                          |  LPAREN expression RPAREN'''
-    if len(p) == 2:
-        p[0] = p[1]
-    elif len(p) == 4:
-        p[0] = p[2]
-
-# argument-expression-list:
-def p_argument_expression_list(p):
-    '''argument_expression_list :  assignment_expression
-                                |  argument_expression_list COMMA assignment_expression'''
-    arguments = []
-    if len(p) == 2:
-        arguments.append(p[1])
-    elif len(p) == 4:
-        for arg in list(p[1]):
-            arguments.append(arg)
-        arguments.append(p[3])
-
-    p[0] = arguments
-
-def p_constant_1(p):
-    """constant : NUMBER"""
-    p[0] = Number(ConstantNode(int(p[1])))
-
-def p_constant_2(p):
-    """constant : FLOAT"""
-    p[0] = Number(ConstantNode(float(p[1])))
-
-def p_identifier(p):
-    """identifier : NAME"""
-    p[0] = Number(IdentifierNode(p[1]))
-
-def p_error(p):
-    raise Exception("Syntax error at '%s'" % p.value)
 
 # Parser class
 class ExpressionParser:
@@ -342,9 +64,290 @@ class ExpressionParser:
     Dictionary 'dictFunctions' should contain pairs of the following type:
         function-name:callable-object (ie. 'exp':math.exp, 'Foo':user-defined-function-with-arbitrary-number-of-arguments)
     """
+    
+    tokens = [
+        'NAME', 'NUMBER', 'FLOAT',
+        'PLUS','MINUS','TIMES','DIVIDE','EXP','EQUALS',
+        'LPAREN','RPAREN','PERIOD', 'COMMA',
+        'LT', 'LE', 'GT', 'GE', 'EQ', 'NE',
+        'AND', 'OR'
+        ] + list(functions.values()) #+ list(logical_operator.values())
+
+    precedence = [
+                    ('left', 'PLUS', 'MINUS'),
+                    ('left', 'TIMES', 'DIVIDE'),
+                    ('left', 'EXP')
+                ]
+
+
+    t_PLUS    = r'\+'
+    t_MINUS   = r'-'
+    t_TIMES   = r'\*'
+    t_DIVIDE  = r'/'
+    t_EXP     = r'\*\*'
+
+    t_EQ = r'=='
+    t_NE = r'!='
+    t_GT = r'>'
+    t_GE = r'>='
+    t_LT = r'<'
+    t_LE = r'<='
+    t_AND = r'&&'
+    t_OR  = r'\|\|'
+
+    t_COMMA   = r','
+    t_EQUALS  = r'='
+    t_LPAREN  = r'\('
+    t_RPAREN  = r'\)'
+    t_PERIOD  = r'\.'
+
+    #t_PI = r'pi'
+
+    def t_NAME(self, t):
+        r'[a-zA-Z_][a-zA-Z_0-9]*'
+        if t.value in functions:
+            t.type = functions[t.value]
+        #elif t.value in logical_operator:
+        #    t.type = logical_operator[t.value]
+        else:
+            t.type = 'NAME'
+        return t
+
+    t_NUMBER = r'\d+([uU]|[lL]|[uU][lL]|[lL][uU])?'
+    t_FLOAT = r'((\d+)(\.\d+)(e(\+|-)?(\d+))? | (\d+)e(\+|-)?(\d+))([lL]|[fF])?'
+
+    t_ignore = " \t"
+
+    def t_newline(self, t):
+        r'\n+'
+        t.lexer.lineno += t.value.count("\n")
+
+    def t_error(self, t):
+        print("Illegal character '{0}' found while parsing '{1}'".format(t.value[0], t.value))
+        #t.lexer.skip(1)
+
+    # Parser rules:
+    # expression:
+    def p_expression_1(self, p): 
+        'expression : assignment_expression'
+        p[0] = p[1]
+
+    def p_expression_2(self, p):
+        'expression : expression COMMA assignment_expression'
+        p[0] = p[1] + p[3]
+
+    # assigment_expression:
+    def p_assignment_expression_1(self, p):
+        'assignment_expression : conditional_expression'
+        p[0] = p[1]
+
+    def p_assignment_expression_2(self, p):
+        'assignment_expression : identifier EQUALS assignment_expression'
+        p[0] = AssignmentNode(p[1], p[3])
+        #'assignment_expression : shift_expression EQUALS assignment_expression'
+
+    # conditional-expression
+    def p_conditional_expression_1(self, p):
+        'conditional_expression : or_expression'
+        p[0] = p[1]
+
+    # OR-expression
+    def p_or_expression_1(self, p):
+        'or_expression : and_expression'
+        p[0] = p[1]
+
+    def p_or_expression_2(self, p):
+        'or_expression : or_expression OR and_expression'
+        p[0] = (p[1] | p[3])
+
+    # AND-expression
+    def p_and_expression_1(self, p):
+        'and_expression : equality_expression'
+        p[0] = p[1]
+
+    def p_and_expression_2(self, p):
+        'and_expression : and_expression AND equality_expression'
+        p[0] = (p[1] & p[3])
+
+    # equality-expression:
+    def p_equality_expression_1(self, p):
+        'equality_expression : relational_expression'
+        p[0] = p[1]
+
+    def p_equality_expression_2(self, p):
+        'equality_expression : equality_expression EQ relational_expression'
+        p[0] = (p[1] == p[3])
+
+    def p_equality_expression_3(self, p):
+        'equality_expression : equality_expression NE relational_expression'
+        p[0] = (p[1] != p[3])
+
+    # relational-expression:
+    def p_relational_expression_1(self, p):
+        'relational_expression : shift_expression'
+        p[0] = p[1]
+
+    def p_relational_expression_2(self, p):
+        'relational_expression : relational_expression LT shift_expression'
+        p[0] = p[1] < p[3]
+
+    def p_relational_expression_3(self, p):
+        'relational_expression : relational_expression GT shift_expression'
+        p[0] = p[1] > p[3]
+
+    def p_relational_expression_4(self, p):
+        'relational_expression : relational_expression LE shift_expression'
+        p[0] = p[1] <= p[3]
+
+    def p_relational_expression_5(self, p):
+        'relational_expression : relational_expression GE shift_expression'
+        p[0] = p[1] >= p[3]
+
+    # shift-expression
+    def p_shift_expression_1(self, p):
+        'shift_expression : additive_expression'
+        p[0] = p[1]
+
+    # additive-expression
+    def p_additive_expression_1(self, p):
+        'additive_expression : multiplicative_expression'
+        p[0] = p[1]
+
+    def p_additive_expression_2(self, p):
+        'additive_expression : additive_expression PLUS multiplicative_expression'
+        p[0] = p[1] + p[3]
+
+    def p_additive_expression_3(self, p):
+        'additive_expression : additive_expression MINUS multiplicative_expression'
+        p[0] = p[1] - p[3]
+
+    # multiplicative-expression
+    def p_multiplicative_expression_1(self, p):
+        'multiplicative_expression : power_expression'
+        p[0] = p[1]
+
+    def p_multiplicative_expression_2(self, p):
+        'multiplicative_expression : multiplicative_expression DIVIDE power_expression'
+        p[0] = p[1] / p[3]
+
+    def p_multiplicative_expression_3(self, p):
+        'multiplicative_expression : multiplicative_expression TIMES power_expression'
+        p[0] = p[1] * p[3]
+
+
+    def p_power_expression_1(self, p):
+        'power_expression : unary_expression'
+        p[0] = p[1]
+
+    def p_power_expression_2(self, p):
+        'power_expression : power_expression EXP unary_expression'
+        p[0] = p[1] ** p[3]
+
+    # unary-expression:
+    def p_unary_expression_1(self, p):
+        'unary_expression : postfix_expression'
+        p[0] = p[1]
+
+    def p_unary_expression_2(self, p):
+        'unary_expression : unary_operator'
+        p[0] = p[1]
+
+    # unary-operator:
+    def p_unary_operator(self, p):
+        '''
+        unary_operator : PLUS  postfix_expression
+                    | MINUS postfix_expression
+        '''
+        if p[1] == '+':
+            p[0] = p[2]
+        elif p[1] == '-':
+            p[0] = - p[2]
+
+    # postfix-expression:
+    def p_postfix_expression_1(self, p):
+        """postfix_expression : primary_expression"""
+        p[0] = p[1]
+
+    def p_postfix_expression_2(self, p):
+        """
+        postfix_expression : sin   LPAREN expression RPAREN
+                        | cos   LPAREN expression RPAREN
+                        | tan   LPAREN expression RPAREN
+                        | asin  LPAREN expression RPAREN
+                        | acos  LPAREN expression RPAREN
+                        | atan  LPAREN expression RPAREN
+                        | sinh  LPAREN expression RPAREN
+                        | cosh  LPAREN expression RPAREN
+                        | tanh  LPAREN expression RPAREN
+                        | asinh LPAREN expression RPAREN
+                        | acosh LPAREN expression RPAREN
+                        | atanh LPAREN expression RPAREN
+                        | exp   LPAREN expression RPAREN
+                        | sqrt  LPAREN expression RPAREN
+                        | log   LPAREN expression RPAREN
+                        | log10 LPAREN expression RPAREN
+                        | ceil  LPAREN expression RPAREN
+                        | floor LPAREN expression RPAREN
+                        | fabs  LPAREN expression RPAREN
+        """
+        p[0] = Number(StandardFunctionNode(p[1], p[3]))
+
+    def p_postfix_expression_3(self, p):
+        '''postfix_expression : postfix_expression PERIOD NAME'''
+        p[0] = Number(IdentifierNode(p[1].Node.Name + '.' + p[3]))
+
+    def p_postfix_expression_4(self, p):
+        '''postfix_expression : postfix_expression LPAREN argument_expression_list RPAREN'''
+        #print(str(p[1]) + '(' + str(p[3]) + ')')
+        p[0] = Number(NonstandardFunctionNode(str(p[1]), p[3]))
+
+    def p_postfix_expression_5(self, p):
+        '''postfix_expression : postfix_expression LPAREN RPAREN'''
+        #print(str(p[1]) + '()')
+        p[0] = Number(NonstandardFunctionNode(str(p[1]), []))
+
+    # primary-expression
+    def p_primary_expression(self, p):
+        '''primary_expression :  identifier
+                            |  constant
+                            |  LPAREN expression RPAREN'''
+        if len(p) == 2:
+            p[0] = p[1]
+        elif len(p) == 4:
+            p[0] = p[2]
+
+    # argument-expression-list:
+    def p_argument_expression_list(self, p):
+        '''argument_expression_list :  assignment_expression
+                                    |  argument_expression_list COMMA assignment_expression'''
+        arguments = []
+        if len(p) == 2:
+            arguments.append(p[1])
+        elif len(p) == 4:
+            for arg in list(p[1]):
+                arguments.append(arg)
+            arguments.append(p[3])
+
+        p[0] = arguments
+
+    def p_constant_1(self, p):
+        """constant : NUMBER"""
+        p[0] = Number(ConstantNode(int(p[1])))
+
+    def p_constant_2(self, p):
+        """constant : FLOAT"""
+        p[0] = Number(ConstantNode(float(p[1])))
+
+    def p_identifier(self, p):
+        """identifier : NAME"""
+        p[0] = Number(IdentifierNode(p[1]))
+
+    def p_error(self, p):
+        raise Exception("Syntax error at '%s'" % p.value)
+
     def __init__(self, dictIdentifiers = None, dictFunctions = None):
-        self.lexer                 = lex.lex()
-        self.parser                = yacc.yacc(debug=False, write_tables = 0)
+        self.lexer  = lex.lex(module=self) #, optimize=1)
+        self.parser = yacc.yacc(module=self) #, optimize=1) #, debug=False, write_tables = 0)
         self.parseResult           = None
         self.dictIdentifiers       = dictIdentifiers
         self.dictFunctions         = dictFunctions
@@ -358,7 +361,7 @@ class ExpressionParser:
         return self.toLatex()
 
     def parse(self, expression):
-        self.parseResult = self.parser.parse(expression, debug = 0)
+        self.parseResult = self.parser.parse(expression, lexer = self.lexer)
         return self.parseResult
 
     def toLatex(self):
@@ -460,12 +463,14 @@ if __name__ == "__main__":
     dictIdentifiers['R']       = R
 
     # Standard functions
+    dictFunctions['__create_constant__'] = float
     dictFunctions['log10']  = log10
     dictFunctions['log']    = log
     dictFunctions['sqrt']   = sqrt
     dictFunctions['exp']    = exp
     dictFunctions['ceil']   = ceil
     dictFunctions['floor']  = floor
+    dictFunctions['fabs']   = fabs
     dictFunctions['sin']    = sin
     dictFunctions['cos']    = cos
     dictFunctions['tan']    = tan
@@ -531,3 +536,5 @@ if __name__ == "__main__":
     print('Updated dictIdentifiers[R] = {0}\n'.format(dictIdentifiers['R']))
     testExpression('(y + 4.0 >= x3 - 3.2e-03) || (y != 3) && (x1 <= 5)', (y + 4.0 >= x3 - 3.2e-03) or (y != 3) and (x1 <= 5))
     testExpression('(v_rest - V)/tau_m + (gE*(e_rev_E - V) + gI*(e_rev_I - V) + i_offset)/cm', 0, False)
+    testExpression('x1 > x2', x1 > x2)
+

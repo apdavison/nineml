@@ -152,7 +152,6 @@ class UnitsParser:
         result = node.evaluate(self.dictBaseUnits, None)
         return result
 
-
 def testConsistency(parser, expression, expected_units):
     parse_res    = parser.parse(expression)
     latex_res    = parser.toLatex()
@@ -226,6 +225,7 @@ def testUnitsConsistency():
     dictIdentifiers['x4'] = x4
 
     # Define math. functions for the parser
+    dictFunctions['__create_constant__'] = float
     dictFunctions['sin']   = parser_objects.sin
     dictFunctions['cos']   = parser_objects.cos
     dictFunctions['tan']   = parser_objects.tan
@@ -244,7 +244,8 @@ def testUnitsConsistency():
     dictFunctions['exp']   = parser_objects.exp
     dictFunctions['floor'] = parser_objects.floor
     dictFunctions['ceil']  = parser_objects.ceil
-    dictFunctions['pow']   = parser_objects.pow
+    dictFunctions['pow']   = parser_objects.pow_
+    dictFunctions['abs']   = parser_objects.abs_
 
     #print('Identifiers:\n', dictIdentifiers, '\n')
     #print('Functions:\n', dictFunctions, '\n')
@@ -266,4 +267,3 @@ def testUnitsParser():
 if __name__ == "__main__":
     testUnitsParser()
     testUnitsConsistency()
-

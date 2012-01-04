@@ -704,7 +704,7 @@ if __name__ == "__main__":
     log          = daeBaseLog()
     daesolver    = daeIDAS()
 
-    parser = ExpressionParser()
+    parser = None #createExpressionParser()
     """
     print "Identifiers dictionary for the model: " + self.CanonicalName
     for key, value in dictIdentifiers.items():
