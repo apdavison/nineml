@@ -111,13 +111,13 @@ class UnitsParser:
         dictBaseUnits = unit.getAllSupportedUnits()
     """
     def __init__(self, dictUnits = None):
-        self.lexer  = lex.lex()
-        self.parser = yacc.yacc(debug=False, write_tables = 0)
+        self.lexer  = lex.lex() #optimize=1)
+        self.parser = yacc.yacc() #optimize=1)
         self.parseResult = None
         self.dictBaseUnits = dictUnits
         
     def parse(self, expression):
-        self.parseResult = self.parser.parse(expression, debug = 0)
+        self.parseResult = self.parser.parse(expression, lexer = self.lexer)
         return self.parseResult
 
     def parse_and_evaluate(self, expression):
@@ -127,10 +127,6 @@ class UnitsParser:
     def parse_to_latex(self, expression):
         self.parse(expression)
         return self.toLatex()
-
-    def parse(self, expression):
-        self.parseResult = self.parser.parse(expression, debug = 0)
-        return self.parseResult
 
     def toLatex(self):
         if self.parseResult is None:

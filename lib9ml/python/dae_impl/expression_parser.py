@@ -347,7 +347,7 @@ class ExpressionParser:
 
     def __init__(self, dictIdentifiers = None, dictFunctions = None):
         self.lexer  = lex.lex(module=self) #, optimize=1)
-        self.parser = yacc.yacc(module=self) #, optimize=1) #, debug=False, write_tables = 0)
+        self.parser = yacc.yacc(module=self) #, optimize=1, debug=False, write_tables = 0)
         self.parseResult           = None
         self.dictIdentifiers       = dictIdentifiers
         self.dictFunctions         = dictFunctions
