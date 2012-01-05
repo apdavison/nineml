@@ -318,23 +318,17 @@ def getEquationsExpressionParser(model):
     parser = expression_parser.ExpressionParser(dictIdentifiers, dictFunctions)
     return parser
 
-def getParametersValuesInitialConditionsExpressionDictionaries(model):
-    """
-    Returns two dictionaries needed to evaluate AST for parameters' values and initial conditions:    
-    
-    :param model: daeModel-derived object
-        
-    :rtype: python tuple
-    :raises:
-    """
+def getParametersValuesInitialConditionsExpressionParserIdentifiers(model):
     dictIdentifiers = {}
-    dictFunctions   = {}
-
     dictIdentifiers['pi'] = math.pi
     dictIdentifiers['e']  = math.e
     if model:
         dictIdentifiers = addIdentifiers(model, model, dictIdentifiers)
+    return dictIdentifiers
 
+def getParametersValuesInitialConditionsExpressionParserFunctions():
+    dictFunctions   = {}
+    
     # Standard math. functions (single argument)
     dictFunctions['__create_constant__'] = float
     dictFunctions['sin']   = math.sin
@@ -356,14 +350,11 @@ def getParametersValuesInitialConditionsExpressionDictionaries(model):
     dictFunctions['floor'] = math.floor
     dictFunctions['ceil']  = math.ceil
     dictFunctions['fabs']  = math.fabs
-
     # Non-standard functions (multiple arguments)
+    
     dictFunctions['pow']   = math.pow
-
-    #print(dictIdentifiers)
-    #print(dictFunctions)
-    return (dictIdentifiers, dictFunctions)
-
+    return dictFunctions
+    
 def getParametersValuesInitialConditionsExpressionParser(model):
     """
     Returns the ExpressionParser object needed to parse the expressions for parameters' values 
@@ -374,17 +365,18 @@ def getParametersValuesInitialConditionsExpressionParser(model):
     :rtype: ExpressionParser object
     :raises:
     """
-    dictIdentifiers, dictFunctions = getParametersValuesInitialConditionsExpressionDictionaries(model)
+    dictIdentifiers = getParametersValuesInitialConditionsExpressionParserIdentifiers(model)
+    dictFunctions   = getParametersValuesInitialConditionsExpressionParserFunctions()
     parser = expression_parser.ExpressionParser(dictIdentifiers, dictFunctions)
     return parser
     
-def getAnalogPortsExpressionDictionaries(model):
+def getAnalogPortsExpressionParser():
     """
-    Returns two dictionaries needed to evaluate AST for analogue ports:
+    Returns the ExpressionParser object needed to parse inputs for the analogue ports:
     
     :param model: daeModel-derived object
         
-    :rtype: python tuple
+    :rtype: ExpressionParser object
     :raises:
     """
     dictIdentifiers = {}
@@ -392,11 +384,8 @@ def getAnalogPortsExpressionDictionaries(model):
 
     dictIdentifiers['pi'] = math.pi
     dictIdentifiers['e']  = math.e
-    if model:
-        dictIdentifiers = addIdentifiers(model, model, dictIdentifiers)
 
     # Standard math. functions (single argument)
-    dictFunctions['__create_constant__'] = float
     dictFunctions['sin']   = math.sin
     dictFunctions['cos']   = math.cos
     dictFunctions['tan']   = math.tan
@@ -420,20 +409,6 @@ def getAnalogPortsExpressionDictionaries(model):
     # Non-standard functions (multiple arguments)
     dictFunctions['pow']   = math.pow
 
-    #print(dictIdentifiers)
-    #print(dictFunctions)
-    return (dictIdentifiers, dictFunctions)
-
-def getAnalogPortsExpressionParser(model):
-    """
-    Returns the ExpressionParser object needed to parse inputs for the analogue ports:
-    
-    :param model: daeModel-derived object
-        
-    :rtype: ExpressionParser object
-    :raises:
-    """
-    dictIdentifiers, dictFunctions = getAnalogPortsExpressionDictionaries(model)
     parser = expression_parser.ExpressionParser(dictIdentifiers, dictFunctions)
     return parser
 
@@ -728,7 +703,7 @@ class nineml_daetools_bridge(daeModel):
     # AL components always have a single STN with several regimes; this is a generic name for NineML STNs  
     ninemlSTNRegimesName = 'NineML_Regimes_STN'
 
-    def __init__(self, Name, ninemlComponent, parser, Parent = None, Description = ""):
+    def __init__(self, Name, ninemlComponent, Parent = None, Description = ""):
         """
         Iterates over *Parameters*, *State variables*, *Aliases*, *Analogue ports*, *Event ports*, 
         *Sub-nodes* and *Port connections* and creates corresponding daetools objects.
@@ -748,7 +723,6 @@ class nineml_daetools_bridge(daeModel):
 
         start = time()
 
-        self.parser                 = parser
         self.ninemlComponent        = ninemlComponent
         self.nineml_parameters      = []
         self.nineml_state_variables = []
@@ -796,7 +770,7 @@ class nineml_daetools_bridge(daeModel):
 
         # 6) Create sub-nodes
         for name, subcomponent in list(self.ninemlComponent.subnodes.items()):
-            self.ninemlSubComponents.append( nineml_daetools_bridge(name, subcomponent, parser, self) )
+            self.ninemlSubComponents.append( nineml_daetools_bridge(name, subcomponent, self, '') )
 
         # 7) Create port connections
         for port_connection in self.ninemlComponent.portconnections:
@@ -1065,7 +1039,7 @@ class daetools_spike_source(nineml_daetools_bridge):
     The component has no parameters
     """
     def __init__(self, spiketimes, Name, Parent = None, Description = ""):
-        nineml_daetools_bridge.__init__(self, Name, None, None, Parent, Description)
+        nineml_daetools_bridge.__init__(self, Name, None, Parent, Description)
 
         # A dummy variable
         self.event = pyCore.daeVariable("event", time_t, self, "")
@@ -1327,6 +1301,7 @@ class dae_component(daeModel):
         return None
     
     def DeclareEquations(self):
+        #__equation_parser__.dictIdentifiers = getEquationsExpressionParserIdentifiers(self)
         pass
         """
         # 1) Create aliases (algebraic equations)

@@ -78,7 +78,7 @@ def create_nineml_daetools_bridge(name, al_component, network, description, rng,
         return daetools_spike_source(spiketimes, name, network, description)
     
     else:
-        return nineml_daetools_bridge(fixObjectName(name), al_component, network.equationParser, network, description)
+        return nineml_daetools_bridge(fixObjectName(name), al_component, network, description)
 
 def create_al_from_ul_component(ul_component, random_number_generators):
     """
@@ -253,8 +253,6 @@ class daetools_point_neurone_network(pyCore.daeModel):
         self._groups          = {}
         self._rngs            = {}
         self._global_rng      = numpy.random.RandomState()
-        # Creates parser with no symbols for parameters and variables; that must be added later 
-        self._equation_parser = None #getEquationsExpressionParser(None)
         
         for name, ul_component in list(model.components.items()):
             self._handleComponent(name, ul_component)
@@ -312,10 +310,6 @@ class daetools_point_neurone_network(pyCore.daeModel):
             raise RuntimeError('Group [{0}] does not exist in the network'.format(name)) 
         return self._groups[name]
 
-    @property
-    def equationParser(self):
-        return self._equation_parser
-        
     @property
     def randomNumberGenerators(self):
         return self._rngs
@@ -764,7 +758,7 @@ def simulate():
 
     psr_excitatory_params = {
                              'vrev' : (  0.000, 'V'),
-                             'q'    : ( 4.0E-8, 'S'),
+                             'q'    : ( 4.0E-9, 'S'),
                              'tau'  : (  0.005, 's'),
                              'g'    : (  0.000, 'S')
                             }
@@ -787,11 +781,11 @@ def simulate():
     grid2D          = nineml.user_layer.Structure("2D grid", catalog + "2Dgrid.xml")
     connection_type = nineml.user_layer.ConnectionType("Static weights and delays", catalog + "static_weights_delays.xml")
     
-    population_excitatory = nineml.user_layer.Population("Excitatory population", 800, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
-    population_inhibitory = nineml.user_layer.Population("Inhibitory population", 200, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
+    population_excitatory = nineml.user_layer.Population("Excitatory population", 80, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
+    population_inhibitory = nineml.user_layer.Population("Inhibitory population", 20, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
     population_poisson    = nineml.user_layer.Population("Poisson population",    20, neurone_poisson, nineml.user_layer.PositionList(structure=grid2D))
 
-    connections_folder      = 'n1000/'
+    connections_folder      = '' #'n1000/'
     connections_exc_exc     = readCSV_pyNN(connections_folder + 'e2e.conn')
     connections_exc_inh     = readCSV_pyNN(connections_folder + 'e2i.conn')
     connections_inh_inh     = readCSV_pyNN(connections_folder + 'i2i.conn')

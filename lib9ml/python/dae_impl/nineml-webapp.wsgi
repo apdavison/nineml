@@ -28,7 +28,7 @@ try:
 
     from daetools.pyDAE import pyCore, pyActivity, pyDataReporting, pyIDAS, daeLogs
     from nineml_component_inspector import nineml_component_inspector
-    from nineml_daetools_bridge import nineml_daetools_bridge, getAnalogPortsExpressionParser, getParametersValuesInitialConditionsExpressionParser
+    from nineml_daetools_bridge import nineml_daetools_bridge
     from nineml_tex_report import createLatexReport, createPDF
     from nineml_daetools_simulation import daeSimulationInputData, nineml_daetools_simulation, ninemlTesterDataReporter
     from nineml_webapp_common import createErrorPage, getSetupDataForm, createSetupDataPage, getInitialPage, createResultPage, createDownloadResults
@@ -577,12 +577,9 @@ class nineml_webapp:
             log          = daeNineMLWebAppLog()
             daesolver    = pyIDAS.daeIDAS()
             datareporter = ninemlTesterDataReporter()
-            model        = nineml_daetools_bridge(nineml_component.name, nineml_component)
+            model        = nineml_daetools_bridge(nineml_component.name, nineml_component, None, '')
             
             rng = numpy.random.RandomState()
-            
-            analog_ports_expression_parser = getAnalogPortsExpressionParser(model, rng)
-            values_expression_parser       = getParametersValuesInitialConditionsExpressionParser(model, rng)
             
             simulation   = nineml_daetools_simulation(model, timeHorizon                    = simulation_data.timeHorizon,
                                                              reportingInterval              = simulation_data.reportingInterval,
@@ -591,9 +588,7 @@ class nineml_webapp:
                                                              active_regimes                 = simulation_data.active_regimes,
                                                              analog_ports_expressions       = simulation_data.analog_ports_expressions,
                                                              event_ports_expressions        = simulation_data.event_ports_expressions,
-                                                             variables_to_report            = simulation_data.variables_to_report,
-                                                             analog_ports_expression_parser = analog_ports_expression_parser,
-                                                             values_expression_parser       = values_expression_parser)
+                                                             variables_to_report            = simulation_data.variables_to_report)
 
             # Set the time horizon and the reporting interval
             simulation.ReportingInterval = simulation_data.reportingInterval

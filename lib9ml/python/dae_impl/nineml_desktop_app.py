@@ -236,11 +236,8 @@ if __name__ == "__main__":
             log          = daePythonStdOutLog()
             daesolver    = daeIDAS()
             datareporter = ninemlTesterDataReporter() # daeTCPIPDataReporter()
-            model        = nineml_daetools_bridge(inspector.ninemlComponent.name, inspector.ninemlComponent, parser, None, '')
+            model        = nineml_daetools_bridge(inspector.ninemlComponent.name, inspector.ninemlComponent, None, '')
             
-            analog_ports_expression_parser = getAnalogPortsExpressionParser(model)
-            values_expression_parser       = getParametersValuesInitialConditionsExpressionParser(model)
-
             simulation  = nineml_daetools_simulation(model, timeHorizon                    = simulation_data.timeHorizon,
                                                             reportingInterval              = simulation_data.reportingInterval,
                                                             parameters                     = simulation_data.parameters,
@@ -248,9 +245,7 @@ if __name__ == "__main__":
                                                             active_regimes                 = simulation_data.active_regimes,
                                                             analog_ports_expressions       = simulation_data.analog_ports_expressions,
                                                             event_ports_expressions        = simulation_data.event_ports_expressions,
-                                                            variables_to_report            = simulation_data.variables_to_report,
-                                                            analog_ports_expression_parser = analog_ports_expression_parser,
-                                                            values_expression_parser       = values_expression_parser)
+                                                            variables_to_report            = simulation_data.variables_to_report)
 
             # Set the time horizon and the reporting interval
             simulation.ReportingInterval = simulation_data.reportingInterval

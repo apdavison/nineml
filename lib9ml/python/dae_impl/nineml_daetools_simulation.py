@@ -42,8 +42,6 @@ class daeSimulationInputData:
         :rtype: 
         :raises: 
         """
-        self.parser = ExpressionParser()
-
         # Dictionaries 'canonical/relative name' : floating-point-value
         self.parameters         = {}
         self.initial_conditions = {}
@@ -279,6 +277,9 @@ class ninemlTesterDataReporter(daeDataReporterLocal):
         """
         return True
 
+__analog_ports_expression_parser__ = getAnalogPortsExpressionParser()
+__values_expression_parser__       = getParametersValuesInitialConditionsExpressionParser(None)
+
 class daetools_model_setup:
     """
     Sets the parameter values, initial conditions and other processing needed.
@@ -319,10 +320,7 @@ class daetools_model_setup:
         self._variables_to_report      = kwargs.get('variables_to_report',      {})
         self._analog_ports_expressions = kwargs.get('analog_ports_expressions', {})
         self._event_ports_expressions  = kwargs.get('event_ports_expressions',  {})
-        
-        self._analog_ports_expression_parser = kwargs.get('analog_ports_expression_parser', None)
-        self._values_expression_parser       = kwargs.get('values_expression_parser',       None)
-        self._random_number_generators       = kwargs.get('random_number_generators',       {})
+        self._random_number_generators = kwargs.get('random_number_generators', {})
 
         self.intervals = {}
         self.debug     = False
@@ -370,7 +368,7 @@ class daetools_model_setup:
                 return float(rng.next())
             
             elif isinstance(_value, str): # A astring expression (does it exist??)
-                return float(self._values_expression_parser.parse_and_evaluate(_value))
+                return float(__values_expression_parser__.parse_and_evaluate(_value))
             
             else: # Something is wrong
                 raise RuntimeError('Invalid parameter: {0} value type specified: {1}-{2}'.format(name, value, type(value)))
@@ -394,8 +392,9 @@ class daetools_model_setup:
         :rtype: None
         :raises: RuntimeError
         """
+        __values_expression_parser__ = getParametersValuesInitialConditionsExpressionParserIdentifiers(self.model)
         
-        numerical_values = {}
+        numerical_values  = {}
         expression_values = {}
         
         # First create two dictionaries (numerical_values, expression_values)
@@ -413,7 +412,6 @@ class daetools_model_setup:
             else:
                 expression_values[paramName] = parameter, value
                 
-        
         # First set the parameters with simple numerical values
         for paramName, (parameter, value) in list(numerical_values.items()):
             v = self._getValue(parameter, value, paramName)
@@ -437,7 +435,7 @@ class daetools_model_setup:
         :rtype: None
         :raises: RuntimeError
         """
-        numerical_values = {}
+        numerical_values  = {}
         expression_values = {}
 
         # First create two dictionaries (numerical_values, expression_values)
@@ -476,7 +474,7 @@ class daetools_model_setup:
                     print('Warning: Could not locate port {0}'.format(portName))
                 continue
             
-            value = float(self._analog_ports_expression_parser.parse_and_evaluate(expression))
+            value = float(__analog_ports_expression_parser__.parse_and_evaluate(expression))
             if isinstance(port, ninemlAnalogPort):
                 port.value.AssignValue(value)
             elif isinstance(port, ninemlReduceAnalogPort):
@@ -704,18 +702,7 @@ if __name__ == "__main__":
     log          = daeBaseLog()
     daesolver    = daeIDAS()
 
-    parser = None #createExpressionParser()
-    """
-    print "Identifiers dictionary for the model: " + self.CanonicalName
-    for key, value in dictIdentifiers.items():
-        print key + ' : ' + repr(value)
-    print '\n'
-    """
-    
-    model = nineml_daetools_bridge(nineml_comp.name, nineml_comp, parser, None, '')
-    analog_ports_expression_parser = getAnalogPortsExpressionParser(model)
-    values_expression_parser       = getParametersValuesInitialConditionsExpressionParser(model)
-    
+    model = nineml_daetools_bridge(nineml_comp.name, nineml_comp, None, '')
     simulation = nineml_daetools_simulation(model, timeHorizon                    = timeHorizon,
                                                    reportingInterval              = reportingInterval,
                                                    parameters                     = parameters,
@@ -724,8 +711,6 @@ if __name__ == "__main__":
                                                    analog_ports_expressions       = analog_ports_expressions,
                                                    event_ports_expressions        = event_ports_expressions,
                                                    variables_to_report            = variables_to_report,
-                                                   analog_ports_expression_parser = analog_ports_expression_parser,
-                                                   values_expression_parser       = values_expression_parser,
                                                    random_number_generators       = {} )
     datareporter = daeTCPIPDataReporter() #ninemlTesterDataReporter()
 
