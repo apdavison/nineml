@@ -291,5 +291,5 @@ def testUploadedComponent():
 
 if __name__ == "__main__":
     #testTestableComponent()
-    testUploadedComponent()
+    #testUploadedComponent()
     

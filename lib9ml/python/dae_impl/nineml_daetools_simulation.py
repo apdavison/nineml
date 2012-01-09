@@ -701,6 +701,10 @@ if __name__ == "__main__":
     # Create Log, Solver, DataReporter and Simulation object
     log          = daeBaseLog()
     daesolver    = daeIDAS()
+    
+    from daetools.solvers import pySuperLU as superlu
+    lasolver = superlu.daeCreateSuperLUSolver()
+    daesolver.SetLASolver(lasolver)
 
     model = nineml_daetools_bridge(nineml_comp.name, nineml_comp, None, '')
     simulation = nineml_daetools_simulation(model, timeHorizon                    = timeHorizon,
