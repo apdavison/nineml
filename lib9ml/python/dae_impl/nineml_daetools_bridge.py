@@ -861,7 +861,7 @@ class nineml_daetools_bridge(daeModel):
                         event_port = getObjectFromCanonicalName(self, event_output.port_name, look_for_eventports = True)
                         if event_port == None:
                             raise RuntimeError('Cannot find event port {0}'.format(event_output.port_name))
-                        triggerEvents.append( (event_port, 0) )
+                        triggerEvents.append( (event_port, Time()) )
 
                     # ACHTUNG!!!
                     # Check the order of switchTo, triggerEvents and setVariableValues arguments in daetools 1.2.0+!!!
@@ -890,10 +890,10 @@ class nineml_daetools_bridge(daeModel):
                         event_port = getObjectFromCanonicalName(self, event_output.port_name, look_for_eventports = True)
                         if event_port == None:
                             raise RuntimeError('Cannot find event port {0}'.format(event_output.port_name))
-                        triggerEvents.append( (event_port, 0) )
+                        triggerEvents.append( (event_port, Time()) )
 
                     # ACHTUNG!!!
-                    # Check the order of switchTo, triggerEvents and setVariableValues arguments in daetools 1.1.3+!!!
+                    # Check the order of switchTo, triggerEvents and setVariableValues arguments in daetools 1.2.0+!!!
                     self.ON_EVENT(source_event_port, switchToStates    = switchToStates,
                                                      setVariableValues = setVariableValues,
                                                      triggerEvents     = triggerEvents)

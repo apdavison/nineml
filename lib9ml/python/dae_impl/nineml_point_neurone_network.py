@@ -39,7 +39,31 @@ def fixParametersDictionary(parameters):
         new_parameters[name] = (parameter.value, parameter.unit) 
     return new_parameters
 
-def create_nineml_daetools_bridge(name, al_component, network, description, rng, parameters):
+class on_spikeout_action(pyCore.daeAction):
+    def __init__(self, neurone, eventPort):
+        pyCore.daeAction.__init__(self)
+        
+        self.neurone   = neurone
+        self.eventPort = eventPort
+
+    def Execute(self):
+        # The floating point value of the data sent with the event is a current time 
+        time = self.eventPort.EventData
+        
+        for synapse, delay in neurone.connected_synapses.iteritems():
+            if len(synapse.nineml_event_ports) != 1:
+                raise RuntimeError('Synapses must have exactly one event port')
+            spike_event_port = synapse.nineml_event_ports[0]
+            if spike_event_port.Type != pyCore.eInletPort:
+                raise RuntimeError('Synapse event port must be a [receive] port')
+            
+            if time in self.neurone.next_spikes:
+                self.neurone.next_spikes[time].append( (time + delay, spike_event_port) )
+            else:
+                self.neurone.next_spikes[time] = [ (time + delay, spike_event_port) ]
+                
+
+def create_neurone(name, parent, description, al_component, rng, parameters):
     """
     Creates 'nineml_daetools_bridge' object for a given AbstractionLayer Component.
     There are some special cases which are handled individually such as:
@@ -47,15 +71,17 @@ def create_nineml_daetools_bridge(name, al_component, network, description, rng,
     
     :param name: string
     :param al_component: AL Component object
-    :param network: nineml_point_neurone_network object
+    :param parent: daeModel object or None
     :param description: string
     :param rng: numpy.random.RandomState object
+    :param parameters: python dictionary 'name' : value
     
     :rtype: nineml_daetools_bridge object
     :raises: RuntimeError 
     """
-    #print('create_nineml_daetools_bridge: {0}'.format(name))
+    #print('create_neurone: {0}'.format(name))
     
+    neurone = None
     if al_component.name == 'SpikeSourcePoisson':
         if 'rate' in parameters:
             rate = float(parameters['rate'][0])
@@ -75,10 +101,47 @@ def create_nineml_daetools_bridge(name, al_component, network, description, rng,
         lambda_ = rate * duration
 
         spiketimes = createPoissonSpikeTimes(rate, duration, t0, rng, lambda_, rng)
-        return daetools_spike_source(spiketimes, name, network, description)
+        neurone = daetools_spike_source(spiketimes, name, parent, description)
     
     else:
-        return nineml_daetools_bridge(fixObjectName(name), al_component, network, description)
+        neurone = nineml_daetools_bridge(fixObjectName(name), al_component, parent, description)
+        
+        if len(neurone.nineml_event_ports) != 1:
+            raise RuntimeError('Neurones must have exactly one event port')
+        spike_event_port = neurone.nineml_event_ports[0]
+        if spike_event_port.Type != pyCore.eOutletPort:
+            raise RuntimeError('Neurone event port must be a [send] port')
+        
+        _action = on_spikeout_action(neurone, spike_event_port)
+        setattr(neurone, '_on_spike_out_action_', _action) 
+        neurone.ON_EVENT(spike_event_port, userDefinedActions = [_action])
+    
+    setattr(neurone, 'connected_synapses', []) 
+    setattr(neurone, 'next_spikes', []) 
+    
+    return neurone
+
+def create_synapse(name, parent, description, al_component, weight):
+    """
+    Creates 'nineml_daetools_bridge' object for a given AbstractionLayer Component.
+    
+    :param name: string
+    :param parent: daeModel object or None
+    :param description: string
+    :param al_component: AL Component object
+    :param weight: float
+    
+    :rtype: nineml_daetools_bridge object
+    :raises: RuntimeError 
+    """
+    #print('create_synapse: {0}'.format(name))
+    
+    synapse = nineml_daetools_bridge(fixObjectName(name), al_component, parent, description)
+    
+    # ACHTUNG, ACHTUNG!!!
+    # Here I should also set the weight of the synapse
+    
+    return synapse
 
 def create_al_from_ul_component(ul_component, random_number_generators):
     """
@@ -233,31 +296,31 @@ class explicit_connections_generator_interface:
         
         return connection
 
-class daetools_point_neurone_network(pyCore.daeModel):
+class daetools_point_neurone_network: #(pyCore.daeModel):
     """
     A top-level daetools model. All other models will be added to it (neurones, synapses):
      * Neurone names will be: model_name.population_name_Neurone(xxx)
      * Synapse names will be: model_name.projection_name_Synapsexxx(source_index,target_index)
     """
-    def __init__(self, model):
+    def __init__(self, ul_model):
         """
-        :param model: UL Model object
+        :param ul_model: UL Model object
         :raises: RuntimeError
         """
-        name_ = fixObjectName(model.name)
-        pyCore.daeModel.__init__(self, name_, None, '')
+        name_ = fixObjectName(ul_model.name)
+        #pyCore.daeModel.__init__(self, name_, None, '')
         
         self._name            = name_
-        self._model           = model
+        self._model           = ul_model
         self._components      = {}
         self._groups          = {}
         self._rngs            = {}
         self._global_rng      = numpy.random.RandomState()
         
-        for name, ul_component in list(model.components.items()):
+        for name, ul_component in list(ul_model.components.items()):
             self._handleComponent(name, ul_component)
         
-        for name, group in list(model.groups.items()):
+        for name, group in list(ul_model.groups.items()):
             self._handleGroup(name, group)
         
     def __repr__(self):
@@ -317,14 +380,14 @@ class daetools_point_neurone_network(pyCore.daeModel):
     @property
     def globalRandomNumberGenerator(self):
         return self._global_rng
-        
-    def DeclareEquations(self):
-        """
-        Does nothing.
-        :rtype:
-        :raises:
-        """
-        pass
+       
+    #def DeclareEquations(self):
+    #    """
+    #    Does nothing.
+    #    :rtype:
+    #    :raises:
+    #    """
+    #    pass
     
     def _handleGroup(self, name, ul_group):
         """
@@ -455,22 +518,14 @@ class daetools_population:
         self._parameters = network.getComponentParameters(ul_population.prototype.name)
         al_component = network.getComponent(ul_population.prototype.name) 
         
-        """
-        for i in range(0, ul_population.number):
-            cell_name = '{0}_Neurone({1:0>4})'.format(self._name, i)
-
-            start = time()
-
-            neurone = create_nineml_daetools_bridge(cell_name, 
-                                                    al_component, 
-                                                    network, 
-                                                    '', 
-                                                    network.globalRandomNumberGenerator, 
-                                                    self._parameters)
-            self._neurones.append(neurone)
-            print('create_nineml_daetools_bridge = {0}'.format(time() - start))
-        """
-        self._neurones = [create_nineml_daetools_bridge('{0}_Neurone({1:0>4})'.format(self._name, i), al_component, network, '', network.globalRandomNumberGenerator, self._parameters) for i in range(0, ul_population.number)]
+        self._neurones = [create_neurone(
+                                           '{0}_Neurone({1:0>4})'.format(self._name, i),  # Name
+                                           None,                                          # Parent (None - top level model)
+                                           '',                                            # Description
+                                           al_component,                                  # AL Component object
+                                           network.globalRandomNumberGenerator,           # RNG 
+                                           self._parameters                               # dict with init. parameters
+                                         ) for i in range(0, ul_population.number)]
         
         try:
             self._positions = ul_population.positions.get_positions(ul_population)
@@ -521,7 +576,7 @@ class daetools_projection:
         self._psr_parameters        = network.getComponentParameters(ul_projection.synaptic_response.name)
         self._connection_rule       = network.getComponent(ul_projection.rule.name)
         self._connection_type       = network.getComponent(ul_projection.connection_type.name)
-        self._generated_connections = []
+        self._generated_connections = {}
         
         ul_connection_rule = network.getULComponent(ul_projection.rule.name)
         if hasattr(ul_connection_rule, 'connections'): # Explicit connections
@@ -621,21 +676,71 @@ class daetools_projection:
         target_neurone = self._target_population.getNeurone(target_index)
         
         synapse_name   = '{0}_Synapse{1:0>4}({2:0>4},{3:0>4})'.format(self._name, n, int(source_index), int(target_index))
-        synapse        = create_nineml_daetools_bridge(synapse_name, 
-                                                       self._psr, 
-                                                       self._network, 
-                                                       '', 
-                                                       self._network.globalRandomNumberGenerator,
-                                                       self._psr_parameters)
+        synapse        = create_synapse(
+                                         synapse_name,   # Name 
+                                         target_neurone, # Parent (target neurone)
+                                         '',             # Description
+                                         self._psr,      # AL Component object
+                                         weight          # Synaptic weight (ACHTUNG: CURRENTLY UNUSED!!!)
+                                       )
         
-        connectModelsViaEventPort    (source_neurone, synapse,        self._network)
-        connectModelsViaAnaloguePorts(synapse,        target_neurone, self._network)
+        # Each neurone has a list of connected synapses and their delays
+        source_neurone.connected_synapses.append( (synapse, delay) )
         
-        self._generated_connections.append( (source_neurone, synapse, target_neurone) )
+        # Now I do not need this
+        #connectModelsViaEventPort    (source_neurone, synapse,        target_neurone)
+        
+        connectModelsViaAnaloguePorts(synapse,        target_neurone, target_neurone)
+        
+        if target_neurone.Name in self._generated_connections:
+            self._generated_connections[target_neurone.Name].append( (source_neurone, synapse, target_neurone) )
+        else:
+            self._generated_connections[target_neurone.Name] = [ (source_neurone, synapse, target_neurone) ]
         
         print('_createConnection {0} = {1}'.format(n, time() - start))
 
-class nineml_daetools_network_simulation(pyActivity.daeSimulation):
+class point_neurone_simulation(pyActivity.daeSimulation):
+    """
+    """
+    def __init__(self, neurone, neurone_model_setup):
+        """
+        :rtype: None
+        :raises: RuntimeError
+        """
+        pyActivity.daeSimulation.__init__(self)
+        
+        self.m            = neurone
+        self.model_setups = []
+        self.model_setups.append(neurone_model_setup)
+
+        self.log          = daeLogs.daePythonStdOutLog()
+        self.daesolver    = pyIDAS.daeIDAS()
+        self.lasolver     = None #pySuperLU.daeCreateSuperLUSolver()
+        #self.daesolver.SetLASolver(lasolver)
+
+    def init(self, datareporter, reportingInterval, timeHorizon):
+        self.ReportingInterval = reportingInterval
+        self.TimeHorizon       = timeHorizon
+        
+        self.Initialize(self.daesolver, datareporter, self.log)
+        
+    def SetUpParametersAndDomains(self):
+        """
+        :rtype: None
+        :raises: RuntimeError
+        """
+        for s in self.model_setups:
+            s.SetUpParametersAndDomains()
+        
+    def SetUpVariables(self):
+        """
+        :rtype: None
+        :raises: RuntimeError
+        """
+        for s in self.model_setups:
+            s.SetUpVariables()
+
+class nineml_daetools_network_simulation:
     """
     """
     def __init__(self, network):
@@ -643,35 +748,34 @@ class nineml_daetools_network_simulation(pyActivity.daeSimulation):
         :rtype: None
         :raises: RuntimeError
         """
-        pyActivity.daeSimulation.__init__(self)
-        
-        self.m            = network
-        self.model_setups = []
-        
-        # What's this?
-        event_ports_expressions = {"spikeinput": "0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90"} 
+        self.network     = network
+        self.simulations = {}
         
         random_number_generators = network.randomNumberGenerators
         
-        for name, group in network._groups.items():
+        for group_name, group in network._groups.iteritems():
             # Setup neurones in populations
-            for name, population in group._populations.items():
+            for population_name, population in group._populations.iteritems():
                 for neurone in population._neurones:
                     initial_values = population._parameters
                     setup = daetools_model_setup(neurone, False, parameters               = initial_values, 
                                                                  initial_conditions       = initial_values,
-                                                                 event_ports_expressions  = event_ports_expressions,
                                                                  random_number_generators = random_number_generators)
-                    self.model_setups.append(setup)
+                    self.simulations[neurone.Name] = point_neurone_simulation(neurone, setup)
         
-            for name, projection in group._projections.items():
-                # Setup synapses 
+            # Setup synapses 
+            for projection_name, projection in group._projections.iteritems():
+                #print('\nprojection_name = {0}'.format(projection._name))
                 initial_values = projection._psr_parameters
-                for s, synapse, t in projection._generated_connections:
-                    setup = daetools_model_setup(synapse, False, parameters               = initial_values, 
-                                                                 initial_conditions       = initial_values,
-                                                                 random_number_generators = random_number_generators)
-                    self.model_setups.append(setup)
+                for target_neuron_name, connections in projection._generated_connections.iteritems():
+                    #print('\n    target_neuron_name = {0}'.format(target_neuron_name))
+                    for source, synapse, target in connections:
+                        #print('        {0} -> {1} -> {2}'.format(source.CanonicalName, synapse.CanonicalName, target.CanonicalName))
+                        setup = daetools_model_setup(synapse, False, parameters               = initial_values, 
+                                                                     initial_conditions       = initial_values,
+                                                                     random_number_generators = random_number_generators)
+                        simulation = self.simulations[target_neuron_name]
+                        simulation.model_setups.append(setup)
 
     def SetUpParametersAndDomains(self):
         """
@@ -725,8 +829,9 @@ def profile_simulate():
 
 def simulate():
     cfg = pyCore.daeGetConfig()
-    cfg['daetools.core.resetLAMatrixAfterDiscontinuity'] = False
-    print('resetLAMatrixAfterDiscontinuity = ', cfg['daetools.core.resetLAMatrixAfterDiscontinuity'])
+    cfg['daetools.core.resetLAMatrixAfterDiscontinuity'] = True
+    cfg['daetools.activity.printHeader']                 = False
+    print('daetools config:\n{0}'.format(cfg))
     
     catalog = "file:///home/ciroki/Data/NineML/nineml-model-tree/lib9ml/python/dae_impl/"
 
@@ -785,11 +890,11 @@ def simulate():
     grid2D          = nineml.user_layer.Structure("2D grid", catalog + "2Dgrid.xml")
     connection_type = nineml.user_layer.ConnectionType("Static weights and delays", catalog + "static_weights_delays.xml")
     
-    population_excitatory = nineml.user_layer.Population("Excitatory population", 800, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
-    population_inhibitory = nineml.user_layer.Population("Inhibitory population", 200, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
+    population_excitatory = nineml.user_layer.Population("Excitatory population", 80, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
+    population_inhibitory = nineml.user_layer.Population("Inhibitory population", 20, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
     population_poisson    = nineml.user_layer.Population("Poisson population",    20, neurone_poisson, nineml.user_layer.PositionList(structure=grid2D))
 
-    connections_folder      = 'n1000/'
+    connections_folder      = '' #'n1000/'
     connections_exc_exc     = readCSV_pyNN(connections_folder + 'e2e.conn')
     connections_exc_inh     = readCSV_pyNN(connections_folder + 'e2i.conn')
     connections_inh_inh     = readCSV_pyNN(connections_folder + 'i2i.conn')
@@ -848,41 +953,33 @@ def simulate():
     model.write("Brette et al., J. Computational Neuroscience (2007).xml")
     
     network = daetools_point_neurone_network(model)
-
+    
     # Create Log, Solver, DataReporter and Simulation object
     from daetools.solvers import pySuperLU
 
-    log          = daeLogs.daePythonStdOutLog()
-    daesolver    = pyIDAS.daeIDAS()
-    datareporter = pyDataReporting.daeTCPIPDataReporter()
-    simulation   = nineml_daetools_network_simulation(network)
-    
-    lasolver     = pySuperLU.daeCreateSuperLUSolver()
-    daesolver.SetLASolver(lasolver)
-
-    # Set the time horizon and the reporting interval
-    simulation.ReportingInterval = 0.01
-    simulation.TimeHorizon       = 1.0
-
-    # Connect data reporter
-    simName = simulation.m.Name + strftime(" [%d.%m.%Y %H:%M:%S]", localtime())
+    global_simulation = nineml_daetools_network_simulation(network)
+    datareporter      = pyDataReporting.daeTCPIPDataReporter()
+    simName = 'Brette' + strftime(" [%d.%m.%Y %H:%M:%S]", localtime())
     if(datareporter.Connect("", simName) == False):
         sys.exit()
+    
+    reportingInterval = 0.01
+    timeHorizon       = 1.0
 
-    # Initialize the simulation
-    simulation.Initialize(daesolver, datareporter, log)
+    # Initialize
+    for target_neuron_name, simulation in global_simulation.simulations.iteritems():
+        simulation.init(datareporter, reportingInterval, timeHorizon)
 
     # Solve at time=0 (initialization)
-    simulation.SolveInitial()
+    for target_neuron_name, simulation in global_simulation.simulations.iteritems():
+        simulation.SolveInitial()
 
+    sys.exit()
     # Run
-    simulation.Run()
-    simulation.Finalize()
+    #simulation.Run()
+    #simulation.Finalize()
 
 if __name__ == "__main__":
-    #import psyco
-    #psyco.full()
-
     simulate()
     #profile_simulate()
     
