@@ -801,8 +801,8 @@ class point_neurone_network_simulation:
             
             simulation.Log.Message("Integrating to " + str(next_time) + " ... ", 0)
             for target_neuron_name, simulation in self.simulations.iteritems():
-                simulation.IntegrateUntilTime(next_time, pyActivity.eDoNotStopAtDiscontinuity, True)
-                simulation.ReportData(next_time)
+                simulation.IntegrateUntilTime(next_time, pyActivity.eDoNotStopAtDiscontinuity, False)
+                #simulation.ReportData(next_time)
                 simulation.Log.SetProgress(int(100.0 * simulation.CurrentTime/simulation.TimeHorizon))
             
             for port in send_events_to:
@@ -811,7 +811,9 @@ class point_neurone_network_simulation:
             # Take the next time and ports where events should be sent and remove them from the 'event_queue' dictionary
             if len(self.event_queue) == 0:
                 break
-            (next_time, send_events_to) = sorted(self.event_queue.iteritems())[0]
+            
+            next_time      = min(self.event_queue.keys())
+            send_events_to = self.event_queue[next_time]
             del self.event_queue[next_time] 
         
         # Finalize
@@ -856,7 +858,7 @@ def profile_simulate():
 
 def simulate():
     cfg = pyCore.daeGetConfig()
-    cfg['daetools.core.resetLAMatrixAfterDiscontinuity'] = True
+    cfg['daetools.core.resetLAMatrixAfterDiscontinuity'] = False
     cfg['daetools.activity.printHeader']                 = False
     print('daetools config:\n{0}'.format(cfg))
     
