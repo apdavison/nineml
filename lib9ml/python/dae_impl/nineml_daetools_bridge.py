@@ -915,6 +915,20 @@ class nineml_daetools_bridge(daeModel):
                 return var
         return None
 
+    def getSpikeInPort(self): 
+        for event_port in self.nineml_event_ports:
+            if event_port.Type == eInletPort:
+                return event_port
+                
+        raise RuntimeError('{0} does not have any receive event ports'.format(self.CanonicalName))
+
+    def getSpikeOutPort(self): 
+        for event_port in self.nineml_event_ports:
+            if event_port.Type == eOutletPort:
+                return event_port
+                
+        raise RuntimeError('{0} does not have any send event ports'.format(self.CanonicalName))
+
 def connectPorts(portInlet, portOutlet, parent_model):
     """
     Connects two analogue ports and stores the connection in the 'parent_model' object.
@@ -974,15 +988,8 @@ def connectModelsViaEventPort(source, target, parent_model):
     :rtype: None
     :raises: RuntimeError
     """
-    if (len(source.nineml_event_ports) != 1) or (source.nineml_event_ports[0].Type != pyCore.eOutletPort):
-        raise RuntimeError('The source neurone [{0}] must have a single outlet event port'.format(source.Name))
-    
-    if (len(target.nineml_event_ports) != 1) or (target.nineml_event_ports[0].Type != pyCore.eInletPort):
-        raise RuntimeError('The target [{0}] must have a single inlet event port'.format(source.Name))
-    
-    source_port = source.nineml_event_ports[0]
-    target_port = target.nineml_event_ports[0]
-    
+    source_port = source.getSpikeOutPort()
+    target_port = target.getSpikeInPort()
     connectEventPorts(source_port, target_port, parent_model)
 
 def connectModelsViaAnaloguePorts(source, target, parent_model):
@@ -1059,7 +1066,7 @@ class daetools_spike_source(nineml_daetools_bridge):
             eq = self.CreateEquation("event")
             eq.Residual = self.event() - t
             self.ON_CONDITION(Time() >= t,  switchTo      = 'State_{0}'.format(i+1),
-                                            triggerEvents = [(self.spikeoutput, t)])
+                                            triggerEvents = [(self.spikeoutput, Time())])
 
         self.STATE('State_{0}'.format(len(self.spiketimes)))
 

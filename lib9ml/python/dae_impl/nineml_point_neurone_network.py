@@ -13,7 +13,7 @@
 from __future__ import print_function
 import os, sys, urllib, re, traceback, csv
 from time import localtime, strftime, time
-import numpy.random
+import numpy, numpy.random
 
 import nineml
 from nineml.abstraction_layer import readers
@@ -23,6 +23,7 @@ from daetools.pyDAE import pyCore, pyActivity, pyDataReporting, pyIDAS, daeLogs
 from nineml_component_inspector import nineml_component_inspector
 from nineml_tex_report import createLatexReport, createPDF
 from nineml_daetools_simulation import daeSimulationInputData, nineml_daetools_simulation, ninemlTesterDataReporter, daetools_model_setup
+from daetools.solvers import pySuperLU
 
 from nineml_daetools_bridge import nineml_daetools_bridge, getEquationsExpressionParser, ninemlRNG, findObjectInModel
 from nineml_daetools_bridge import connectModelsViaEventPort, connectModelsViaAnaloguePorts, fixObjectName, printComponent, daetools_spike_source, createPoissonSpikeTimes
@@ -50,18 +51,17 @@ class on_spikeout_action(pyCore.daeAction):
         # The floating point value of the data sent with the event is a current time 
         time = self.eventPort.EventData
         
-        for synapse, delay in neurone.connected_synapses.iteritems():
-            if len(synapse.nineml_event_ports) != 1:
-                raise RuntimeError('Synapses must have exactly one event port')
-            spike_event_port = synapse.nineml_event_ports[0]
-            if spike_event_port.Type != pyCore.eInletPort:
-                raise RuntimeError('Synapse event port must be a [receive] port')
+        #print('{0} FIRED AT {1}'.format(self.neurone.CanonicalName, time))
+        
+        delayed_time = 0.0
+        for synapse, delay in self.neurone.connected_synapses:
+            spike_event_port = synapse.getSpikeInPort()
             
-            if time in self.neurone.next_spikes:
-                self.neurone.next_spikes[time].append( (time + delay, spike_event_port) )
+            delayed_time = time + delay
+            if delayed_time in self.neurone.event_queue:
+                self.neurone.event_queue[delayed_time].append(spike_event_port)
             else:
-                self.neurone.next_spikes[time] = [ (time + delay, spike_event_port) ]
-                
+                self.neurone.event_queue[delayed_time] = [spike_event_port]
 
 def create_neurone(name, parent, description, al_component, rng, parameters):
     """
@@ -105,19 +105,14 @@ def create_neurone(name, parent, description, al_component, rng, parameters):
     
     else:
         neurone = nineml_daetools_bridge(fixObjectName(name), al_component, parent, description)
-        
-        if len(neurone.nineml_event_ports) != 1:
-            raise RuntimeError('Neurones must have exactly one event port')
-        spike_event_port = neurone.nineml_event_ports[0]
-        if spike_event_port.Type != pyCore.eOutletPort:
-            raise RuntimeError('Neurone event port must be a [send] port')
-        
-        _action = on_spikeout_action(neurone, spike_event_port)
-        setattr(neurone, '_on_spike_out_action_', _action) 
-        neurone.ON_EVENT(spike_event_port, userDefinedActions = [_action])
+    
+    spike_event_port = neurone.getSpikeOutPort()
+    _action = on_spikeout_action(neurone, spike_event_port)
+    setattr(neurone, '_on_spike_out_action_', _action) 
+    neurone.ON_EVENT(spike_event_port, userDefinedActions = [_action])
     
     setattr(neurone, 'connected_synapses', []) 
-    setattr(neurone, 'next_spikes', []) 
+    setattr(neurone, 'event_queue',        []) 
     
     return neurone
 
@@ -715,8 +710,8 @@ class point_neurone_simulation(pyActivity.daeSimulation):
 
         self.log          = daeLogs.daePythonStdOutLog()
         self.daesolver    = pyIDAS.daeIDAS()
-        self.lasolver     = None #pySuperLU.daeCreateSuperLUSolver()
-        #self.daesolver.SetLASolver(lasolver)
+        self.lasolver     = pySuperLU.daeCreateSuperLUSolver()
+        self.daesolver.SetLASolver(self.lasolver)
 
     def init(self, datareporter, reportingInterval, timeHorizon):
         self.ReportingInterval = reportingInterval
@@ -740,16 +735,20 @@ class point_neurone_simulation(pyActivity.daeSimulation):
         for s in self.model_setups:
             s.SetUpVariables()
 
-class nineml_daetools_network_simulation:
+class point_neurone_network_simulation:
     """
     """
-    def __init__(self, network):
+    def __init__(self, network, datareporter, reportingInterval, timeHorizon):
         """
         :rtype: None
         :raises: RuntimeError
         """
-        self.network     = network
-        self.simulations = {}
+        self.network            = network
+        self.datareporter       = datareporter
+        self.reportingInterval  = reportingInterval
+        self.timeHorizon        = timeHorizon        
+        self.simulations        = {}
+        self.event_queue        = {}
         
         random_number_generators = network.randomNumberGenerators
         
@@ -762,6 +761,7 @@ class nineml_daetools_network_simulation:
                                                                  initial_conditions       = initial_values,
                                                                  random_number_generators = random_number_generators)
                     self.simulations[neurone.Name] = point_neurone_simulation(neurone, setup)
+                    neurone.event_queue = self.event_queue
         
             # Setup synapses 
             for projection_name, projection in group._projections.iteritems():
@@ -769,30 +769,57 @@ class nineml_daetools_network_simulation:
                 initial_values = projection._psr_parameters
                 for target_neuron_name, connections in projection._generated_connections.iteritems():
                     #print('\n    target_neuron_name = {0}'.format(target_neuron_name))
+                    simulation = self.simulations[target_neuron_name]
                     for source, synapse, target in connections:
                         #print('        {0} -> {1} -> {2}'.format(source.CanonicalName, synapse.CanonicalName, target.CanonicalName))
                         setup = daetools_model_setup(synapse, False, parameters               = initial_values, 
                                                                      initial_conditions       = initial_values,
                                                                      random_number_generators = random_number_generators)
-                        simulation = self.simulations[target_neuron_name]
                         simulation.model_setups.append(setup)
 
-    def SetUpParametersAndDomains(self):
-        """
-        :rtype: None
-        :raises: RuntimeError
-        """
-        for s in self.model_setups:
-            s.SetUpParametersAndDomains()
+    def run(self):
+        start = time()
         
-    def SetUpVariables(self):
-        """
-        :rtype: None
-        :raises: RuntimeError
-        """
-        for s in self.model_setups:
-            s.SetUpVariables()
+        # Initialize
+        for target_neuron_name, simulation in self.simulations.iteritems():
+            simulation.init(self.datareporter, self.reportingInterval, self.timeHorizon)
 
+        times = numpy.arange(self.reportingInterval, self.timeHorizon, self.reportingInterval)
+        for t in times:
+            self.event_queue[float(t)] = []
+
+        # Solve at time=0 (initialization)
+        for target_neuron_name, simulation in self.simulations.iteritems():
+            simulation.SolveInitial()
+
+        # Run
+        (next_time, send_events_to) = sorted(self.event_queue.iteritems())[0]
+        del self.event_queue[next_time] 
+        while next_time <= self.timeHorizon:
+            #print(sorted(self.event_queue.iteritems()))
+            #print('next_time = {0}\nsend_events_to = {1}\n'.format(next_time, send_events_to))
+            
+            simulation.Log.Message("Integrating to " + str(next_time) + " ... ", 0)
+            for target_neuron_name, simulation in self.simulations.iteritems():
+                simulation.IntegrateUntilTime(next_time, pyActivity.eDoNotStopAtDiscontinuity, True)
+                simulation.ReportData(next_time)
+                simulation.Log.SetProgress(int(100.0 * simulation.CurrentTime/simulation.TimeHorizon))
+            
+            for port in send_events_to:
+                port.ReceiveEvent(next_time)
+                
+            # Take the next time and ports where events should be sent and remove them from the 'event_queue' dictionary
+            if len(self.event_queue) == 0:
+                break
+            (next_time, send_events_to) = sorted(self.event_queue.iteritems())[0]
+            del self.event_queue[next_time] 
+        
+        # Finalize
+        for target_neuron_name, simulation in self.simulations.iteritems():
+            simulation.Finalize()
+        
+        print('Simulation time = {0}'.format(time() - start))
+        
 def readCSV_pyNN(filename):
     """
     Reads pyNN .conn files and returns a list of connections: [(int, int, float, float), ...]
@@ -802,8 +829,8 @@ def readCSV_pyNN(filename):
     for connection in connections:
         s = int(float(connection[0]))
         t = int(float(connection[1]))
-        w = float(connection[2])
-        d = float(connection[3])
+        w = float(connection[2]) * 1E-6 # nS -> S
+        d = float(connection[3]) * 1E-3 # ms -> s
         connections_out.append((s, t, w, d))
     return connections_out
 
@@ -890,11 +917,11 @@ def simulate():
     grid2D          = nineml.user_layer.Structure("2D grid", catalog + "2Dgrid.xml")
     connection_type = nineml.user_layer.ConnectionType("Static weights and delays", catalog + "static_weights_delays.xml")
     
-    population_excitatory = nineml.user_layer.Population("Excitatory population", 80, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
-    population_inhibitory = nineml.user_layer.Population("Inhibitory population", 20, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
+    population_excitatory = nineml.user_layer.Population("Excitatory population", 800, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
+    population_inhibitory = nineml.user_layer.Population("Inhibitory population", 200, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
     population_poisson    = nineml.user_layer.Population("Poisson population",    20, neurone_poisson, nineml.user_layer.PositionList(structure=grid2D))
 
-    connections_folder      = '' #'n1000/'
+    connections_folder      = 'n1000/'
     connections_exc_exc     = readCSV_pyNN(connections_folder + 'e2e.conn')
     connections_exc_inh     = readCSV_pyNN(connections_folder + 'e2i.conn')
     connections_inh_inh     = readCSV_pyNN(connections_folder + 'i2i.conn')
@@ -954,31 +981,17 @@ def simulate():
     
     network = daetools_point_neurone_network(model)
     
-    # Create Log, Solver, DataReporter and Simulation object
-    from daetools.solvers import pySuperLU
+    reportingInterval = 0.0001
+    timeHorizon       = 1.0
 
-    global_simulation = nineml_daetools_network_simulation(network)
     datareporter      = pyDataReporting.daeTCPIPDataReporter()
     simName = 'Brette' + strftime(" [%d.%m.%Y %H:%M:%S]", localtime())
     if(datareporter.Connect("", simName) == False):
         sys.exit()
     
-    reportingInterval = 0.01
-    timeHorizon       = 1.0
-
-    # Initialize
-    for target_neuron_name, simulation in global_simulation.simulations.iteritems():
-        simulation.init(datareporter, reportingInterval, timeHorizon)
-
-    # Solve at time=0 (initialization)
-    for target_neuron_name, simulation in global_simulation.simulations.iteritems():
-        simulation.SolveInitial()
-
-    sys.exit()
-    # Run
-    #simulation.Run()
-    #simulation.Finalize()
-
+    simulation = point_neurone_network_simulation(network, datareporter, reportingInterval, timeHorizon)
+    simulation.run()
+    
 if __name__ == "__main__":
     simulate()
     #profile_simulate()
