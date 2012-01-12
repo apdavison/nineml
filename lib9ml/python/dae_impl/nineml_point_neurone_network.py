@@ -708,16 +708,15 @@ class point_neurone_simulation(pyActivity.daeSimulation):
         self.model_setups = []
         self.model_setups.append(neurone_model_setup)
 
-        self.log          = daeLogs.daePythonStdOutLog()
         self.daesolver    = pyIDAS.daeIDAS()
-        self.lasolver     = pySuperLU.daeCreateSuperLUSolver()
-        self.daesolver.SetLASolver(self.lasolver)
+        #self.lasolver     = pySuperLU.daeCreateSuperLUSolver()
+        #self.daesolver.SetLASolver(self.lasolver)
 
-    def init(self, datareporter, reportingInterval, timeHorizon):
+    def init(self, log, datareporter, reportingInterval, timeHorizon):
         self.ReportingInterval = reportingInterval
         self.TimeHorizon       = timeHorizon
         
-        self.Initialize(self.daesolver, datareporter, self.log)
+        self.Initialize(self.daesolver, datareporter, log)
         
     def SetUpParametersAndDomains(self):
         """
@@ -738,12 +737,13 @@ class point_neurone_simulation(pyActivity.daeSimulation):
 class point_neurone_network_simulation:
     """
     """
-    def __init__(self, network, datareporter, reportingInterval, timeHorizon):
+    def __init__(self, network, log, datareporter, reportingInterval, timeHorizon):
         """
         :rtype: None
         :raises: RuntimeError
         """
         self.network            = network
+        self.log                = log
         self.datareporter       = datareporter
         self.reportingInterval  = reportingInterval
         self.timeHorizon        = timeHorizon        
@@ -782,7 +782,7 @@ class point_neurone_network_simulation:
         
         # Initialize
         for target_neuron_name, simulation in self.simulations.iteritems():
-            simulation.init(self.datareporter, self.reportingInterval, self.timeHorizon)
+            simulation.init(self.log, self.datareporter, self.reportingInterval, self.timeHorizon)
 
         times = numpy.arange(self.reportingInterval, self.timeHorizon, self.reportingInterval)
         for t in times:
@@ -896,7 +896,7 @@ def simulate():
 
     psr_excitatory_params = {
                              'vrev' : (  0.000, 'V'),
-                             'q'    : ( 4.0E-9, 'S'),
+                             'q'    : ( 4.0E-8, 'S'),
                              'tau'  : (  0.005, 's'),
                              'g'    : (  0.000, 'S')
                             }
@@ -984,14 +984,15 @@ def simulate():
     network = daetools_point_neurone_network(model)
     
     reportingInterval = 0.0001
-    timeHorizon       = 1.0
+    timeHorizon       = 0.05
 
-    datareporter      = pyDataReporting.daeTCPIPDataReporter()
+    log          = daeLogs.daePythonStdOutLog()
+    datareporter = pyDataReporting.daeTCPIPDataReporter()
     simName = 'Brette' + strftime(" [%d.%m.%Y %H:%M:%S]", localtime())
     if(datareporter.Connect("", simName) == False):
         sys.exit()
     
-    simulation = point_neurone_network_simulation(network, datareporter, reportingInterval, timeHorizon)
+    simulation = point_neurone_network_simulation(network, log, datareporter, reportingInterval, timeHorizon)
     simulation.run()
     
 if __name__ == "__main__":
