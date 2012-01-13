@@ -896,7 +896,7 @@ def simulate():
 
     psr_excitatory_params = {
                              'vrev' : (  0.000, 'V'),
-                             'q'    : ( 4.0E-8, 'S'),
+                             'q'    : ( 4.0E-9, 'S'),
                              'tau'  : (  0.005, 's'),
                              'g'    : (  0.000, 'S')
                             }
@@ -930,14 +930,6 @@ def simulate():
     connections_inh_exc     = readCSV_pyNN(connections_folder + 'i2e.conn')
     connections_poisson_exc = readCSV_pyNN(connections_folder + 'ext2e.conn')
     connections_poisson_inh = readCSV_pyNN(connections_folder + 'ext2i.conn')
-    
-    #unique(connections_exc_exc)
-    #unique(connections_exc_inh)
-    #unique(connections_inh_inh)
-    #unique(connections_inh_exc)
-    #unique(connections_poisson_exc)
-    #unique(connections_poisson_inh)
-    #sys.exit()
     
     connection_rule_exc_exc     = nineml.user_layer.ConnectionRule("Explicit Connections exc_exc", catalog + "explicit_list_of_connections.xml")
     connection_rule_exc_inh     = nineml.user_layer.ConnectionRule("Explicit Connections exc_inh", catalog + "explicit_list_of_connections.xml")
@@ -984,7 +976,7 @@ def simulate():
     network = daetools_point_neurone_network(model)
     
     reportingInterval = 0.0001
-    timeHorizon       = 0.05
+    timeHorizon       = 1.00
 
     log          = daeLogs.daePythonStdOutLog()
     datareporter = pyDataReporting.daeTCPIPDataReporter()
