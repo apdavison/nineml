@@ -1233,9 +1233,10 @@ class al_component_info(object):
         return res
     
 class dae_component(daeModel):
-    def __init__(self, info, name, parent = None, description = ''):
-        daeModel.__init__(self, name, parent, description)
+    def __init__(self, info, Nitems, Name, Parent = None, Description = ''):
+        daeModel.__init__(self, Name, Parent, Description)
         
+        self.Nitems                  = Nitems
         self.nineml_parameters       = {}
         self.nineml_variables        = {}
         self.nineml_ports            = {}
@@ -1246,21 +1247,26 @@ class dae_component(daeModel):
         self.nineml_equations        = {}
         self.nineml_stn              = None
 
+        if Nitems > 1:
+            self.N = daeDomain("N", self, unit(), "N domain")
+        
+        domains = [self.N]
+        
         # 1) Create parameters
         for (name, units) in info.nineml_parameters:
-            self.nineml_parameters[name] = daeParameter(name, units, self, "")
+            self.nineml_parameters[name] = daeParameter(name, units, self, "", domains)
 
         # 2) Create state-variables (diff. variables)
         for (name, var_type) in info.nineml_state_variables:
-            self.nineml_variables[name] = daeVariable(name, var_type, self, "")
+            self.nineml_variables[name] = daeVariable(name, var_type, self, "", domains)
 
         # 3) Create alias variables (algebraic)
         for (name, var_type, node) in info.nineml_aliases:
-            self.nineml_variables[name] = daeVariable(name, var_type, self, "")
+            self.nineml_variables[name] = daeVariable(name, var_type, self, "", domains)
 
         # 4a) Create analog-ports
         for (name, port_type) in info.nineml_analog_ports:
-            self.nineml_ports[name] = ninemlAnalogPort(name, port_type, self, "")
+            self.nineml_ports[name] = ninemlAnalogPort(name, port_type, self, "", domains)
         
         # 4b) Create reduce-ports
         for (name, port_type) in info.nineml_reduce_ports:
@@ -1272,7 +1278,7 @@ class dae_component(daeModel):
 
         # 6) Create sub-nodes
         for sub_info in info.nineml_subcomponents:
-            self.nineml_subcomponents.append(dae_component(sub_info, sub_info.name, self, ''))
+            self.nineml_subcomponents.append(dae_component(sub_info, Nitems, sub_info.name, self, ''))
 
         # 7) Create port connections
         for (nameFrom, nameTo) in info.nineml_port_connections:
