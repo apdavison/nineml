@@ -1148,8 +1148,8 @@ class al_component_info(object):
 
         # 6) Create port connections
         for port_connection in self.al_component.portconnections:
-            portFrom = '.'.join(port_connection[0].loctuple)
-            portTo   = '.'.join(port_connection[1].loctuple)
+            portFrom = '_'.join(port_connection[0].loctuple)
+            portTo   = '_'.join(port_connection[1].loctuple)
             self.nineml_port_connections.append( (portFrom, portTo) )
         
         # 7) Create regimes
@@ -1236,93 +1236,119 @@ class dae_component(daeModel):
     def __init__(self, info, Nitems, Name, Parent = None, Description = ''):
         daeModel.__init__(self, Name, Parent, Description)
         
-        self.Nitems                  = Nitems
-        self.nineml_parameters       = {}
-        self.nineml_variables        = {}
-        self.nineml_ports            = {}
-        self.nineml_reduce_ports     = []
-        self.nineml_event_ports      = {}
-        self.nineml_port_connections = []
-        self.nineml_subcomponents    = []
-        self.nineml_equations        = {}
-        self.nineml_stn              = None
+        self.info                       = info
+        self.Nitems                     = int(Nitems)
+        self.nineml_parameters          = {}
+        self.nineml_aliases             = {}
+        self.nineml_variables           = {}
+        self.nineml_inlet_ports         = {}
+        self.nineml_outlet_ports        = {}
+        self.nineml_reduce_ports        = []
+        self.nineml_inlet_event_ports   = {}
+        self.nineml_outlet_event_ports  = {}
+        self.nineml_port_connections    = []
+        self.nineml_equations           = {}
+        self.nineml_stn                 = None
 
-        if Nitems > 1:
-            self.N = daeDomain("N", self, unit(), "N domain")
+        if self.Nitems > 1:
+            self.N  = daeDomain("N", self, unit(), "N domain")
+            domains = [self.N]
+        else:
+            self.N  = None
+            domains = []
         
-        domains = [self.N]
+    def create_component(self, info, parentName):
+        if parentName == '':
+            canonicalName = ''
+        else:
+            canonicalName = parentName + '_'
         
         # 1) Create parameters
-        for (name, units) in info.nineml_parameters:
-            self.nineml_parameters[name] = daeParameter(name, units, self, "", domains)
+        for (_name, units) in info.nineml_parameters:
+            name = canonicalName + _name
+            self.nineml_parameters[name] = daeVariable(name, var_type, self, "", domains)
 
         # 2) Create state-variables (diff. variables)
-        for (name, var_type) in info.nineml_state_variables:
+        for (_name, var_type) in info.nineml_state_variables:
+            name = canonicalName + _name
             self.nineml_variables[name] = daeVariable(name, var_type, self, "", domains)
 
         # 3) Create alias variables (algebraic)
-        for (name, var_type, node) in info.nineml_aliases:
-            self.nineml_variables[name] = daeVariable(name, var_type, self, "", domains)
+        for (_name, var_type, node) in info.nineml_aliases:
+            name = canonicalName + _name
+            self.nineml_aliases[name] = ( daeVariable(name, var_type, self, "", domains), node )
 
         # 4a) Create analog-ports
-        for (name, port_type) in info.nineml_analog_ports:
-            self.nineml_ports[name] = ninemlAnalogPort(name, port_type, self, "", domains)
+        for (_name, port_type) in info.nineml_analog_ports:
+            name = canonicalName + _name
+            if port_type == eInletPort:
+                self.nineml_inlet_ports[name] = daeVariable(name, var_type, self, "", domains)
+            else:
+                if name in self.nineml_variables:
+                    self.nineml_outlet_ports[name] = self.nineml_variables[name]
+                elif name in self.nineml_aliases:
+                    self.nineml_outlet_ports[name] = self.nineml_aliases[name]
+                else:
+                    raise RuntimeError("")
         
         # 4b) Create reduce-ports
-        for (name, port_type) in info.nineml_reduce_ports:
-            self.nineml_reduce_ports.append(ninemlReduceAnalogPort(name, self))
+        for (_name, port_type) in info.nineml_reduce_ports:
+            name = canonicalName + _name
+            self.nineml_reduce_ports[name] = ( daeVariable(name, var_type, self, "", domains), [] )
 
         # 5) Create event-ports
-        for (name, port_type) in info.nineml_event_ports:
-            self.nineml_event_ports[name] = daeEventPort(name, port_type, self, "")
-
+        for (_name, port_type) in info.nineml_event_ports:
+            name = canonicalName + _name
+            if port_type == eInletPort:
+                self.nineml_inlet_event_ports[name]  = [ daeEventPort('{0}({1})'.format(name, i), port_type, self, "") for i in range(0, self.Nitems) ]
+            else:
+                self.nineml_outlet_event_ports[name] = [ daeEventPort('{0}({1})'.format(name, i), port_type, self, "") for i in range(0, self.Nitems) ]
+                
         # 6) Create sub-nodes
         for sub_info in info.nineml_subcomponents:
-            self.nineml_subcomponents.append(dae_component(sub_info, Nitems, sub_info.name, self, ''))
+            name = canonicalName + sub_info.name
+            self.create_component(sub_info, name)
 
         # 7) Create port connections
         for (nameFrom, nameTo) in info.nineml_port_connections:
-            portFrom = getObjectFromCanonicalName(self, nameFrom, look_for_ports = True, look_for_reduceports = True)
-            portTo   = getObjectFromCanonicalName(self, nameTo,   look_for_ports = True, look_for_reduceports = True)
-            connectPorts(portFrom, portTo, self)
+            if nameFrom in self.nineml_outlet_ports:
+                portFrom = self.nineml_outlet_ports[nameFrom]
+            else:
+                raise RuntimeError('')
+            
+            if nameTo in self.nineml_inlet_ports:
+                portTo = self.nineml_inlet_ports[nameTo]
+            elif nameTo in self.nineml_reduce_ports:
+                portTo = self.nineml_reduce_ports[nameTo]
+            else:
+                raise RuntimeError('')
+            
+            self.nineml_port_connections.append(portFrom, portTo)
     
     def __str__(self):
         res = ''
         res += 'canonical_name = {0}\n'.format(self.CanonicalName)
         res += 'nineml_parameters = {0}\n'.format(self.nineml_parameters)
         res += 'nineml_variables = {0}\n'.format(self.nineml_variables)
-        res += 'nineml_ports = {0}\n'.format(self.nineml_ports)
+        res += 'nineml_aliases = {0}\n'.format(self.nineml_aliases)
+        res += 'nineml_inlet_ports = {0}\n'.format(self.nineml_inlet_ports)
+        res += 'nineml_outlet_ports = {0}\n'.format(self.nineml_outlet_ports)
         res += 'nineml_reduce_ports = {0}\n'.format(self.nineml_reduce_ports)
-        res += 'nineml_event_ports = {0}\n'.format(self.nineml_event_ports)
+        res += 'nineml_inlet_event_ports = {0}\n'.format(self.nineml_inlet_event_ports)
+        res += 'nineml_outlet_event_ports = {0}\n'.format(self.nineml_outlet_event_ports)
         res += 'nineml_port_connections = {0}\n'.format(self.nineml_port_connections)
         res += 'nineml_equations = {0}\n'.format(self.nineml_equations)
         res += 'nineml_stn = {0}\n'.format(self.nineml_stn)
-        for subcomponent in self.nineml_subcomponents:
-            res += 'Submodel: {0}\n{1}\n'.format(subcomponent.CanonicalName, subcomponent)
         return res
     
-    def findPort(self, name):
-        if name in self.nineml_ports:
-            return self.nineml_ports[name]
-        elif name in self.nineml_reduce_ports:
-            return self.nineml_reduce_ports[name]
-        else:
-            for (sub_name, sub_comp) in self.nineml_subcomponents:
-                port = sub_comp.findPort(name)
-                if(port):
-                    return port
-        return None
-    
-    def DeclareEquations(self):
-        #__equation_parser__.dictIdentifiers = getEquationsExpressionParserIdentifiers(self)
-        pass
-        """
+    def createEquations(self):
+        __equation_parser__.dictIdentifiers = getEquationsExpressionParserIdentifiers(self)
+        dictIDs = parserDictionaryWrapper()
+        
         # 1) Create aliases (algebraic equations)
-        aliases = list(self.ninemlComponent.aliases)
-        if len(aliases) > 0:
-            for i, alias in enumerate(aliases):
-                eq = self.CreateEquation(alias.lhs, "")
-                eq.Residual = self.nineml_aliases[i]() - self.parser.parse_and_evaluate(alias.rhs)
+        for (name, (var, node)) in self.nineml_aliases:
+            eq = self.CreateEquation(name, "")
+            eq.Residual = var(i) - node.evaluate(dictIDs, dictFunctions)
 
         # 1a) Create equations for reduce ports (algebraic equations)
         for port in self.nineml_reduce_ports:
@@ -1432,8 +1458,7 @@ class dae_component(daeModel):
                 if var_to == None:
                     raise RuntimeError('Cannot find variable/alias {0}'.format(analog_port.Name))
                 eq.Residual = analog_port.value() - var_to()
-        """
-
+        
 
 if __name__ == "__main__":
     al_component  = TestableComponent('hierachical_iaf_1coba')()
