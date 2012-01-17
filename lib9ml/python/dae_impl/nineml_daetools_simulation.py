@@ -342,7 +342,7 @@ class daetools_model_setup:
             elif isinstance(port, ninemlAnalogPort):
                 pass
 
-    def _getValue(self, obj, value, name):
+    def _getValue(self, value, name):
         """
         Internal function used to get a value of parameters values and initial conditions.
         It can handle simple numbers and tuples (value, units). The *value* can be a simple number, 
@@ -414,12 +414,12 @@ class daetools_model_setup:
                 
         # First set the parameters with simple numerical values
         for paramName, (parameter, value) in list(numerical_values.items()):
-            v = self._getValue(parameter, value, paramName)
+            v = self._getValue(value, paramName)
             parameter.SetValue(v)
         
         # Then set the parameters with expressions as values
         for paramName, (parameter, expression) in list(expression_values.items()):
-            v = self._getValue(parameter, expression, paramName)
+            v = self._getValue(expression, paramName)
             parameter.SetValue(v)
         
     def SetUpVariables(self):
@@ -455,12 +455,12 @@ class daetools_model_setup:
         
         # First set the parameters with simple numerical values
         for varName, (variable, value) in list(numerical_values.items()):
-            v = self._getValue(variable, value, varName)
+            v = self._getValue(value, varName)
             variable.SetInitialCondition(v)
         
         # Then set the parameters with expressions as values
         for varName, (variable, expression) in list(expression_values.items()):
-            v = self._getValue(variable, expression, varName)
+            v = self._getValue(expression, varName)
             variable.SetInitialCondition(v)
         
         for portName, expression in list(self._analog_ports_expressions.items()):
