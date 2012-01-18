@@ -1512,8 +1512,6 @@ class dae_component(daeModel):
         return daetoolsVariableParameterDictionaryWrapper(dictIdentifiers), dictFunctions        
     
     def _generatePortConnectionEquation(self, varFrom, varTo):
-        print(varFrom, varTo)
-
         fromIsDistributed = len(varFrom.Domains) > 0
         toIsDistributed   = len(varTo.Domains)   > 0
         
@@ -1530,7 +1528,7 @@ class dae_component(daeModel):
                 raise RuntimeError('')
             n = eq.DistributeOnDomain(varFrom.Domains[0], eClosedClosed)
             eq.Residual = varFrom(n) - varTo(n)
-            print('port_connection', repr(varFrom(n) - varTo(n)))
+            #print('\tport_connection', repr(varFrom(n) - varTo(n)))
         
         else:
             raise RuntimeError('Cannot generate a port connection equation for the port connection {0} -> {1}'.format(varFrom.CanonicalName, varTo.CanonicalName))
@@ -1556,10 +1554,11 @@ class dae_component(daeModel):
                 else:
                     residual = residual - source_variable()
         
-        print('reduce_port_connection', repr(residual))
+        #print('\treduce_port_connection', repr(residual))
         eq.Residual = residual
         
     def DeclareEquations(self):
+        #print('\nDeclareEquations in {0}\n'.format(self.CanonicalName))
         wrapperIdentifiers, dictFunctions = self._getExpressionParserIdentifiers()
         
         # 1a) Create aliases (algebraic equations)
@@ -1573,8 +1572,22 @@ class dae_component(daeModel):
                 wrapperIdentifiers.current_index = None
                 residual = var() - num.Node.evaluate(wrapperIdentifiers, dictFunctions)
             eq.Residual = residual
-            print('Alias', repr(residual))
-            
+            #print('\tAlias', repr(residual))
+        """
+        for i in range(0, self.Nitems):
+            for (name, (var, num)) in self.nineml_aliases.iteritems():
+                if self.Nitems == 1:
+                    eq = self.CreateEquation(name, "")
+                    wrapperIdentifiers.current_index = None
+                    residual = var() - num.Node.evaluate(wrapperIdentifiers, dictFunctions)
+                else:
+                    eq = self.CreateEquation('{0}({1})'.format(name, i), "")
+                    wrapperIdentifiers.current_index = i
+                    residual = var(i) - num.Node.evaluate(wrapperIdentifiers, dictFunctions)
+                eq.Residual = residual
+                print('\tAlias', name, repr(residual))
+        """
+        
         # 1b) Create equations for ordinary analogue port connections
         for (varFrom, varTo) in self.nineml_port_connections:
             self._generatePortConnectionEquation(varFrom, varTo)
@@ -1589,10 +1602,12 @@ class dae_component(daeModel):
                 # 2a) Create STN for model
                 stn = self.STN('{0}({1})'.format(nineml_daetools_bridge.ninemlSTNRegimesName, stn_i))
                 self.nineml_stns.append(stn)
+                #print('STN {0}\n'.format(stn.CanonicalName))
 
                 for (regime_name, odes, on_conditions, on_events) in self.info.nineml_regimes:
                     # 2b) Create State for each regime
                     self.STATE(regime_name)
+                    #print('\tState {0}\n'.format(regime_name))
 
                     # 2c) Create equations for all state variables/time derivatives
                     for (var_name, num) in odes:
@@ -1602,7 +1617,6 @@ class dae_component(daeModel):
 
                         eq = self.CreateEquation('ODE_{0}'.format(var_name), "")
                         if self.N:
-                            #n = eq.DistributeOnDomain(self.N, eClosedClosed)
                             wrapperIdentifiers.current_index = stn_i
                             residual = variable.dt(stn_i) - num.Node.evaluate(wrapperIdentifiers, dictFunctions)
                         
@@ -1611,7 +1625,7 @@ class dae_component(daeModel):
                             residual = variable.dt() - num.Node.evaluate(wrapperIdentifiers, dictFunctions)
                         
                         eq.Residual = residual
-                        print('ODE', repr(residual))
+                        #print('\t\tODE', var_name, repr(residual))
                             
                     # 2d) Create on_condition actions
                     for (condition_num, switch_to, set_variable_values, trigger_events) in on_conditions:
@@ -1622,21 +1636,22 @@ class dae_component(daeModel):
                         for (var_name, num) in set_variable_values:
                             if not var_name in self.nineml_variables:
                                 raise RuntimeError('Cannot find state variable {0}'.format(var_name))
-                            variable = self.nineml_variables[var_name]
                             if self.N:
+                                variable = self.nineml_variables[var_name](stn_i)
                                 wrapperIdentifiers.current_index = stn_i
                                 expression = num.Node.evaluate(wrapperIdentifiers, dictFunctions)
                             else:
+                                variable = self.nineml_variables[var_name]
                                 wrapperIdentifiers.current_index = None
                                 expression = num.Node.evaluate(wrapperIdentifiers, dictFunctions)
                             setVariableValues.append( (variable, expression) )
-                            print('setVariableValues', repr(expression))
+                            #print('\t\ton_condition setVariableValues', repr(expression))
 
                         for (port_name, value) in trigger_events:
                             if not port_name in self.nineml_outlet_event_ports:
                                 raise RuntimeError('Cannot find event port {0}'.format(port_name))
                             event_port = self.nineml_outlet_event_ports[port_name][stn_i]
-                            triggerEvents.append( (event_port, value) )
+                            triggerEvents.append( (event_port, Time()) )
 
                         self.ON_CONDITION(condition, switchTo          = switch_to,
                                                      setVariableValues = setVariableValues,
@@ -1663,13 +1678,13 @@ class dae_component(daeModel):
                                 wrapperIdentifiers.current_index = None
                                 expression = num.Node.evaluate(wrapperIdentifiers, dictFunctions)
                             setVariableValues.append( (variable, expression) )
-                            print('setVariableValues', repr(expression))
+                            #print('\t\ton_event setVariableValues', repr(expression))
 
                         for (port_name, value) in trigger_events:
                             if not port_name in self.nineml_outlet_event_ports:
                                 raise RuntimeError('Cannot find event port {0}'.format(port_name))
                             event_port = self.nineml_outlet_event_ports[port_name][stn_i]
-                            triggerEvents.append( (event_port, value) )
+                            triggerEvents.append( (event_port, Time()) )
 
                         self.ON_EVENT(source_event_port, switchToStates    = switchToStates,
                                                          setVariableValues = setVariableValues,
@@ -1694,7 +1709,6 @@ class dae_component_setup:
         
         if model.N.NumberOfPoints == 0:
             model.N.CreateArray(model.Nitems)
-            print('Model = {0} N = {1}'.format(model.CanonicalName, model.N.NumberOfPoints))
         
         for paramCanonicalName, parameter in dae_parameters.iteritems():
             if not paramCanonicalName in parameters:
@@ -1797,7 +1811,7 @@ class dae_component_setup:
 
 class dae_component_simulation(daeSimulation):
     """
-    nineml_daetools_simulation carries out the simulation of the given (top level) model.
+    dae_component_simulation carries out the simulation of the given (top level) model.
     Used only for simulation of the single AL component (wrapped into the nineml_daetools_bridge object),
     by the NineML WebApp and nineml_desktop_app.
     """
@@ -1839,17 +1853,12 @@ class dae_component_simulation(daeSimulation):
         """
         dae_component_setup.SetUpVariables(self.m, self.parameters, self.report_variables)
 
-if __name__ == "__main__":
-    al_component  = TestableComponent('hierachical_iaf_1coba')()
-    if not al_component:
-        raise RuntimeError('Cannot load NineML component')
-    
-    info = al_component_info('hierachical_iaf_1coba', al_component)
-    #print(info)
-    
-    dae_comp = dae_component(info, 2, 'hierachical_iaf_1coba', None, '')
+def doSimulation(info):
+    start_time = time()
+    dae_comp = dae_component(info, 100, 'hierachical_iaf_1coba', None, '')
     dae_comp.initialize()
     #print(dae_comp)
+    print('Model create time = {0}'.format(time() - start_time))
     
     parameters = {
         "iaf.gl":         (   1E-8, "S"), 
@@ -1873,12 +1882,15 @@ if __name__ == "__main__":
     # Create Log, Solver, DataReporter and Simulation object
     log          = daeBaseLog()
     daesolver    = daeIDAS()
-    datareporter = daeTCPIPDataReporter()
-    simulation   = dae_component_simulation(dae_comp, parameters, report_variables, 1.0, 0.01, {})
+    datareporter = daeBlackHoleDataReporter() #daeTCPIPDataReporter()
     
-    #from daetools.solvers import pySuperLU as superlu
-    #lasolver = superlu.daeCreateSuperLUSolver()
-    #daesolver.SetLASolver(lasolver)
+    create_time = time()
+    simulation   = dae_component_simulation(dae_comp, parameters, report_variables, 1.0, 0.01, {})
+    print('Simulation create time = {0}'.format(time() - create_time))
+    
+    from daetools.solvers import pySuperLU as superlu
+    lasolver = superlu.daeCreateSuperLUSolver()
+    daesolver.SetLASolver(lasolver)
 
     # Connect data reporter
     simName = simulation.m.Name + strftime(" [%d.%m.%Y %H:%M:%S]", localtime())
@@ -1888,11 +1900,45 @@ if __name__ == "__main__":
     #simulation.m.SetReportingOn(True)
 
     # Initialize the simulation
+    init_time = time()
     simulation.Initialize(daesolver, datareporter, log)
+    print('Initialize time = {0}'.format(time() - init_time))
 
+    # Save the model report and the runtime model report
+    #simulation.m.SaveModelReport(simulation.m.Name + ".xml")
+    #simulation.m.Models[0].SaveModelReport(simulation.m.Models[0].Name + "__.xml")
+    #simulation.m.Models[1].SaveModelReport(simulation.m.Models[1].Name + "__.xml")
+    #simulation.m.SaveRuntimeModelReport(simulation.m.Name + "-rt.xml")
+    
     # Solve at time=0 (initialization)
+    solve_init_time = time()
     simulation.SolveInitial()
+    print('SolveInitial time = {0}'.format(time() - solve_init_time))
 
     # Run
     simulation.Run()
     simulation.Finalize()
+    print('Simulation total time = {0}'.format(time() - start_time))
+    
+    del dae_comp
+    del log 
+    del daesolver
+    del lasolver
+    del datareporter
+    del simulation
+    
+if __name__ == "__main__":
+    al_component  = TestableComponent('hierachical_iaf_1coba')()
+    if not al_component:
+        raise RuntimeError('Cannot load NineML component')
+    
+    info = al_component_info('hierachical_iaf_1coba', al_component)
+    #print(info)
+    
+    overall_start_time = time()
+    
+    for i in range(0, 10):
+        print('  Iteration {0}'.format(i))
+        doSimulation(info)
+    
+    print('Overall time time = {0}'.format(time() - overall_start_time))
