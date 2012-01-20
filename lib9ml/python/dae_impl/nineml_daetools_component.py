@@ -415,21 +415,16 @@ class dae_component(daeModel):
         self.event_queue                    = [] 
         
     def initialize(self, domainN = None):
-        if self.Nitems > 1:
-            if domainN:
-                self.N = domainN
-            else:
-                self.N = daeDomain("N", self, unit(), "N domain")
-            domains = [self.N]
-        
-        elif self.Nitems == 1:
-            self.N  = None
-            domains = []
-        
-        else:
-            # If the number of items is zero then the component will not have any parameters,
-            # variables, aliases nor equations.
+        # If the number of items is zero then the component will not have any parameters,
+        # variables, aliases nor equations.
+        if self.Nitems == 0:
             return
+        
+        if domainN:
+            self.N = domainN
+        else:
+            self.N = daeDomain("N", self, unit(), "N domain")
+        domains = [self.N]
         
         # 1) Create parameters
         for (name, units) in self.info.nineml_parameters:
@@ -462,16 +457,10 @@ class dae_component(daeModel):
         # 5) Create event-ports
         for (name, port_type) in self.info.nineml_event_ports:
             if port_type == eInletPort:
-                if self.Nitems > 1:
-                    self.nineml_inlet_event_ports[name]  = [ daeEventPort('{0}({1})'.format(name, i), port_type, self, "") for i in range(0, self.Nitems) ]
-                else:
-                    self.nineml_inlet_event_ports[name]  = daeEventPort(name, port_type, self, "")
+                self.nineml_inlet_event_ports[name]  = [ daeEventPort('{0}({1})'.format(name, i), port_type, self, "") for i in range(0, self.Nitems) ]
                     
             else:
-                if self.Nitems > 1:
-                    self.nineml_outlet_event_ports[name] = [ daeEventPort('{0}({1})'.format(name, i), port_type, self, "") for i in range(0, self.Nitems) ]
-                else:
-                    self.nineml_outlet_event_ports[name] = daeEventPort(name, port_type, self, "")
+                self.nineml_outlet_event_ports[name] = [ daeEventPort('{0}({1})'.format(name, i), port_type, self, "") for i in range(0, self.Nitems) ]
                 
         # 6) Create sub-components
         for sub_info in self.info.nineml_subcomponents:
@@ -565,6 +554,7 @@ class dae_component(daeModel):
                 if source_variable_name == target_variable_name:
                     self.nineml_port_connections.append( (source_variable, target_variable) )
                     matching_port_found = True
+                    break
             
             # 2) If not connected yet, look in the list of reduce ports
             if matching_port_found == False:
@@ -575,6 +565,7 @@ class dae_component(daeModel):
                         else:
                             self.nineml_reduce_port_connections[target_variable_name] = (target_variable, [source_variable])
                         matching_port_found = True
+                        break
             
             # If not found - die miserably
             if matching_port_found == False:
@@ -596,25 +587,17 @@ class dae_component(daeModel):
     def getInletEventPort(self, index):
         if len(self.nineml_inlet_event_ports) != 1:
             raise RuntimeError('{0} does not have any receive event ports'.format(self.CanonicalName))
-        
-        
-        
-        print(self.CanonicalName, index)
-        
-        
-        
-        
-        if self.Nitems <= 1:
-            raise RuntimeError('{0} does not have any distributed receive event ports'.format(self.CanonicalName))
-        return self.nineml_inlet_event_ports()[0][index]
+        if index >= self.Nitems:
+            raise RuntimeError('Receive event port out of bounds in {0} (size:{1}, index: {2})'.format(self.CanonicalName, self.Nitems, index))
+        return self.nineml_inlet_event_ports.values()[0][index]
     
     def getOutletEventPort(self): 
         if len(self.nineml_outlet_event_ports) != 1:
             raise RuntimeError('{0} does not have any send event ports'.format(self.CanonicalName))
-        if self.Nitems > 1:
+        if self.Nitems != 1:
             raise RuntimeError('{0} have distributed send event ports'.format(self.CanonicalName))
             
-        return self.nineml_outlet_event_ports.values()[0]
+        return self.nineml_outlet_event_ports.values()[0][0]
     
     def increaseNumberOfItems(self):
         self.Nitems += 1
@@ -727,19 +710,25 @@ class dae_component(daeModel):
         return daetoolsVariableParameterDictionaryWrapper(dictIdentifiers), dictFunctions        
     
     def _generatePortConnectionEquation(self, varFrom, varTo):
-        fromIsDistributed = len(varFrom.Domains) > 0
-        toIsDistributed   = len(varTo.Domains)   > 0
+        fromSize = varFrom.Domains[0].NumberOfPoints
+        toSize   = varTo.Domains[0].NumberOfPoints
         
         eq = self.CreateEquation('port_connection_{0}_{1}'.format(varFrom.Name, varTo.Name), "")
-        if fromIsDistributed and (not toIsDistributed):
-            n = eq.DistributeOnDomain(varFrom.Domains[0], eClosedClosed)
-            eq.Residual = varFrom(n) - varTo()
+        if fromSize == 1 and toSize == 1:
+            eq.Residual = varFrom(0) - varTo(0)
             
-        elif (not fromIsDistributed) and (not toIsDistributed):
-            eq.Residual = varFrom() - varTo()
+        elif fromSize == 1:
+            n = eq.DistributeOnDomain(varTo.Domains[0], eClosedClosed)
+            eq.Residual = varFrom(0) - varTo(n)
         
-        elif fromIsDistributed and toIsDistributed:
+        elif toSize == 1:
+            n = eq.DistributeOnDomain(varFrom.Domains[0], eClosedClosed)
+            eq.Residual = varFrom(n) - varTo(0)
+        
+        elif fromSize > 1 and toSize > 1:
             if varFrom.Domains[0].CanonicalName != varTo.Domains[0].CanonicalName:
+                raise RuntimeError('')
+            if fromSize != toSize:
                 raise RuntimeError('')
             n = eq.DistributeOnDomain(varFrom.Domains[0], eClosedClosed)
             eq.Residual = varFrom(n) - varTo(n)
@@ -759,23 +748,26 @@ class dae_component(daeModel):
         """
         eq = self.CreateEquation('reduce_port_connection_{0}'.format(target_variable.Name), "")
         
-        if len(target_variable.Domains) > 0:
-            n = eq.DistributeOnDomain(target_variable.Domains[0], eClosedClosed)
+        target_domain = target_variable.Domains[0]
+        if target_domain.NumberOfPoints == 1:
+            residual = target_variable(0)
+            for source_variable in source_variables:
+                nr = daeIndexRange(source_variable.Domains[0])
+                residual = residual - self.sum(source_variable.array(nr))
+        
+        elif target_domain.NumberOfPoints > 1:
+            n = eq.DistributeOnDomain(target_domain, eClosedClosed)
             residual = target_variable(n)
             for source_variable in source_variables:
-                if len(source_variable.Domains) > 0:
-                    residual = residual - source_variable(n)
-                else:
+                source_domain = source_variable.Domains[0]
+                if source_domain.CanonicalName != target_domain.CanonicalName:
                     raise RuntimeError('')
-
+                if source_domain.NumberOfPoints != target_domain.NumberOfPoints:
+                    raise RuntimeError('')
+                residual = residual - source_variable(n)
+        
         else:
-            residual = target_variable()
-            for source_variable in source_variables:
-                if len(source_variable.Domains) > 0:
-                    nr = daeIndexRange(source_variable.Domains[0])
-                    residual = residual - self.sum(source_variable.array(nr))
-                else:
-                    residual = residual - source_variable()
+            raise RuntimeError('')
         
         #print('\treduce_port_connection', repr(residual))
         eq.Residual = residual
@@ -790,13 +782,9 @@ class dae_component(daeModel):
         # 1a) Create aliases (algebraic equations)
         for (name, (var, num)) in self.nineml_aliases.iteritems():
             eq = self.CreateEquation(name, "")
-            if self.N:
-                n = eq.DistributeOnDomain(self.N, eClosedClosed)
-                wrapperIdentifiers.current_index = n
-                residual = var(n) - num.Node.evaluate(wrapperIdentifiers, dictFunctions)
-            else:
-                wrapperIdentifiers.current_index = None
-                residual = var() - num.Node.evaluate(wrapperIdentifiers, dictFunctions)
+            n = eq.DistributeOnDomain(self.N, eClosedClosed)
+            wrapperIdentifiers.current_index = n
+            residual = var(n) - num.Node.evaluate(wrapperIdentifiers, dictFunctions)
             eq.Residual = residual
             #print('\tAlias', repr(residual))
         
@@ -828,13 +816,8 @@ class dae_component(daeModel):
                         variable = self.nineml_variables[var_name]
 
                         eq = self.CreateEquation('ODE_{0}'.format(var_name), "")
-                        if self.N:
-                            wrapperIdentifiers.current_index = stn_i
-                            residual = variable.dt(stn_i) - num.Node.evaluate(wrapperIdentifiers, dictFunctions)                        
-                        else:
-                            wrapperIdentifiers.current_index = None
-                            residual = variable.dt() - num.Node.evaluate(wrapperIdentifiers, dictFunctions)
-                        
+                        wrapperIdentifiers.current_index = stn_i
+                        residual = variable.dt(stn_i) - num.Node.evaluate(wrapperIdentifiers, dictFunctions)                        
                         eq.Residual = residual
                         #print('\t\tODE', var_name, repr(residual))
                             
@@ -847,25 +830,16 @@ class dae_component(daeModel):
                         for (var_name, num) in set_variable_values:
                             if not var_name in self.nineml_variables:
                                 raise RuntimeError('Cannot find state variable {0}'.format(var_name))
-                            if self.N:
-                                variable = self.nineml_variables[var_name](stn_i)
-                                wrapperIdentifiers.current_index = stn_i
-                                expression = num.Node.evaluate(wrapperIdentifiers, dictFunctions)
-                            else:
-                                variable = self.nineml_variables[var_name]
-                                wrapperIdentifiers.current_index = None
-                                expression = num.Node.evaluate(wrapperIdentifiers, dictFunctions)
-                            
+                            variable = self.nineml_variables[var_name](stn_i)
+                            wrapperIdentifiers.current_index = stn_i
+                            expression = num.Node.evaluate(wrapperIdentifiers, dictFunctions)
                             setVariableValues.append( (variable, expression) )
                             #print('\t\ton_condition setVariableValues', repr(expression))
 
                         for (port_name, value) in trigger_events:
                             if not port_name in self.nineml_outlet_event_ports:
                                 raise RuntimeError('Cannot find event port {0}'.format(port_name))
-                            if self.N:
-                                event_port = self.nineml_outlet_event_ports[port_name][stn_i]
-                            else:
-                                event_port = self.nineml_outlet_event_ports[port_name]
+                            event_port = self.nineml_outlet_event_ports[port_name][stn_i]
                             triggerEvents.append( (event_port, Time()) )
 
                         self.ON_CONDITION(condition, switchTo          = switch_to,
@@ -888,25 +862,16 @@ class dae_component(daeModel):
                         for (var_name, num) in set_variable_values:
                             if not var_name in self.nineml_variables:
                                 raise RuntimeError('Cannot find state variable {0}'.format(var_name))
-                            variable = self.nineml_variables[var_name]
-                            if self.N:
-                                wrapperIdentifiers.current_index = stn_i
-                                expression = num.Node.evaluate(wrapperIdentifiers, dictFunctions)
-                            else:
-                                wrapperIdentifiers.current_index = None
-                                expression = num.Node.evaluate(wrapperIdentifiers, dictFunctions)
-                            
+                            variable = self.nineml_variables[var_name](stn_i)
+                            wrapperIdentifiers.current_index = stn_i
+                            expression = num.Node.evaluate(wrapperIdentifiers, dictFunctions)
                             setVariableValues.append( (variable, expression) )
                             #print('\t\ton_event setVariableValues', repr(expression))
 
                         for (port_name, value) in trigger_events:
                             if not port_name in self.nineml_outlet_event_ports:
                                 raise RuntimeError('Cannot find event port {0}'.format(port_name))
-                            if self.N:
-                                event_port = self.nineml_outlet_event_ports[port_name][stn_i]
-                            else:
-                                event_port = self.nineml_outlet_event_ports[port_name]
-                            
+                            event_port = self.nineml_outlet_event_ports[port_name][stn_i]
                             triggerEvents.append( (event_port, Time()) )
 
                         self.ON_EVENT(source_event_port, switchToStates    = switchToStates,
@@ -933,7 +898,7 @@ class dae_component_setup:
         
         dae_parameters = model._getParameters(model)
         
-        if (model.Nitems > 1) and (model.N.NumberOfPoints == 0):
+        if model.N.NumberOfPoints == 0:
             model.N.CreateArray(model.Nitems)
         
         for paramCanonicalName, parameter in dae_parameters.iteritems():
@@ -944,21 +909,14 @@ class dae_component_setup:
             
             if isinstance(value, tuple) and isinstance(value[0], (long, int, float)):
                 v = dae_component_setup.getValue(value, paramCanonicalName)
-                if len(parameter.Domains) == 0:
-                    parameter.SetValue(v)
-                else:
-                    parameter.SetValues(v)
+                parameter.SetValues(v)
             
             elif isinstance(value, tuple) and isinstance(value[0], nineml.user_layer.RandomDistribution):
                 rng = dae_component_setup.getValue(value, paramCanonicalName)
-                if len(parameter.Domains) == 0:
+                n   = parameter.Domains[0].NumberOfPoints
+                for i in xrange(0, n):
                     v = float(rng.next())
-                    parameter.SetValue(v)
-                else:
-                    n = parameter.Domains[0].NumberOfPoints
-                    for i in xrange(0, n):
-                        v = float(rng.next())
-                        parameter.SetValue(i, v)
+                    parameter.SetValue(i, v)
             
             else:
                 raise RuntimeError('Invalid parameter: {0} value type specified: {1}-{2}'.format(paramCanonicalName, value, type(value)))
@@ -979,21 +937,14 @@ class dae_component_setup:
             
             if isinstance(value, tuple) and isinstance(value[0], (long, int, float)):
                 v = dae_component_setup.getValue(value, varCanonicalName)
-                if len(variable.Domains) == 0:
-                    variable.SetInitialCondition(v)
-                else:
-                    variable.SetInitialConditions(v)
+                variable.SetInitialConditions(v)
             
             elif isinstance(value, tuple) and isinstance(value[0], nineml.user_layer.RandomDistribution):
                 rng = dae_component_setup.getValue(value, varCanonicalName)
-                if len(variable.Domains) == 0:
+                n = variable.Domains[0].NumberOfPoints
+                for i in xrange(0, n):
                     v = float(rng.next())
-                    variable.SetInitialCondition(v)
-                else:
-                    n = variable.Domains[0].NumberOfPoints
-                    for i in xrange(0, n):
-                        v = float(rng.next())
-                        variable.SetInitialCondition(i, v)
+                    variable.SetInitialCondition(i, v)
             
             else:
                 raise RuntimeError('Invalid state variable: {0} initial consition type specified: {1}-{2}'.format(varCanonicalName, value, type(value)))
@@ -1085,7 +1036,7 @@ class dae_component_simulation(daeSimulation):
 def doSimulation(info):
     start_time = time()
     dae_comp = dae_component(info, 'hierachical_iaf_1coba', None, '')
-    dae_comp.Nitems = 100
+    dae_comp.Nitems = 1
     dae_comp.initialize()
     #print(dae_comp)
     print('Model create time = {0}'.format(time() - start_time))
@@ -1135,10 +1086,10 @@ def doSimulation(info):
     print('Initialize time = {0}'.format(time() - init_time))
 
     # Save the model report and the runtime model report
-    #simulation.m.SaveModelReport(simulation.m.Name + ".xml")
-    #simulation.m.Models[0].SaveModelReport(simulation.m.Models[0].Name + "__.xml")
-    #simulation.m.Models[1].SaveModelReport(simulation.m.Models[1].Name + "__.xml")
-    #simulation.m.SaveRuntimeModelReport(simulation.m.Name + "-rt.xml")
+    simulation.m.SaveModelReport(simulation.m.Name + "__.xml")
+    simulation.m.Models[0].SaveModelReport(simulation.m.Models[0].Name + "__.xml")
+    simulation.m.Models[1].SaveModelReport(simulation.m.Models[1].Name + "__.xml")
+    simulation.m.SaveRuntimeModelReport(simulation.m.Name + "-rt__.xml")
     
     # Solve at time=0 (initialization)
     solve_init_time = time()
@@ -1167,7 +1118,7 @@ if __name__ == "__main__":
     
     overall_start_time = time()
     
-    for i in range(0, 10):
+    for i in range(0, 1):
         print('  Iteration {0}'.format(i))
         doSimulation(info)
     

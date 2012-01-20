@@ -11,7 +11,7 @@
 """
 
 from __future__ import print_function
-import os, sys, urllib, re, traceback, csv
+import os, sys, urllib, re, traceback, csv, gc
 from time import localtime, strftime, time
 import numpy, numpy.random
 
@@ -639,15 +639,16 @@ class daetools_projection:
             # Add a new item to the list of connected synapse event ports and connection delays.
             # Here we cannot add an event port directly since it does not exist yet.
             # Hence, we add the synapse object and the index of the event port.
-            source_neurone.target_synapses.append( (synapse, target_index, delay) )
+            source_neurone.target_synapses.append( (synapse, synapse.Nitems, delay) )
+            synapse.Nitems += 1
             
             # Increase the number of connections in the synapse
             # ACHTUNG!! Here we should set the weight somehow but that is undefined at the moment
-            synapse.increaseNumberOfItems() #(weight)
 
 class point_neurone_simulation(pyActivity.daeSimulation):
     """
     """
+    count = 0
     def __init__(self, neurone, neurone_parameters, neurone_report_variables):
         """
         :rtype: None
@@ -660,14 +661,17 @@ class point_neurone_simulation(pyActivity.daeSimulation):
         self.neurone_report_variables = neurone_report_variables
         
         self.daesolver    = pyIDAS.daeIDAS()
-        #self.lasolver     = pySuperLU.daeCreateSuperLUSolver()
-        #self.daesolver.SetLASolver(self.lasolver)
+        self.lasolver     = pySuperLU.daeCreateSuperLUSolver()
+        self.daesolver.SetLASolver(self.lasolver)
 
     def init(self, log, datareporter, reportingInterval, timeHorizon):
         self.ReportingInterval = reportingInterval
         self.TimeHorizon       = timeHorizon
         
         self.Initialize(self.daesolver, datareporter, log)
+        if point_neurone_simulation.count == 0:
+            self.m.SaveModelReport(self.m.Name + "__.xml")
+        point_neurone_simulation.count += 1
         
     def SetUpParametersAndDomains(self):
         """
@@ -722,6 +726,8 @@ class point_neurone_network_simulation:
         for t in times:
             self.event_queue[float(t)] = []
 
+        gc.collect()
+        
         # Solve at time=0 (initialization)
         for target_neuron_name, simulation in self.simulations.iteritems():
             simulation.SolveInitial()
@@ -853,11 +859,11 @@ def simulate():
     grid2D          = nineml.user_layer.Structure("2D grid", catalog + "2Dgrid.xml")
     connection_type = nineml.user_layer.ConnectionType("Static weights and delays", catalog + "static_weights_delays.xml")
     
-    population_excitatory = nineml.user_layer.Population("Excitatory population", 80, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
-    population_inhibitory = nineml.user_layer.Population("Inhibitory population", 20, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
-    population_poisson    = nineml.user_layer.Population("Poisson population",    20, neurone_poisson, nineml.user_layer.PositionList(structure=grid2D))
+    population_excitatory = nineml.user_layer.Population("Excitatory population", 800, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
+    population_inhibitory = nineml.user_layer.Population("Inhibitory population", 200, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
+    population_poisson    = nineml.user_layer.Population("Poisson population",     20, neurone_poisson, nineml.user_layer.PositionList(structure=grid2D))
 
-    connections_folder      = '' #'n1000/'
+    connections_folder      = 'n1000/'
     connections_exc_exc     = readCSV_pyNN(connections_folder + 'e2e.conn')
     connections_exc_inh     = readCSV_pyNN(connections_folder + 'e2i.conn')
     connections_inh_inh     = readCSV_pyNN(connections_folder + 'i2i.conn')
