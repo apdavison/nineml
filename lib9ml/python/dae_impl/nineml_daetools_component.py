@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from __future__ import print_function
+#from __future__ import print_function
 import nineml
 from nineml.abstraction_layer.testing_utils import RecordValue, TestableComponent
 from nineml.abstraction_layer import ComponentClass
@@ -1100,13 +1100,6 @@ def doSimulation(info):
     simulation.Run()
     simulation.Finalize()
     print('Simulation total time = {0}'.format(time() - start_time))
-    
-    del dae_comp
-    del log 
-    del daesolver
-    del lasolver
-    del datareporter
-    del simulation
     
 if __name__ == "__main__":
     al_component  = TestableComponent('hierachical_iaf_1coba')()
