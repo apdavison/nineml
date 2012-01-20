@@ -128,9 +128,6 @@ def random_exponential(beta = 1.0):
     res = _global_rng_.exponential(beta)
     return float(res)
 
-def createExpressionParser():
-    return expression_parser.ExpressionParser()
-
 def fixObjectName(name):
     """
     Replaces spaces in the 'name' string with underscores and returns the modified string.
@@ -144,6 +141,53 @@ def fixObjectName(name):
     return new_name
 
 dae_nineml_t = daeVariableType("dae_nineml_t", unit(), -1.0e+20, 1.0e+20, 0.0, 1e-12)
+
+class daetools_spike_source(pyCore.daeModel):
+    """
+    Used to generate spikes according to the predefined sequence.
+    The component has no parameters
+    """
+    def __init__(self, spiketimes, Name, Parent = None, Description = ""):
+        pyCore.daeModel.__init__(self, Name, Parent, Description)
+
+        self.on_spike_out_action  = None
+        self.target_synapses      = []    
+        self.event_queue          = [] 
+        self.incoming_synapses    = []
+        self.Nitems               = 0
+
+        # A dummy variable
+        self.event = pyCore.daeVariable("event", time_t, self, "")
+        
+        # Add one 'send' event port
+        self.spikeoutput = pyCore.daeEventPort("spikeoutput", eOutletPort, self, "Spike outlet event port")
+        #self.nineml_event_ports.append(self.spikeoutput)
+        
+        # A list of spike event times
+        self.spiketimes = list(spiketimes)
+
+    def initialize(self):
+        pass
+    
+    def DeclareEquations(self):
+        self.stnSpikeSource = self.STN("SpikeSource")
+
+        for i, t in enumerate(self.spiketimes):
+            self.STATE('State_{0}'.format(i))
+            eq = self.CreateEquation("event")
+            eq.Residual = self.event() - t
+            self.ON_CONDITION(Time() >= t,  switchTo      = 'State_{0}'.format(i+1),
+                                            triggerEvents = [(self.spikeoutput, Time())])
+
+        self.STATE('State_{0}'.format(len(self.spiketimes)))
+
+        eq = self.CreateEquation("event")
+        eq.Residual = self.event()
+
+        self.END_STN()
+    
+    def getOutletEventPort(self): 
+        return self.spikeoutput
 
 class daetoolsVariableParameterDictionaryWrapper(object):
     """
@@ -365,6 +409,11 @@ class dae_component(daeModel):
         self.nineml_equations               = {}
         self.nineml_stns                    = []
         
+        self.on_spike_out_action            = None
+        self.target_synapses                = []    
+        self.incoming_synapses              = []    
+        self.event_queue                    = [] 
+        
     def initialize(self, domainN = None):
         if self.Nitems > 1:
             if domainN:
@@ -413,9 +462,16 @@ class dae_component(daeModel):
         # 5) Create event-ports
         for (name, port_type) in self.info.nineml_event_ports:
             if port_type == eInletPort:
-                self.nineml_inlet_event_ports[name]  = [ daeEventPort('{0}({1})'.format(name, i), port_type, self, "") for i in range(0, self.Nitems) ]
+                if self.Nitems > 1:
+                    self.nineml_inlet_event_ports[name]  = [ daeEventPort('{0}({1})'.format(name, i), port_type, self, "") for i in range(0, self.Nitems) ]
+                else:
+                    self.nineml_inlet_event_ports[name]  = daeEventPort(name, port_type, self, "")
+                    
             else:
-                self.nineml_outlet_event_ports[name] = [ daeEventPort('{0}({1})'.format(name, i), port_type, self, "") for i in range(0, self.Nitems) ]
+                if self.Nitems > 1:
+                    self.nineml_outlet_event_ports[name] = [ daeEventPort('{0}({1})'.format(name, i), port_type, self, "") for i in range(0, self.Nitems) ]
+                else:
+                    self.nineml_outlet_event_ports[name] = daeEventPort(name, port_type, self, "")
                 
         # 6) Create sub-components
         for sub_info in self.info.nineml_subcomponents:
@@ -497,68 +553,72 @@ class dae_component(daeModel):
                 raise RuntimeError('Illegal connection: The target component ({0}) does not have any connections but declares receive ports'.format(target.CanonicalName))
             
             # Seal all the reduce ports in the target component
-            for target_variable in target.nineml_reduce_ports:
-                if not target_variable.Name in self.nineml_reduce_port_connections:
-                    self.nineml_reduce_port_connections[target_variable.Name] = (target_variable, [])            
+            for (target_variable_name, target_variable) in target.nineml_reduce_ports.iteritems():
+                if not target_variable_name in self.nineml_reduce_port_connections:
+                    self.nineml_reduce_port_connections[target_variable_name] = (target_variable, [])            
         
-        for source_variable in source.nineml_outlet_ports:
+        for (source_variable_name, source_variable) in source.nineml_outlet_ports.iteritems():
             matching_port_found = False
             
             # 1) Look in the list of inlet ports
-            for target_variable in target.nineml_inlet_ports:
-                if source_variable.Name == target_variable.Name:
+            for (target_variable_name, target_variable) in target.nineml_inlet_ports.iteritems():
+                if source_variable_name == target_variable_name:
                     self.nineml_port_connections.append( (source_variable, target_variable) )
                     matching_port_found = True
             
             # 2) If not connected yet, look in the list of reduce ports
             if matching_port_found == False:
-                for target_variable in target.nineml_reduce_ports:
-                    if source_variable.Name == target_variable.Name:
-                        if target_variable.Name in self.nineml_reduce_port_connections:
-                            self.nineml_reduce_port_connections[target_variable.Name][1].append(source_variable)
+                for (target_variable_name, target_variable) in target.nineml_reduce_ports.iteritems():
+                    if source_variable_name == target_variable_name:
+                        if target_variable_name in self.nineml_reduce_port_connections:
+                            self.nineml_reduce_port_connections[target_variable_name][1].append(source_variable)
                         else:
-                            self.nineml_reduce_port_connections[target_variable.Name] = (target_variable, [source_variable])
+                            self.nineml_reduce_port_connections[target_variable_name] = (target_variable, [source_variable])
                         matching_port_found = True
             
             # If not found - die miserably
             if matching_port_found == False:
-                raise RuntimeError('Cannot connect analogue ports: cannot find a match for the source port [{0}]'.format(source_variable.Name))
+                raise RuntimeError('Cannot connect analogue ports: cannot find a match for the source port [{0}]'.format(source_variable_name))
 
-        for source_variable in source.nineml_inlet_ports:
+        for (source_variable_name, source_variable) in source.nineml_inlet_ports.iteritems():
             matching_port_found = False
             
             # 1) Look in the list of outlet ports
-            for target_variable in target.nineml_outlet_ports:
-                if source_variable.Name == target_variable.Name:
+            for (target_variable_name, target_variable) in target.nineml_outlet_ports.iteritems():
+                if source_variable_name == target_variable_name:
                     self.nineml_port_connections.append( (source_variable, target_variable) )
                     matching_port_found = True
             
             # If not found - die miserably
             if matching_port_found == False:
-                raise RuntimeError('Cannot connect analogue ports: cannot find a match for the source port [{0}]'.format(source_variable.Name))
-    """
-    def getSpikeInPort(self): 
+                raise RuntimeError('Cannot connect analogue ports: cannot find a match for the source port [{0}]'.format(source_variable_name))
+
+    def getInletEventPort(self, index):
         if len(self.nineml_inlet_event_ports) != 1:
             raise RuntimeError('{0} does not have any receive event ports'.format(self.CanonicalName))
-        return self.nineml_inlet_event_ports[0]
-                
-        raise RuntimeError('{0} does not have any receive event ports'.format(self.CanonicalName))
-    """
-
-    def getSpikeOutPort(self): 
+        
+        
+        
+        print(self.CanonicalName, index)
+        
+        
+        
+        
+        if self.Nitems <= 1:
+            raise RuntimeError('{0} does not have any distributed receive event ports'.format(self.CanonicalName))
+        return self.nineml_inlet_event_ports()[0][index]
+    
+    def getOutletEventPort(self): 
         if len(self.nineml_outlet_event_ports) != 1:
             raise RuntimeError('{0} does not have any send event ports'.format(self.CanonicalName))
-        return self.nineml_outlet_event_ports[0]
+        if self.Nitems > 1:
+            raise RuntimeError('{0} have distributed send event ports'.format(self.CanonicalName))
+            
+        return self.nineml_outlet_event_ports.values()[0]
     
     def increaseNumberOfItems(self):
         self.Nitems += 1
     
-    def getInletEventPort(self, index):
-        return self.nineml_inlet_event_ports[index]
-    
-    def getOutletEventPort(self, index):
-        return self.nineml_outlet_event_ports[index]
-        
     def _getParameters(self, parent):
         parameters = {}
         for (name, parameter) in self.nineml_parameters.iteritems():
@@ -672,7 +732,7 @@ class dae_component(daeModel):
         
         eq = self.CreateEquation('port_connection_{0}_{1}'.format(varFrom.Name, varTo.Name), "")
         if fromIsDistributed and (not toIsDistributed):
-            n = eq.DistributeOn(varFrom.Domains[0], eClosedClosed)
+            n = eq.DistributeOnDomain(varFrom.Domains[0], eClosedClosed)
             eq.Residual = varFrom(n) - varTo()
             
         elif (not fromIsDistributed) and (not toIsDistributed):
@@ -806,7 +866,6 @@ class dae_component(daeModel):
                                 event_port = self.nineml_outlet_event_ports[port_name][stn_i]
                             else:
                                 event_port = self.nineml_outlet_event_ports[port_name]
-                            
                             triggerEvents.append( (event_port, Time()) )
 
                         self.ON_CONDITION(condition, switchTo          = switch_to,
@@ -817,7 +876,10 @@ class dae_component(daeModel):
                     for (source_port_name, switch_to_states, set_variable_values, trigger_events) in on_events:
                         if not source_port_name in self.nineml_inlet_event_ports:
                             raise RuntimeError('Cannot find event port {0}'.format(source_port_name))
-                        source_event_port = self.nineml_inlet_event_ports[source_port_name][stn_i]
+                        if self.N:
+                            source_event_port = self.nineml_inlet_event_ports[source_port_name][stn_i]
+                        else:
+                            source_event_port = self.nineml_inlet_event_ports[source_port_name]
                         
                         switchToStates    = []
                         triggerEvents     = []
@@ -866,9 +928,12 @@ class dae_component_setup:
     
     @staticmethod
     def SetUpParametersAndDomains(model, parameters):
+        if model.Nitems == 0:
+            return
+        
         dae_parameters = model._getParameters(model)
         
-        if model.N.NumberOfPoints == 0:
+        if (model.Nitems > 1) and (model.N.NumberOfPoints == 0):
             model.N.CreateArray(model.Nitems)
         
         for paramCanonicalName, parameter in dae_parameters.iteritems():
@@ -900,6 +965,9 @@ class dae_component_setup:
     
     @staticmethod      
     def SetUpVariables(model, parameters, report_variables):
+        if model.Nitems == 0:
+            return
+        
         dae_variables = model._getStateVariables(model)
         dae_aliases   = model._getAliases(model)
         
@@ -920,7 +988,7 @@ class dae_component_setup:
                 rng = dae_component_setup.getValue(value, varCanonicalName)
                 if len(variable.Domains) == 0:
                     v = float(rng.next())
-                    variable.SetValue(v)
+                    variable.SetInitialCondition(v)
                 else:
                     n = variable.Domains[0].NumberOfPoints
                     for i in xrange(0, n):
@@ -958,7 +1026,7 @@ class dae_component_setup:
                 return float(_value)
             
             elif isinstance(_value, nineml.user_layer.RandomDistribution): # A RandomDistribution component
-                if not _value.name in self._random_number_generators:
+                if not _value.name in dae_component_setup._random_number_generators:
                     raise RuntimeError('Cannot find RandomDistribution component {0}'.format(_value.name))
                 
                 rng = dae_component_setup._random_number_generators[_value.name]
