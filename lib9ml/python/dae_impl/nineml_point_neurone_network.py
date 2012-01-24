@@ -717,8 +717,11 @@ class point_neurone_network_simulation:
                     self.simulations[neurone.Name] = simulation
 
     def Initialize(self):
+        n = 0
         for target_neuron_name, simulation in self.simulations.iteritems():
             simulation.init(self.log, self.datareporter, self.reportingInterval, self.timeHorizon)
+            n += simulation.daesolver.NumberOfVariables
+        print('Total number of variables: {0}'.format(n))
         gc.collect()
     
     def SolveInitial(self):
@@ -866,7 +869,7 @@ def simulate():
         
         population_excitatory = nineml.user_layer.Population("Excitatory population", 800, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
         population_inhibitory = nineml.user_layer.Population("Inhibitory population", 200, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
-        population_poisson    = nineml.user_layer.Population("Poisson population",     20, neurone_poisson, nineml.user_layer.PositionList(structure=grid2D))
+        population_poisson    = nineml.user_layer.Population("Poisson population",      20, neurone_poisson, nineml.user_layer.PositionList(structure=grid2D))
 
         connections_folder      = 'n1000/'
         connections_exc_exc     = readCSV_pyNN(connections_folder + 'e2e.conn')
@@ -925,7 +928,7 @@ def simulate():
         dae_component_setup._random_number_generators = network.randomNumberGenerators
         
         reportingInterval = 0.0001
-        timeHorizon       = 0.06
+        timeHorizon       = 0.0600
 
         log          = daeLogs.daePythonStdOutLog()
         datareporter = pyDataReporting.daeTCPIPDataReporter()
@@ -946,7 +949,7 @@ def simulate():
         simulation_solve_initial_time_end = time()
         
         simulation_run_time_start = time()
-        #simulation.Run()
+        simulation.Run()
         simulation_run_time_end = time()
         
         simulation_finalize_time_start = time()
