@@ -169,6 +169,9 @@ class daetools_spike_source(pyCore.daeModel):
     def initialize(self):
         pass
     
+    def CleanUpSetupData(self):
+        pass
+    
     def DeclareEquations(self):
         self.stnSpikeSource = self.STN("SpikeSource")
 
@@ -413,7 +416,33 @@ class dae_component(daeModel):
         self.target_synapses                = []    
         self.incoming_synapses              = []    
         self.event_queue                    = [] 
+
+    def CleanUpSetupData(self):
+        del self.info
+        del self.nineml_parameters
+        del self.nineml_aliases
+        del self.nineml_variables
+        del self.nineml_inlet_ports
+        del self.nineml_outlet_ports
+        del self.nineml_reduce_ports
+        del self.nineml_port_connections
+        del self.nineml_reduce_port_connections
+        del self.nineml_equations
+        del self.nineml_stns
         
+        """
+        Cannot delete the following;
+        del self.nineml_inlet_event_ports
+        del self.nineml_outlet_event_ports
+        del self.nineml_subcomponents
+        """
+        
+        for nineml_subcomponent in self.nineml_subcomponents:
+            nineml_subcomponent.CleanUpSetupData()
+        
+        for (synapse, synapse_parameters) in self.incoming_synapses:
+            synapse.CleanUpSetupData()
+
     def initialize(self, domainN = None):
         # If the number of items is zero then the component will not have any parameters,
         # variables, aliases nor equations.

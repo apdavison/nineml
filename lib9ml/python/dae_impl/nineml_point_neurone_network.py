@@ -24,6 +24,23 @@ from daetools.pyDAE import *
 from nineml_daetools_component import ninemlRNG, createPoissonSpikeTimes, daetools_spike_source, al_component_info, dae_component, dae_component_setup, fixObjectName
 from daetools.solvers import pySuperLU
 
+import subprocess
+
+class MemoryMonitor(object):
+
+    def __init__(self, username):
+        """Create new MemoryMonitor instance."""
+        self.username = username
+
+    def usage(self):
+        """Return int containing memory used by user's processes."""
+        self.process = subprocess.Popen("ps -u %s -o rss | awk '{sum+=$1} END {print sum}'" % self.username,
+                                        shell=True,
+                                        stdout=subprocess.PIPE,
+                                        )
+        self.stdout_list = self.process.communicate()[0].split('\n')
+        return int(self.stdout_list[0])
+
 def fixParametersDictionary(parameters):
     """
     :param parameters: ParameterSet object.
@@ -272,7 +289,6 @@ class daetools_point_neurone_network:
         :raises: RuntimeError
         """
         self._name            = fixObjectName(ul_model.name)
-        self._model           = ul_model
         self._components      = {}
         self._groups          = {}
         self._rngs            = {}
@@ -393,7 +409,6 @@ class daetools_group:
         :raises: RuntimeError
         """
         self._name        = fixObjectName(name)
-        self._network     = network
         self._populations = {}
         self._projections = {}
         
@@ -474,19 +489,18 @@ class daetools_population:
         :rtype: 
         :raises: RuntimeError
         """
-        self._name          = fixObjectName(name)
-        self._population_id = population_id
-        self._network       = network
-        self._neurones      = []
-        self._positions     = []
-        self._parameters    = network.getComponentParameters(ul_population.prototype.name)
-        component_info      = network.getComponentInfo(ul_population.prototype.name) 
+        self._name           = fixObjectName(name)
+        self._population_id  = population_id
+        self._parameters     = network.getComponentParameters(ul_population.prototype.name)
         
-        self._neurones = [create_neurone(
+        _component_info  = network.getComponentInfo(ul_population.prototype.name) 
+        
+        self._neurones = [
+                           create_neurone(
                                            'p{0}({1:0>4})'.format(self._population_id, i),  # Name
-                                           component_info,                                # al_component_info object
-                                           network.globalRandomNumberGenerator,           # RNG 
-                                           self._parameters                               # dict with init. parameters
+                                           _component_info,                                 # al_component_info object
+                                           network.globalRandomNumberGenerator,             # RNG 
+                                           self._parameters                                 # dict with init. parameters
                                          ) for i in xrange(0, ul_population.number)
                          ]
         
@@ -519,7 +533,6 @@ class daetools_projection:
      * _psr                   : AL Component
      * _connection_type       : AL Component
      * _connection_rule       : AL component
-     * _generated_connections : list of ...
     """
     def __init__(self, name, ul_projection, group, network):
         """
@@ -531,57 +544,57 @@ class daetools_projection:
         :rtype:
         :raises: RuntimeError
         """
-        self._name                  = fixObjectName(name)
-        self._network               = network
-        self._source_population     = group.getPopulation(ul_projection.source.name)
-        self._target_population     = group.getPopulation(ul_projection.target.name)
-        self._psr_parameters        = network.getComponentParameters(ul_projection.synaptic_response.name)
-        self._connection_rule       = network.getALComponent(ul_projection.rule.name)
-        self._connection_type       = network.getALComponent(ul_projection.connection_type.name)
-        self._generated_connections = {}
+        self._name             = fixObjectName(name)
+        _source_population     = group.getPopulation(ul_projection.source.name)
+        _target_population     = group.getPopulation(ul_projection.target.name)
+        _psr_parameters        = network.getComponentParameters(ul_projection.synaptic_response.name)
+        _connection_rule       = network.getALComponent(ul_projection.rule.name)
+        _connection_type       = network.getALComponent(ul_projection.connection_type.name)
         
         psr_component_info = network.getComponentInfo(ul_projection.synaptic_response.name)
         source_name        = fixObjectName(ul_projection.source.name)
         target_name        = fixObjectName(ul_projection.target.name)
         synapse_name       = fixObjectName(ul_projection.synaptic_response.name)
-        self._synapses = [dae_component(
+        
+        self._synapses = [
+                          dae_component(
                                          psr_component_info, 
-                                         's(p{0},p{1})'.format(self._source_population._population_id, self._target_population._population_id),
-                                         self._target_population.getNeurone(i), 
+                                         's(p{0},p{1})'.format(_source_population._population_id, _target_population._population_id),
+                                         _target_population.getNeurone(i), 
                                          ''
                                        ) for i in xrange(0, ul_projection.target.number)
                          ]               
         
-        for i, neurone in enumerate(self._target_population._neurones):
-            neurone.incoming_synapses.append( (self._synapses[i], self._psr_parameters) ) 
+        for i, neurone in enumerate(_target_population._neurones):
+            neurone.incoming_synapses.append( (self._synapses[i], _psr_parameters) ) 
         
         ul_connection_rule = network.getULComponent(ul_projection.rule.name)
         if hasattr(ul_connection_rule, 'connections'): # Explicit connections
             connections = getattr(ul_connection_rule, 'connections') 
             cgi = explicit_connections_generator_interface(connections)
-            self._createConnections(cgi)
+            self._createConnections(cgi, _source_population, _target_population)
         
         else: # It should be the CSA component then
-            self._handleConnectionRuleComponent(self._connection_rule)
+            self._handleConnectionRuleComponent(_connection_rule)
         
         # Now we are done with connections. Initialize synapses
-        for i, neurone in enumerate(self._target_population._neurones):
+        for i, neurone in enumerate(_target_population._neurones):
             synapse = self._synapses[i]
             synapse.initialize()
             neurone.connectAnaloguePorts(synapse, neurone)
 
     def __repr__(self):
         res = 'daetools_projection({0})\n'.format(self._name)
-        res += '  source_population:\n'
-        res += '    {0}\n'.format(self._source_population)
-        res += '  target_population:\n'
-        res += '    {0}\n'.format(self._target_population)
-        res += '  psr:\n'
-        res += '    {0}\n'.format(self._psr)
-        res += '  connection_rule:\n'
-        res += '    {0}\n'.format(self._connection_rule)
-        res += '  connection_type:\n'
-        res += '    {0}\n'.format(self._connection_type)
+        #res += '  source_population:\n'
+        #res += '    {0}\n'.format(self._source_population)
+        #res += '  target_population:\n'
+        #res += '    {0}\n'.format(self._target_population)
+        #res += '  psr:\n'
+        #res += '    {0}\n'.format(self._psr)
+        #res += '  connection_rule:\n'
+        #res += '    {0}\n'.format(self._connection_rule)
+        #res += '  connection_type:\n'
+        #res += '    {0}\n'.format(self._connection_type)
         return res
 
     def getSynapse(self, index):
@@ -601,7 +614,7 @@ class daetools_projection:
         """
         raise RuntimeError('Support for connection rule component not implemented yet')
 
-    def _createConnections(self, cgi):
+    def _createConnections(self, cgi, source_population, target_population):
         """
         Iterates over ConnectionGeneratorInterface object and creates connections.
         Based on the connections, connects source->target neurones and (optionally) sets weights and delays
@@ -633,8 +646,8 @@ class daetools_projection:
                 for i in range(4, size):
                     parameters.append(float(connection[i]))           
             
-            source_neurone = self._source_population.getNeurone(source_index)
-            target_neurone = self._target_population.getNeurone(target_index)
+            source_neurone = source_population.getNeurone(source_index)
+            target_neurone = target_population.getNeurone(target_index)
             synapse        = self.getSynapse(target_index)
             
             # Add a new item to the list of connected synapse event ports and connection delays.
@@ -692,6 +705,10 @@ class point_neurone_simulation(pyActivity.daeSimulation):
         for (synapse, synapse_parameters) in self.m.incoming_synapses:
             dae_component_setup.SetUpVariables(synapse, synapse_parameters, {})
 
+    def CleanUpSetupData(self):
+        pyActivity.daeSimulation.CleanUpSetupData(self)
+        self.m.CleanUpSetupData()
+        
 class point_neurone_network_simulation:
     """
     """
@@ -700,7 +717,6 @@ class point_neurone_network_simulation:
         :rtype: None
         :raises: RuntimeError
         """
-        self.network            = network
         self.log                = log
         self.datareporter       = datareporter
         self.reportingInterval  = reportingInterval
@@ -722,11 +738,29 @@ class point_neurone_network_simulation:
             simulation.init(self.log, self.datareporter, self.reportingInterval, self.timeHorizon)
             n += simulation.daesolver.NumberOfVariables
         print('Total number of variables: {0}'.format(n))
-        gc.collect()
     
     def SolveInitial(self):
         for target_neuron_name, simulation in self.simulations.iteritems():
             simulation.SolveInitial()
+        
+        memory_mon  = MemoryMonitor('ciroki')
+        print 'Memory usage before CleanUpSetupData = {0} MB'.format(memory_mon.usage()/1000.0)
+        
+        for target_neuron_name, simulation in self.simulations.iteritems():
+            simulation.CleanUpSetupData()
+        
+        memory_mon  = MemoryMonitor('ciroki')
+        print 'Memory usage after CleanUpSetupData = {0} MB'.format(memory_mon.usage()/1000.0)
+        
+        memory_mon  = MemoryMonitor('ciroki')
+        print 'Memory usage before GC = {0} MB'.format(memory_mon.usage()/1000.0)
+        
+        print(gc.garbage)
+        collected = gc.collect()
+        print "Garbage collector: collected %d objects." % (collected)  
+        
+        memory_mon  = MemoryMonitor('ciroki')
+        print 'Memory usage after GC = {0} MB'.format(memory_mon.usage()/1000.0)
     
     def Run(self):
         times = numpy.arange(self.reportingInterval, self.timeHorizon, self.reportingInterval)
@@ -766,7 +800,7 @@ def readCSV_pyNN(filename):
     Reads pyNN .conn files and returns a list of connections: [(int, int, float, float), ...]
     """
     connections_out = []
-    connections = list(csv.reader(open(filename, 'rb'), delimiter='\t'))
+    connections = csv.reader(open(filename, 'rb'), delimiter='\t')
     for connection in connections:
         s = int(float(connection[0]))
         t = int(float(connection[1]))
@@ -795,7 +829,124 @@ def profile_simulate():
     s = stats.load("nineml_point_neurone_network.profile")
     s.strip_dirs().sort_stats("time").print_stats()
 
+def create_ul_model():
+    catalog = "file:///home/ciroki/Data/NineML/nineml-model-tree/lib9ml/python/dae_impl/"
+
+    rnd_uniform = {
+                    'lowerBound': (-0.060, "dimensionless"),
+                    'upperBound': (-0.040, "dimensionless")
+                }
+    uniform_distribution = nineml.user_layer.RandomDistribution("uniform(-0.060, -0.040)", catalog + "uniform_distribution.xml", rnd_uniform)
+    
+    poisson_params = {
+                    'rate'     : (100.00, 'Hz'),
+                    'duration' : (  0.05, 's'),
+                    't0'       : (  0.00, 's')
+                    }
+    
+    neurone_params = {
+                    'tspike' :    ( -1.000, 's'),
+                    'V' :         (uniform_distribution, 'V'),
+                    'gl' :        ( 1.0E-8, 'S'),
+                    'vreset' :    ( -0.060, 'V'),
+                    'taurefrac' : (  0.001, 's'),
+                    'vthresh' :   ( -0.040, 'V'),
+                    'vrest' :     ( -0.060, 'V'),
+                    'cm' :        ( 0.2E-9, 'F')
+                    }
+    
+    psr_poisson_params = {
+                        'vrev' : (   0.000, 'V'),
+                        'q'    : (100.0E-9, 'S'),
+                        'tau'  : (   0.005, 's'),
+                        'g'    : (   0.000, 'S')
+                        }
+
+    psr_excitatory_params = {
+                            'vrev' : (  0.000, 'V'),
+                            'q'    : ( 4.0E-9, 'S'),
+                            'tau'  : (  0.005, 's'),
+                            'g'    : (  0.000, 'S')
+                            }
+                    
+    psr_inhibitory_params = {
+                            'vrev' : ( -0.080, 'V'),
+                            'q'    : (51.0E-9, 'S'),
+                            'tau'  : (  0.010, 's'),
+                            'g'    : (  0.000, 'S')
+                            }
+    
+    neurone_IAF     = nineml.user_layer.SpikingNodeType("IAF neurones", catalog + "iaf.xml", neurone_params)
+    
+    neurone_poisson = nineml.user_layer.SpikingNodeType("Poisson Source", catalog + "spike_source_poisson.xml", poisson_params)
+    
+    psr_poisson     = nineml.user_layer.SynapseType("COBA poisson",    catalog + "coba_synapse.xml", psr_poisson_params)
+    psr_excitatory  = nineml.user_layer.SynapseType("COBA excitatory", catalog + "coba_synapse.xml", psr_excitatory_params)
+    psr_inhibitory  = nineml.user_layer.SynapseType("COBA inhibitory", catalog + "coba_synapse.xml", psr_inhibitory_params)
+    
+    grid2D          = nineml.user_layer.Structure("2D grid", catalog + "2Dgrid.xml")
+    connection_type = nineml.user_layer.ConnectionType("Static weights and delays", catalog + "static_weights_delays.xml")
+    
+    population_excitatory = nineml.user_layer.Population("Excitatory population", 800, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
+    population_inhibitory = nineml.user_layer.Population("Inhibitory population", 200, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
+    population_poisson    = nineml.user_layer.Population("Poisson population",     20, neurone_poisson, nineml.user_layer.PositionList(structure=grid2D))
+
+    connections_folder      = 'n1000/'
+    connections_exc_exc     = readCSV_pyNN(connections_folder + 'e2e.conn')
+    connections_exc_inh     = readCSV_pyNN(connections_folder + 'e2i.conn')
+    connections_inh_inh     = readCSV_pyNN(connections_folder + 'i2i.conn')
+    connections_inh_exc     = readCSV_pyNN(connections_folder + 'i2e.conn')
+    connections_poisson_exc = readCSV_pyNN(connections_folder + 'ext2e.conn')
+    connections_poisson_inh = readCSV_pyNN(connections_folder + 'ext2i.conn')
+    
+    connection_rule_exc_exc     = nineml.user_layer.ConnectionRule("Explicit Connections exc_exc", catalog + "explicit_list_of_connections.xml")
+    connection_rule_exc_inh     = nineml.user_layer.ConnectionRule("Explicit Connections exc_inh", catalog + "explicit_list_of_connections.xml")
+    connection_rule_inh_inh     = nineml.user_layer.ConnectionRule("Explicit Connections inh_inh", catalog + "explicit_list_of_connections.xml")
+    connection_rule_inh_exc     = nineml.user_layer.ConnectionRule("Explicit Connections inh_exc", catalog + "explicit_list_of_connections.xml")
+    connection_rule_poisson_exc = nineml.user_layer.ConnectionRule("Explicit Connections poisson_exc", catalog + "explicit_list_of_connections.xml")
+    connection_rule_poisson_inh = nineml.user_layer.ConnectionRule("Explicit Connections poisson_inh", catalog + "explicit_list_of_connections.xml")
+
+    setattr(connection_rule_exc_exc,     'connections', connections_exc_exc)
+    setattr(connection_rule_exc_inh,     'connections', connections_exc_inh)
+    setattr(connection_rule_inh_inh,     'connections', connections_inh_inh)
+    setattr(connection_rule_inh_exc,     'connections', connections_inh_exc)
+    setattr(connection_rule_poisson_exc, 'connections', connections_poisson_exc)
+    setattr(connection_rule_poisson_inh, 'connections', connections_poisson_inh)
+
+    projection_exc_exc     = nineml.user_layer.Projection("Projection exc_exc",     population_excitatory, population_excitatory, connection_rule_exc_exc,     psr_excitatory, connection_type)
+    projection_exc_inh     = nineml.user_layer.Projection("Projection exc_inh",     population_excitatory, population_inhibitory, connection_rule_exc_inh,     psr_excitatory, connection_type)
+    projection_inh_inh     = nineml.user_layer.Projection("Projection inh_inh",     population_inhibitory, population_inhibitory, connection_rule_inh_inh,     psr_inhibitory, connection_type)
+    projection_inh_exc     = nineml.user_layer.Projection("Projection inh_exc",     population_inhibitory, population_excitatory, connection_rule_inh_exc,     psr_inhibitory, connection_type)
+    projection_poisson_exc = nineml.user_layer.Projection("Projection poisson_exc", population_poisson,    population_excitatory, connection_rule_poisson_exc, psr_poisson,    connection_type)
+    projection_poisson_inh = nineml.user_layer.Projection("Projection poisson_inh", population_poisson,    population_inhibitory, connection_rule_poisson_inh, psr_poisson,    connection_type)
+
+    # Add everything to a single group
+    group = nineml.user_layer.Group("Group 1")
+    
+    # Add populations
+    group.add(population_poisson)
+    group.add(population_excitatory)
+    group.add(population_inhibitory)
+    
+    # Add projections
+    group.add(projection_poisson_exc)
+    group.add(projection_poisson_inh)
+    group.add(projection_exc_exc)
+    group.add(projection_exc_inh)
+    group.add(projection_inh_inh)
+    group.add(projection_inh_exc)
+
+    # Create a network and add the group to it
+    model = nineml.user_layer.Model("Simple 9ML example model")
+    model.add_group(group)
+    model.write("Brette et al., J. Computational Neuroscience (2007).xml")
+
+    return model
+    
 def simulate():
+    gc.enable()
+    gc.set_debug(gc.DEBUG_STATS | gc.DEBUG_COLLECTABLE | gc.DEBUG_UNCOLLECTABLE | gc.DEBUG_INSTANCES | gc.DEBUG_OBJECTS | gc.DEBUG_SAVEALL)
+    
     try:
         network_create_time_start = 0
         network_create_time_end = 0
@@ -810,119 +961,9 @@ def simulate():
         simulation_finalize_time_start = 0
         simulation_finalize_time_end = 0
 
-        catalog = "file:///home/ciroki/Data/NineML/nineml-model-tree/lib9ml/python/dae_impl/"
-
-        rnd_uniform = {
-                        'lowerBound': (-0.060, "dimensionless"),
-                        'upperBound': (-0.040, "dimensionless")
-                    }
-        uniform_distribution = nineml.user_layer.RandomDistribution("uniform(-0.060, -0.040)", catalog + "uniform_distribution.xml", rnd_uniform)
-        
-        poisson_params = {
-                        'rate'     : (100.00, 'Hz'),
-                        'duration' : (  0.05, 's'),
-                        't0'       : (  0.00, 's')
-                        }
-        
-        neurone_params = {
-                        'tspike' :    ( -1.000, 's'),
-                        'V' :         (uniform_distribution, 'V'),
-                        'gl' :        ( 1.0E-8, 'S'),
-                        'vreset' :    ( -0.060, 'V'),
-                        'taurefrac' : (  0.001, 's'),
-                        'vthresh' :   ( -0.040, 'V'),
-                        'vrest' :     ( -0.060, 'V'),
-                        'cm' :        ( 0.2E-9, 'F')
-                        }
-        
-        psr_poisson_params = {
-                            'vrev' : (   0.000, 'V'),
-                            'q'    : (100.0E-9, 'S'),
-                            'tau'  : (   0.005, 's'),
-                            'g'    : (   0.000, 'S')
-                            }
-
-        psr_excitatory_params = {
-                                'vrev' : (  0.000, 'V'),
-                                'q'    : ( 4.0E-9, 'S'),
-                                'tau'  : (  0.005, 's'),
-                                'g'    : (  0.000, 'S')
-                                }
-                        
-        psr_inhibitory_params = {
-                                'vrev' : ( -0.080, 'V'),
-                                'q'    : (51.0E-9, 'S'),
-                                'tau'  : (  0.010, 's'),
-                                'g'    : (  0.000, 'S')
-                                }
-        
-        neurone_IAF     = nineml.user_layer.SpikingNodeType("IAF neurones", catalog + "iaf.xml", neurone_params)
-        
-        neurone_poisson = nineml.user_layer.SpikingNodeType("Poisson Source", catalog + "spike_source_poisson.xml", poisson_params)
-        
-        psr_poisson     = nineml.user_layer.SynapseType("COBA poisson",    catalog + "coba_synapse.xml", psr_poisson_params)
-        psr_excitatory  = nineml.user_layer.SynapseType("COBA excitatory", catalog + "coba_synapse.xml", psr_excitatory_params)
-        psr_inhibitory  = nineml.user_layer.SynapseType("COBA inhibitory", catalog + "coba_synapse.xml", psr_inhibitory_params)
-        
-        grid2D          = nineml.user_layer.Structure("2D grid", catalog + "2Dgrid.xml")
-        connection_type = nineml.user_layer.ConnectionType("Static weights and delays", catalog + "static_weights_delays.xml")
-        
-        population_excitatory = nineml.user_layer.Population("Excitatory population", 800, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
-        population_inhibitory = nineml.user_layer.Population("Inhibitory population", 200, neurone_IAF,     nineml.user_layer.PositionList(structure=grid2D))
-        population_poisson    = nineml.user_layer.Population("Poisson population",      20, neurone_poisson, nineml.user_layer.PositionList(structure=grid2D))
-
-        connections_folder      = 'n1000/'
-        connections_exc_exc     = readCSV_pyNN(connections_folder + 'e2e.conn')
-        connections_exc_inh     = readCSV_pyNN(connections_folder + 'e2i.conn')
-        connections_inh_inh     = readCSV_pyNN(connections_folder + 'i2i.conn')
-        connections_inh_exc     = readCSV_pyNN(connections_folder + 'i2e.conn')
-        connections_poisson_exc = readCSV_pyNN(connections_folder + 'ext2e.conn')
-        connections_poisson_inh = readCSV_pyNN(connections_folder + 'ext2i.conn')
-        
-        connection_rule_exc_exc     = nineml.user_layer.ConnectionRule("Explicit Connections exc_exc", catalog + "explicit_list_of_connections.xml")
-        connection_rule_exc_inh     = nineml.user_layer.ConnectionRule("Explicit Connections exc_inh", catalog + "explicit_list_of_connections.xml")
-        connection_rule_inh_inh     = nineml.user_layer.ConnectionRule("Explicit Connections inh_inh", catalog + "explicit_list_of_connections.xml")
-        connection_rule_inh_exc     = nineml.user_layer.ConnectionRule("Explicit Connections inh_exc", catalog + "explicit_list_of_connections.xml")
-        connection_rule_poisson_exc = nineml.user_layer.ConnectionRule("Explicit Connections poisson_exc", catalog + "explicit_list_of_connections.xml")
-        connection_rule_poisson_inh = nineml.user_layer.ConnectionRule("Explicit Connections poisson_inh", catalog + "explicit_list_of_connections.xml")
-
-        setattr(connection_rule_exc_exc,     'connections', connections_exc_exc)
-        setattr(connection_rule_exc_inh,     'connections', connections_exc_inh)
-        setattr(connection_rule_inh_inh,     'connections', connections_inh_inh)
-        setattr(connection_rule_inh_exc,     'connections', connections_inh_exc)
-        setattr(connection_rule_poisson_exc, 'connections', connections_poisson_exc)
-        setattr(connection_rule_poisson_inh, 'connections', connections_poisson_inh)
-
-        projection_exc_exc     = nineml.user_layer.Projection("Projection exc_exc",     population_excitatory, population_excitatory, connection_rule_exc_exc,     psr_excitatory, connection_type)
-        projection_exc_inh     = nineml.user_layer.Projection("Projection exc_inh",     population_excitatory, population_inhibitory, connection_rule_exc_inh,     psr_excitatory, connection_type)
-        projection_inh_inh     = nineml.user_layer.Projection("Projection inh_inh",     population_inhibitory, population_inhibitory, connection_rule_inh_inh,     psr_inhibitory, connection_type)
-        projection_inh_exc     = nineml.user_layer.Projection("Projection inh_exc",     population_inhibitory, population_excitatory, connection_rule_inh_exc,     psr_inhibitory, connection_type)
-        projection_poisson_exc = nineml.user_layer.Projection("Projection poisson_exc", population_poisson,    population_excitatory, connection_rule_poisson_exc, psr_poisson,    connection_type)
-        projection_poisson_inh = nineml.user_layer.Projection("Projection poisson_inh", population_poisson,    population_inhibitory, connection_rule_poisson_inh, psr_poisson,    connection_type)
-
-        # Add everything to a single group
-        group = nineml.user_layer.Group("Group 1")
-        
-        # Add populations
-        group.add(population_poisson)
-        group.add(population_excitatory)
-        group.add(population_inhibitory)
-        
-        # Add projections
-        group.add(projection_poisson_exc)
-        group.add(projection_poisson_inh)
-        group.add(projection_exc_exc)
-        group.add(projection_exc_inh)
-        group.add(projection_inh_inh)
-        group.add(projection_inh_exc)
-
-        # Create a network and add the group to it
-        model = nineml.user_layer.Model("Simple 9ML example model")
-        model.add_group(group)
-        model.write("Brette et al., J. Computational Neuroscience (2007).xml")
-        
+        ul_model = create_ul_model()
         network_create_time_start = time()
-        network = daetools_point_neurone_network(model)
+        network = daetools_point_neurone_network(ul_model)
         network_create_time_end = time()
         
         dae_component_setup._random_number_generators = network.randomNumberGenerators
@@ -938,6 +979,8 @@ def simulate():
         
         simulation_create_time_start = time()
         simulation = point_neurone_network_simulation(network, log, datareporter, reportingInterval, timeHorizon)
+        del ul_model
+        del network
         simulation_create_time_end = time()
         
         simulation_initialize_time_start = time()
@@ -957,7 +1000,10 @@ def simulate():
         simulation_finalize_time_end = time()
     
     except Exception as e:
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        messages = traceback.format_tb(exc_traceback)
         print(e)
+        print('\n'.join(messages))
     
     print('Simulation statistics:      ')
     print('  Network create time:           {0:>8.3f}s'.format(network_create_time_end - network_create_time_start))
