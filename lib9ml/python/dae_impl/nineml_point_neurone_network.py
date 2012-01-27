@@ -27,7 +27,11 @@ from daetools.solvers import pySuperLU
 import subprocess
 
 class MemoryMonitor(object):
-
+    """
+    Usage:
+    memory_mon  = MemoryMonitor('ciroki')
+    print 'Memory usage = {0} MB'.format(memory_mon.usage()/1000.0)
+    """
     def __init__(self, username):
         """Create new MemoryMonitor instance."""
         self.username = username
@@ -76,7 +80,7 @@ class on_spikeout_action(pyCore.daeAction):
 
 def create_neurone(name, component_info, rng, parameters):
     """
-    Creates 'nineml_daetools_bridge' object for a given AbstractionLayer Component.
+    Creates 'dae_component' object for a given 'al_component_info' object.
     There are some special cases which are handled individually such as:
      * SpikeSourcePoisson
     
@@ -191,7 +195,7 @@ def create_al_from_ul_component(ul_component, random_number_generators):
     except Exception as e:
         raise RuntimeError('The component: {0} failed to parse: {1}'.format(ul_component.name, str(e)))
     
-    return (component_info, al_component, parameters)
+    return (component_info, al_component, ul_component, parameters)
 
 class explicit_connections_generator_interface:
     """
@@ -295,10 +299,10 @@ class daetools_point_neurone_network:
         self._global_rng      = numpy.random.RandomState()
         
         for name, ul_component in list(ul_model.components.items()):
-            self._handleComponent(name, ul_component)
+            self._components[name] = create_al_from_ul_component(ul_component, self._rngs)
         
-        for name, group in list(ul_model.groups.items()):
-            self._handleGroup(name, group)
+        for name, ul_group in list(ul_model.groups.items()):
+            self._groups[name] = daetools_group(name, ul_group, self)
         
     def __repr__(self):
         res = 'daetools_point_neurone_network({0})\n'.format(self._name)
@@ -367,34 +371,6 @@ class daetools_point_neurone_network:
     @property
     def globalRandomNumberGenerator(self):
         return self._global_rng
-       
-    def _handleGroup(self, name, ul_group):
-        """
-        Handles UL Group object:
-         * Resolves/creates AL components and their runtime parameters'/initial-conditions' values.
-         * Creates populations of neurones and adds them to the 'neuronePopulations' dictionary
-         * Creates projections and adds them to the 'projections' dictionary
-        
-        :param name: string
-        :param ul_group: UL Group object
-        
-        :rtype:
-        :raises: RuntimeError
-        """
-        group = daetools_group(name, ul_group, self) 
-        self._groups[name] = group
-    
-    def _handleComponent(self, name, ul_component):
-        """
-        Resolves UL component and adds AL Component info object to the list.
-        :param name: string
-        :param ul_component: UL BaseComponent-derived object
-        
-        :rtype:        
-        :raises: RuntimeError
-        """
-        al_component_info, al_component, parameters = create_al_from_ul_component(ul_component, self._rngs) 
-        self._components[name] = (al_component_info, al_component, ul_component, parameters)
 
 class daetools_group:
     """
@@ -413,10 +389,10 @@ class daetools_group:
         self._projections = {}
         
         for name, ul_population in list(ul_group.populations.items()):
-            self._handlePopulation(name, ul_population, network)
+            self._populations[name] = daetools_population(name, ul_population, network, len(self._populations))
         
         for name, ul_projection in list(ul_group.projections.items()):
-            self._handleProjection(name, ul_projection, network)
+            self._projections[name] = daetools_projection(name, ul_projection, self, network)
     
     def __repr__(self):
         res = 'daetools_group({0})\n'.format(self._name)
@@ -447,35 +423,6 @@ class daetools_group:
         if not name in self._projections:
             raise RuntimeError('Projection [{0}] does not exist in the group'.format(name)) 
         return self._projections[name]
-    
-    def _handlePopulation(self, name, ul_population, network):
-        """
-        Handles UL Population object:
-         * Creates 'nineml_daetools_bridge' object for each neurone in the population
-        
-        :param name: string
-        :param ul_population: UL Population object
-        
-        :rtype: None
-        :raises: RuntimeError
-        """
-        population = daetools_population(name, ul_population, network, len(self._populations))
-        self._populations[name] = population
-    
-    def _handleProjection(self, name, ul_projection, network):
-        """
-        Handles a NineML UserLayer Projection object:
-         * Creates connections between a source and a target neurone via PSR component.
-           PSR components are first transformed into the 'nineml_daetools_bridge' objects
-        
-        :param name: string
-        :param ul_projection: UL Projection object
-        
-        :rtype:
-        :raises: RuntimeError
-        """
-        projection = daetools_projection(name, ul_projection, self, network) 
-        self._projections[name] = projection
 
 class daetools_population:
     """
@@ -495,7 +442,7 @@ class daetools_population:
         
         _component_info  = network.getComponentInfo(ul_population.prototype.name) 
         
-        self._neurones = [
+        self.neurones = [
                            create_neurone(
                                            'p{0}({1:0>4})'.format(self._population_id, i),  # Name
                                            _component_info,                                 # al_component_info object
@@ -515,24 +462,19 @@ class daetools_population:
         :rtype: None
         :raises: IndexError
         """
-        return self._neurones[int(index)]
+        return self.neurones[int(index)]
     
     def __repr__(self):
         res = 'daetools_population({0})\n'.format(self._name)
         res += '  neurones:\n'
-        for o in self._neurones:
+        for o in self.neurones:
             res += '  {0}\n'.format(repr(o))
         return res
 
 class daetools_projection:
     """
     Data members:    
-     * _name                  : string
-     * _source_population     : daetools_population
-     * _target_population     : daetools_population
-     * _psr                   : AL Component
-     * _connection_type       : AL Component
-     * _connection_rule       : AL component
+     * name : string
     """
     def __init__(self, name, ul_projection, group, network):
         """
@@ -544,13 +486,13 @@ class daetools_projection:
         :rtype:
         :raises: RuntimeError
         """
-        self._name             = fixObjectName(name)
-        _source_population     = group.getPopulation(ul_projection.source.name)
-        _target_population     = group.getPopulation(ul_projection.target.name)
-        _psr_parameters        = network.getComponentParameters(ul_projection.synaptic_response.name)
-        _connection_rule       = network.getALComponent(ul_projection.rule.name)
-        _connection_type       = network.getALComponent(ul_projection.connection_type.name)
+        self.name = fixObjectName(name)
         
+        source_population  = group.getPopulation(ul_projection.source.name)
+        target_population  = group.getPopulation(ul_projection.target.name)
+        psr_parameters     = network.getComponentParameters(ul_projection.synaptic_response.name)
+        connection_rule    = network.getALComponent(ul_projection.rule.name)
+        connection_type    = network.getALComponent(ul_projection.connection_type.name)
         psr_component_info = network.getComponentInfo(ul_projection.synaptic_response.name)
         source_name        = fixObjectName(ul_projection.source.name)
         target_name        = fixObjectName(ul_projection.target.name)
@@ -559,32 +501,46 @@ class daetools_projection:
         self._synapses = [
                           dae_component(
                                          psr_component_info, 
-                                         's(p{0},p{1})'.format(_source_population._population_id, _target_population._population_id),
-                                         _target_population.getNeurone(i), 
+                                         's(p{0},p{1})'.format(source_population._population_id, target_population._population_id),
+                                         target_population.getNeurone(i), 
                                          ''
                                        ) for i in xrange(0, ul_projection.target.number)
                          ]               
         
-        for i, neurone in enumerate(_target_population._neurones):
-            neurone.incoming_synapses.append( (self._synapses[i], _psr_parameters) ) 
+        for i, neurone in enumerate(target_population.neurones):
+            neurone.incoming_synapses.append( (self._synapses[i], psr_parameters) ) 
         
         ul_connection_rule = network.getULComponent(ul_projection.rule.name)
         if hasattr(ul_connection_rule, 'connections'): # Explicit connections
             connections = getattr(ul_connection_rule, 'connections') 
             cgi = explicit_connections_generator_interface(connections)
-            self._createConnections(cgi, _source_population, _target_population)
+            self._createConnections(cgi, source_population, target_population)
         
         else: # It should be the CSA component then
             self._handleConnectionRuleComponent(_connection_rule)
-        
+
+            
+            neurones    = []
+            connections = []
+            dot_graph_template = '''
+            digraph finite_state_machine {{
+                rankdir=LR;
+                node [shape=ellipse]; {0};
+                {1}
+            }}
+            '''
+            if len(regimes_list) > 1:
+                dot_graph = dot_graph_template.format(' '.join(regimes_list), '\n'.join(transitions_list))
+                graph     = dot2tex.dot2tex(dot_graph, autosize=True, texmode='math', format='tikz', crop=True, figonly=True)
+
         # Now we are done with connections. Initialize synapses
-        for i, neurone in enumerate(_target_population._neurones):
+        for i, neurone in enumerate(target_population.neurones):
             synapse = self._synapses[i]
             synapse.initialize()
             neurone.connectAnaloguePorts(synapse, neurone)
 
     def __repr__(self):
-        res = 'daetools_projection({0})\n'.format(self._name)
+        res = 'daetools_projection({0})\n'.format(self.name)
         #res += '  source_population:\n'
         #res += '    {0}\n'.format(self._source_population)
         #res += '  target_population:\n'
@@ -603,7 +559,7 @@ class daetools_projection:
         :rtype: None
         :raises: IndexError
         """
-        return self._synapses[int(index)]
+        return self._synapses[index]
 
     def _handleConnectionRuleComponent(self, al_connection_rule):
         """
@@ -624,6 +580,15 @@ class daetools_projection:
         :rtype: None
         :raises: RuntimeError
         """
+        #import pygraphviz
+        #graph = pygraphviz.AGraph(strict=False,directed=True)
+        #graph.node_attr['shape']='circle'
+        
+        #for i, neurone in enumerate(target_population.neurones):
+        #    graph.add_node(neurone.Name)
+        #for i, neurone in enumerate(source_population.neurones):
+        #    graph.add_node(neurone.Name)
+        
         for connection in cgi:
             size = len(connection)
             if(size < 2):
@@ -650,6 +615,8 @@ class daetools_projection:
             target_neurone = target_population.getNeurone(target_index)
             synapse        = self.getSynapse(target_index)
             
+            #graph.add_edge(source_neurone.Name, target_neurone.Name)
+            
             # Add a new item to the list of connected synapse event ports and connection delays.
             # Here we cannot add an event port directly since it does not exist yet.
             # Hence, we add the synapse object and the index of the event port.
@@ -658,7 +625,11 @@ class daetools_projection:
             
             # Increase the number of connections in the synapse
             # ACHTUNG!! Here we should set the weight somehow but that is undefined at the moment
-
+        
+        #graph.layout()
+        #graph.write('{0}.dot'.format(self.name))
+        #graph.draw('{0}.png'.format(self.name))
+        
 class point_neurone_simulation(pyActivity.daeSimulation):
     """
     """
@@ -723,44 +694,34 @@ class point_neurone_network_simulation:
         self.timeHorizon        = timeHorizon        
         self.simulations        = {}
         self.event_queue        = {}
+        self.number_of_vars     = 0
         
+        self.event_port = None
         for group_name, group in network._groups.iteritems():
             # Setup neurones in populations
             for population_name, population in group._populations.iteritems():
-                for neurone in population._neurones:
+                for neurone in population.neurones:
                     simulation = point_neurone_simulation(neurone, population._parameters, {})
                     neurone.event_queue = self.event_queue
                     self.simulations[neurone.Name] = simulation
+                    
+                    if not self.event_port:
+                        self.event_port = neurone.getOutletEventPort()
 
-    def Initialize(self):
-        n = 0
+    def InitializeAndSolveInitial(self):
+        self.number_of_vars = 0
         for target_neuron_name, simulation in self.simulations.iteritems():
             simulation.init(self.log, self.datareporter, self.reportingInterval, self.timeHorizon)
-            n += simulation.daesolver.NumberOfVariables
-        print('Total number of variables: {0}'.format(n))
-    
-    def SolveInitial(self):
-        for target_neuron_name, simulation in self.simulations.iteritems():
+            self.number_of_vars += simulation.daesolver.NumberOfVariables
+            
             simulation.SolveInitial()
-        
-        memory_mon  = MemoryMonitor('ciroki')
-        print 'Memory usage before CleanUpSetupData = {0} MB'.format(memory_mon.usage()/1000.0)
-        
-        for target_neuron_name, simulation in self.simulations.iteritems():
             simulation.CleanUpSetupData()
         
-        memory_mon  = MemoryMonitor('ciroki')
-        print 'Memory usage after CleanUpSetupData = {0} MB'.format(memory_mon.usage()/1000.0)
-        
-        memory_mon  = MemoryMonitor('ciroki')
-        print 'Memory usage before GC = {0} MB'.format(memory_mon.usage()/1000.0)
-        
-        print(gc.garbage)
+        print('Total number of variables: {0}'.format(self.number_of_vars))
+        print('garbage before collect:\n'.format(gc.garbage))
         collected = gc.collect()
         print "Garbage collector: collected %d objects." % (collected)  
-        
-        memory_mon  = MemoryMonitor('ciroki')
-        print 'Memory usage after GC = {0} MB'.format(memory_mon.usage()/1000.0)
+        print('garbage after collect:\n'.format(gc.garbage))
     
     def Run(self):
         times = numpy.arange(self.reportingInterval, self.timeHorizon, self.reportingInterval)
@@ -789,6 +750,8 @@ class point_neurone_network_simulation:
             next_time      = min(self.event_queue.keys())
             send_events_to = self.event_queue[next_time]
             del self.event_queue[next_time] 
+            
+        print('Neurone [{0}] spike events: {1}'.format(self.event_port.CanonicalName, self.event_port.Events))
         
     def Finalize(self):
         # Finalize
@@ -944,18 +907,16 @@ def create_ul_model():
     return model
     
 def simulate():
-    gc.enable()
-    gc.set_debug(gc.DEBUG_STATS | gc.DEBUG_COLLECTABLE | gc.DEBUG_UNCOLLECTABLE | gc.DEBUG_INSTANCES | gc.DEBUG_OBJECTS | gc.DEBUG_SAVEALL)
+    #gc.enable()
+    #gc.set_debug(gc.DEBUG_STATS | gc.DEBUG_COLLECTABLE | gc.DEBUG_UNCOLLECTABLE | gc.DEBUG_INSTANCES | gc.DEBUG_OBJECTS | gc.DEBUG_SAVEALL)
     
     try:
         network_create_time_start = 0
         network_create_time_end = 0
         simulation_create_time_start = 0
         simulation_create_time_end = 0
-        simulation_initialize_time_start = 0
-        simulation_initialize_time_end = 0
-        simulation_solve_initial_time_start = 0
-        simulation_solve_initial_time_end = 0
+        simulation_initialize_and_solve_initial_time_start = 0
+        simulation_initialize_and_solve_initial_time_end = 0
         simulation_run_time_start = 0
         simulation_run_time_end = 0
         simulation_finalize_time_start = 0
@@ -983,13 +944,9 @@ def simulate():
         del network
         simulation_create_time_end = time()
         
-        simulation_initialize_time_start = time()
-        simulation.Initialize()
-        simulation_initialize_time_end = time()
-        
-        simulation_solve_initial_time_start = time()
-        simulation.SolveInitial()
-        simulation_solve_initial_time_end = time()
+        simulation_initialize_and_solve_initial_time_start = time()
+        simulation.InitializeAndSolveInitial()
+        simulation_initialize_and_solve_initial_time_end = time()
         
         simulation_run_time_start = time()
         simulation.Run()
@@ -1006,13 +963,12 @@ def simulate():
         print('\n'.join(messages))
     
     print('Simulation statistics:      ')
-    print('  Network create time:           {0:>8.3f}s'.format(network_create_time_end - network_create_time_start))
-    print('  Simulation create time:        {0:>8.3f}s'.format(simulation_create_time_end - simulation_create_time_start))
-    print('  Simulation initialize time:    {0:>8.3f}s'.format(simulation_initialize_time_end - simulation_initialize_time_start))
-    print('  Simulation solve initial time: {0:>8.3f}s'.format(simulation_solve_initial_time_end - simulation_solve_initial_time_start))
-    print('  Simulation run time:           {0:>8.3f}s'.format(simulation_run_time_end - simulation_run_time_start))
-    print('  Simulation finalize time:      {0:>8.3f}s'.format(simulation_finalize_time_end - simulation_finalize_time_start))
-    print('  Total run time:                {0:>8.3f}s'.format(simulation_finalize_time_end - network_create_time_start))
+    print('  Network create time:                       {0:>8.3f}s'.format(network_create_time_end - network_create_time_start))
+    print('  Simulation create time:                    {0:>8.3f}s'.format(simulation_create_time_end - simulation_create_time_start))
+    print('  Simulation initialize/solve initial time:  {0:>8.3f}s'.format(simulation_initialize_and_solve_initial_time_end - simulation_initialize_and_solve_initial_time_start))
+    print('  Simulation run time:                       {0:>8.3f}s'.format(simulation_run_time_end - simulation_run_time_start))
+    print('  Simulation finalize time:                  {0:>8.3f}s'.format(simulation_finalize_time_end - simulation_finalize_time_start))
+    print('  Total run time:                            {0:>8.3f}s'.format(simulation_finalize_time_end - network_create_time_start))
    
 if __name__ == "__main__":
     simulate()
