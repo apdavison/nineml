@@ -83,8 +83,13 @@ class XMLLoader(object):
 #         return al.SubComponent(name=element.get('name'))
 
     def load_parameter(self, element):
+        dimension_name = element.get('dimension')
+        if dimension_name == "dimensionless":
+            dimension = None
+        else:
+            dimension = self.context[dimension_name]
         return Parameter(name=element.get('name'),
-                         dimension=self.context[element.get('dimension')])
+                         dimension=dimension)
 
     def load_eventsendport(self, element):
         return al.EventSendPort(name=element.get('name'))
@@ -93,19 +98,34 @@ class XMLLoader(object):
         return al.EventReceivePort(name=element.get('name'))
 
     def load_analogsendport(self, element):
+        dimension_name = element.get('dimension')
+        if dimension_name == "dimensionless":
+            dimension = None
+        else:
+            dimension = self.context[dimension_name]
         return al.AnalogSendPort(
                             name=element.get("name"),
-                            dimension=self.context[element.get('dimension')])
+                            dimension=dimension)
 
     def load_analogreceiveport(self, element):
+        dimension_name = element.get('dimension')
+        if dimension_name == "dimensionless":
+            dimension = None
+        else:
+            dimension = self.context[dimension_name]
         return al.AnalogReceivePort(
                             name=element.get("name"),
-                            dimension=self.context[element.get('dimension')])
+                            dimension=dimension)
 
     def load_analogreduceport(self, element):
+        dimension_name = element.get('dimension')
+        if dimension_name == "dimensionless":
+            dimension = None
+        else:
+            dimension = self.context[dimension_name]
         return al.AnalogReducePort(
                               name=element.get('name'),
-                              dimension=self.context[element.get('dimension')],
+                              dimension=dimension,
                               reduce_op=element.get("operator"))
 
     def load_dynamics(self, element):

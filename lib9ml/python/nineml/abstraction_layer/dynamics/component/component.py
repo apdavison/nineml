@@ -130,6 +130,15 @@ class ComponentClassMixinFlatStructure(object):
         return self._dynamics.state_variables_map
     # -------------------------- #
 
+    @property
+    def dimensions(self):
+        """
+        Physical dimensions used in the componentclass.
+        """
+        return set((x.dimension for x in chain(self.state_variables,
+                                               self.parameters,
+                                               self.analog_ports)))
+
     def backsub_all(self):
         """Expand all alias definitions in local equations.
 

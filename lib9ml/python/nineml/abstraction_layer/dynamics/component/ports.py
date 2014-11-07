@@ -7,6 +7,7 @@ This file defines the Port classes used in NineML
 
 from nineml.utility import ensure_valid_c_variable_name  # , curry
 from nineml.exceptions import NineMLRuntimeError
+from nineml.abstraction_layer.units import Dimension
 from abc import ABCMeta
 
 
@@ -66,7 +67,9 @@ class AnalogPort(Port):
 
     def __init__(self, name, dimension=None):
         super(AnalogPort, self).__init__(name)
-        self._dimension = dimension  # TODO: This needs checking
+        if dimension is not None and not isinstance(dimension, Dimension):
+            raise TypeError("dimension must be a Dimension object, not %s" % type(dimension))
+        self._dimension = dimension
 
     @property
     def dimension(self):

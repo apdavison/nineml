@@ -7,7 +7,7 @@ Contains the classes for defining the interface for a componentclass
 
 
 from nineml.utility import ensure_valid_c_variable_name
-
+from nineml.abstraction_layer.units import Dimension
 
 class Parameter(object):
 
@@ -17,7 +17,7 @@ class Parameter(object):
     future, wrapping in into its own object may make the transition easier
     """
 
-    def __init__(self, name, dimension=""):
+    def __init__(self, name, dimension=None):
         """Parameter Constructor
 
         :param name:  The name of the parameter.
@@ -26,6 +26,8 @@ class Parameter(object):
         ensure_valid_c_variable_name(name)
 
         self._name = name
+        if dimension is not None and not isinstance(dimension, Dimension):
+            raise TypeError("dimension must be a Dimension object, not %s" % type(dimension))
         self._dimension = dimension
 
     @property

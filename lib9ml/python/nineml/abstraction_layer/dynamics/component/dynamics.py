@@ -17,6 +17,7 @@ from nineml.utility import (filter_discrete_types,
                             normalise_parameter_as_list, assert_no_duplicates)
 
 from nineml.exceptions import NineMLRuntimeError
+from nineml.abstraction_layer.units import Dimension
 from ..visitors import ClonerVisitor
 
 
@@ -554,12 +555,14 @@ class StateVariable(object):
         """ |VISITATION| """
         return visitor.visit_statevariable(self, **kwargs)
 
-    def __init__(self, name, dimension=""):
+    def __init__(self, name, dimension=None):
         """StateVariable Constructor
 
         :param name:  The name of the state variable.
         """
         self._name = name.strip()
+        if dimension is not None and not isinstance(dimension, Dimension):
+            raise TypeError("dimension must be a Dimension object, not %s" % type(dimension))
         self._dimension = dimension
         ensure_valid_c_variable_name(self._name)
 
