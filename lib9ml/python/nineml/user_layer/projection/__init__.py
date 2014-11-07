@@ -99,11 +99,11 @@ class Projection(BaseULObject):
 
     def to_xml(self):
         return E(self.element_name,
-                 E.source(self.source.name),
-                 E.target(self.target.name),
-                 E.rule(self.rule.name),
-                 E.response(self.synaptic_response.name),
-                 E.plasticity(self.connection_type.name),
+                 E.Source(E.Reference(self.source.name)),
+                 E.Destination(E.Reference(self.target.name)),
+                 E.Connectivity(E.Reference(self.rule.name)),
+                 E.Response(E.Reference(self.synaptic_response.name)),
+                 E.Plasticity(E.Reference(self.connection_type.name)),
                  E.response_ports(*[E.port_connection(port1=a, port2=b)
                                     for a, b in self.synaptic_response_ports]),
                  E.connection_ports(*[E.port_connection(port1=a, port2=b)
@@ -115,8 +115,8 @@ class Projection(BaseULObject):
         check_tag(element, cls)
         return cls(name=element.attrib["name"],
                    source=element.find(NINEML + "Source").text,
-                   target=element.find(NINEML + "Target").text,
-                   rule=context.resolve_ref(element.find(NINEML + "Rule"),
+                   target=element.find(NINEML + "Destination").text,
+                   rule=context.resolve_ref(element.find(NINEML + "Connectivity"),
                                             ConnectionRule),
                    synaptic_response=context.resolve_ref(
                                             element.find(NINEML + "Response"),

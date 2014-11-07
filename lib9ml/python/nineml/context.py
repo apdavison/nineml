@@ -52,7 +52,7 @@ class Context(dict):
         `containing_elem` -- the XML element that contains the Reference or
                              inline object
         `inline_type`     -- the expected type of the object to be referenced.
-                             This is used to check the referene points to the
+                             This is used to check the reference points to the
                              correct object and also to convert inline objects.
                              If it is not provided in-line definitions are not
                              permitted.
@@ -103,6 +103,12 @@ class Context(dict):
         return (self[k] for k in self.iterkeys()
                 if isinstance(self[k],
                               nineml.abstraction_layer.ComponentClass))
+
+    @property
+    def load_all(self):
+        for k in self.keys():
+            print k
+            self[k]
 
     def _load_elem_from_xml(self, unloaded):
         """

@@ -24,7 +24,10 @@ from context import Context
 
 
 def load(root_element, read_from=None):
-    return Context.from_xml(root_element, url=read_from)
+    context = Context.from_xml(root_element, url=read_from)
+    if "name" in root_element.attrib:
+        context.name = root_element.attrib['name']
+    return context
 
 
 def read(url, relative_to=None):

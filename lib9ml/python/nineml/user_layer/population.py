@@ -34,30 +34,28 @@ class Population(BaseULObject):
 
     def get_components(self):
         components = []
-        if self.prototype:
-            if isinstance(self.prototype, SpikingNodeType):
-                components.append(self.prototype)
-                components.extend(self.prototype.properties.\
-                                                    get_random_distributions())
-                components.extend(self.prototype.initial_values.\
-                                                    get_random_distributions())
-            elif isinstance(self.prototype,
-                            nineml.user_layer.containers.Network):
-                components.extend(self.prototype.get_components())
+        if isinstance(self.prototype, SpikingNodeType):
+            components.append(self.prototype)
+            components.extend(self.prototype.properties.\
+                              get_random_distributions())
+            components.extend(self.prototype.initial_values.\
+                              get_random_distributions())
+        else:
+            raise TypeError("Cell must be a SpikingNodeType, not a %s" % type(self.prototype))
         if self.positions is not None:
             components.extend(self.positions.get_components())
         return components
 
-    def _to_xml(self):
+    def to_xml(self):
         if self.positions is None:
             return E(self.element_name,
-                     E.number(str(self.number)),
-                     E.prototype(self.prototype.name),
+                     E.Number(str(self.number)),
+                     E.Cell(E.Reference(self.prototype.name)),
                      name=self.name)
         else:
             return E(self.element_name,
-                     E.number(str(self.number)),
-                     E.prototype(self.prototype.name),
+                     E.Number(str(self.number)),
+                     E.Cell(E.Reference(self.prototype.name)),
                      self.positions.to_xml(),
                      name=self.name)
 

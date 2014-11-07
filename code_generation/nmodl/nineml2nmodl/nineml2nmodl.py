@@ -73,6 +73,8 @@ class NeuronExprRandomBuilder(nineml.abstraction_layer.visitors.ActionVisitor):
 
     def __init__(self,):
         self.required_random_functions = set([])
+        self.explicitly_require_action_overrides = False
+
     def get_modl_function_defs(self):
         return '\n'.join( neuron_random_func_defs[f] for f in self.required_random_functions )
     def has_random_functions(self):

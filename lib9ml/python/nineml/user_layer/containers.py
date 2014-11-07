@@ -1,6 +1,7 @@
 from itertools import chain
 from operator import itemgetter
-from .base import BaseULObject, NINEML, E
+from lxml import etree
+from .base import BaseULObject, NINEML, nineml_namespace, E
 from utility import check_tag
 from ..utility import expect_single
 
@@ -81,7 +82,7 @@ class Concatenate(BaseULObject):
     @classmethod
     def from_xml(cls, element, context):
         # Load references and indices from xml
-        items = ((e.attrib['index'], context.resolve_ref(e))
+        items = ((e.attrib['index'], context[e.text])  #context.resolve_ref(e))
                  for e in element.findall(NINEML + 'Item'))
         # Sort by 'index' attribute
         indices, items = zip(*sorted(items, key=itemgetter(0)))
@@ -101,11 +102,9 @@ class Concatenate(BaseULObject):
 class Network(BaseULObject):
 
     """
-    Container for populations and projections between those populations. May be
-    used as the node prototype within a population, allowing hierarchical
-    structures.
+    Container for populations and projections between those populations.
     """
-    element_name = "Network"
+    #element_name = "Network"
     defining_attributes = ("name", "populations", "projections", "selections")
     children = ("populations", "projections", "selections")
 
@@ -147,40 +146,69 @@ class Network(BaseULObject):
                 setattr(prj, name, obj)
 
     def get_components(self):
-        components = []
+        components = set()
         for p in chain(self.populations.values(), self.projections.values()):
-            components.extend(p.get_components())
-        return components
+            components.update(p.get_components())
+        return list(components)
+
+    def get_units_and_dimensions(self):
+        units = set.union(*[
+                            set.union(x.properties.units(), x.initial_values.units())
+                            for x in self.get_components()])
+        dimensions = [u.dimension for u in units]
+        return chain(dimensions, units)
 
     def get_subnetworks(self):
         return [p.prototype for p in self.populations.values()
                 if isinstance(p.prototype, Network)]
 
-    def _to_xml(self):
-        return E(self.element_name,
-                 name=self.name,
-                 *[p.to_xml() for p in chain(self.populations.values(),
+    def to_xml(self):
+        return E("NineML",
+                 *[p.to_xml() for p in chain(self.get_units_and_dimensions(),
+                                             self.get_components(),
+                                             self.populations.values(),
                                              self.selections.values(),
-                                             self.projections.values())])
+                                             self.projections.values())],
+                 xmlns=nineml_namespace,
+                 name=self.name)
+
+    # @classmethod
+    # def from_xml(cls, element, context):
+    #     check_tag(element, cls)
+    #     populations = []
+    #     for pop_elem in element.findall(NINEML + 'PopulationItem'):
+    #         pop = context.resolve_ref(pop_elem, Population)
+    #         populations[pop.name] = pop
+    #     projections = []
+    #     for proj_elem in element.findall(NINEML + 'ProjectionItem'):
+    #         proj = context.resolve_ref(proj_elem, Projection)
+    #         projections[proj.name] = proj
+    #     selections = []
+    #     for sel_elem in element.findall(NINEML + 'SelectionItem'):
+    #         sel = context.resolve_ref(sel_elem, Selection)
+    #         selections[sel.name] = sel
+    #     network = cls(name=element.attrib["name"], populations=populations,
+    #                   projections=projections, selections=selections)
+    #     return network
 
     @classmethod
-    def from_xml(cls, element, context):
-        check_tag(element, cls)
-        populations = []
-        for pop_elem in element.findall(NINEML + 'PopulationItem'):
-            pop = context.resolve_ref(pop_elem, Population)
-            populations[pop.name] = pop
-        projections = []
-        for proj_elem in element.findall(NINEML + 'ProjectionItem'):
-            proj = context.resolve_ref(proj_elem, Projection)
-            projections[proj.name] = proj
-        selections = []
-        for sel_elem in element.findall(NINEML + 'SelectionItem'):
-            sel = context.resolve_ref(sel_elem, Selection)
-            selections[sel.name] = sel
-        network = cls(name=element.attrib["name"], populations=populations,
-                      projections=projections, selections=selections)
-        return network
+    def from_context(cls, context):
+        context.load_all()
+        return cls(context.name,
+                   populations=dict((k, v) for k, v in context.items() if isinstance(v, Population)),
+                   projections=dict((k, v) for k, v in context.items() if isinstance(v, Projection)),
+                   selections=dict((k, v) for k, v in context.items() if isinstance(v, PopulationSelection)))
+
+    def write(self, filename):
+         """
+         Export this network to a file in 9ML XML format.
+         """
+         assert isinstance(filename, basestring) or (
+             hasattr(filename, "seek") and hasattr(filename, "read"))
+         etree.ElementTree(self.to_xml()).write(filename, encoding="UTF-8",
+                                                pretty_print=True,
+                                                xml_declaration=True)
+
 
 # can't "from ninem.user_layer.population import *" because of circular imports
 from .population import Population, Selection

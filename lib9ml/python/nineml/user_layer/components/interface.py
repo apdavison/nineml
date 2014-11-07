@@ -208,6 +208,9 @@ class PropertySet(dict):
             properties.append(Property.from_xml(parameter_element, context))
         return cls(*properties)
 
+    def units(self):
+        return set([p.unit for p in self.values() if p.unit])
+
 
 class InitialValueSet(PropertySet):
 

@@ -30,9 +30,12 @@ class BaseComponent(BaseULObject):
                        (value,unit) pairs.
         `prototype` - the name of another component in the model, or None.
         """
+        super(BaseComponent, self).__init__()
         self.name = name
-        if not (isinstance(definition, Definition) or
-                isinstance(definition, Prototype)):
+        if isinstance(definition, basestring):
+            definition = Definition(None, None, url=definition)
+        elif not (isinstance(definition, Definition) or
+                  isinstance(definition, Prototype)):
             raise ValueError("'definition' must be either a 'Definition' or "
                              "'Prototype' element")
         self._definition = definition
@@ -100,7 +103,7 @@ class BaseComponent(BaseULObject):
                              self.properties == other.properties))
 
     def __hash__(self):
-        assert not self.unresolved
+        #assert not self.unresolved
         return (hash(self.__class__) ^ hash(self.name) ^
                 hash(self.component_class) ^ hash(self.properties))
 
@@ -198,8 +201,15 @@ class BaseReference(BaseULObject):
         """
         self.url = url
         if self.url:
-            context = nineml.read(url,
-                                  relative_to=os.path.dirname(context.url))
+            if context is None:
+                context = nineml.read(url)
+            else:
+                context = nineml.read(url,
+                                      relative_to=os.path.dirname(context.url))
+        if name is None:  # allowed in the special case where the file contains only a single componentclass definition
+            cc = [obj for obj in context.values() if issubclass(obj.cls, nineml.abstraction_layer.ComponentClass)]
+            assert len(cc) == 1
+            name = cc[0].name
         self._referred_to = context[name]
 
     def __eq__(self, other):
@@ -221,7 +231,7 @@ class BaseReference(BaseULObject):
     def to_xml(self):
         kwargs = {'url': self.url} if self.url else {}
         element = E(self.element_name,
-                    self.component_name,
+                    #self.component_name,
                     **kwargs)
         return element
 

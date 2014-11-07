@@ -27,7 +27,8 @@ class XMLWriter(ComponentVisitor):
                                                                reducedcomponent
 
         xml = XMLWriter().visit(component)
-        doc = E.NineML(xml, xmlns=nineml_namespace)
+        dimensions_xml = [d.to_xml() for d in component.dimensions if d]
+        doc = E.NineML(xml, *dimensions_xml, xmlns=nineml_namespace)
         etree.ElementTree(doc).write(file, encoding="UTF-8", pretty_print=True,
                                      xml_declaration=True)
 
